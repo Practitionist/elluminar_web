@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { Resend } from "resend";
 
 import { env } from "@/env";
@@ -29,6 +30,10 @@ export async function sendEmail(input: SendEmailInput) {
     html: input.html ?? `<pre>${input.text ?? ""}</pre>`,
     text: input.text,
   });
-  if (error) throw new Error(`Email send failed: ${error.message}`);
+  if (error) {
+    const sendError = new Error(`Email send failed: ${error.message}`);
+    Sentry.captureException(sendError, { tags: { vendor: "resend" } });
+    throw sendError;
+  }
   return data!;
 }

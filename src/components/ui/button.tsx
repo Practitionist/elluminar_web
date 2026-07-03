@@ -44,12 +44,21 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  render,
+  // Base UI's Button defaults `nativeButton` to `true`, which assumes the
+  // rendered element is a real `<button>`. We compose Button with `render`
+  // to produce anchors (e.g. `render={<Link ... />}`) all over the app, so
+  // default `nativeButton` to `false` whenever `render` is passed — callers
+  // can still override it explicitly (e.g. `render={<button />}`).
+  nativeButton = render ? false : true,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   return (
     <ButtonPrimitive
       data-slot="button"
+      render={render}
       className={cn(buttonVariants({ variant, size, className }))}
+      nativeButton={nativeButton}
       {...props}
     />
   )

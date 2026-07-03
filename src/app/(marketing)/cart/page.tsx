@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { getOrCreateActiveCart } from "@/actions/cart";
+import { getActiveCart } from "@/actions/cart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,12 +16,12 @@ export const metadata = { title: "Cart" };
 
 export default async function CartPage() {
   const session = await getSession();
-  const cart = await getOrCreateActiveCart();
-  const pricing = await resolveCartPricing(cart.id, {
-    userId: session?.user.id,
-  });
+  const cart = await getActiveCart();
+  const pricing = cart
+    ? await resolveCartPricing(cart.id, { userId: session?.user.id })
+    : null;
 
-  if (pricing.lines.length === 0) {
+  if (!pricing || pricing.lines.length === 0) {
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-16 text-center">
         <h1 className="text-2xl font-semibold tracking-tight">Your cart is empty</h1>

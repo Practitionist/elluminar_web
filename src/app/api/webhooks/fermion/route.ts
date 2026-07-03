@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 
+import * as Sentry from "@sentry/nextjs";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { env } from "@/env";
@@ -29,6 +30,10 @@ export async function POST(request: NextRequest) {
       signature.length === expected.length &&
       crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
     if (!signatureValid) {
+      Sentry.captureMessage("fermion webhook signature verification failed", {
+        level: "warning",
+        tags: { webhook: "fermion" },
+      });
       return NextResponse.json({ error: "invalid signature" }, { status: 401 });
     }
   }
@@ -87,6 +92,7 @@ export async function POST(request: NextRequest) {
       data: { status: "PROCESSED", processedAt: new Date(), attempts: { increment: 1 } },
     });
   } catch (err) {
+    Sentry.captureException(err, { tags: { webhook: "fermion", eventType } });
     await db.webhookEvent.update({
       where: { id: event.id },
       data: {

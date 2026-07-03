@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { db } from "@/lib/db";
@@ -16,6 +17,10 @@ export async function POST(request: NextRequest) {
   const provider = getPaymentProvider();
   const signatureValid = provider.verifyWebhookSignature(rawBody, signature);
   if (!signatureValid) {
+    Sentry.captureMessage("razorpay webhook signature verification failed", {
+      level: "warning",
+      tags: { webhook: "razorpay" },
+    });
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 
@@ -101,6 +106,7 @@ export async function POST(request: NextRequest) {
       data: { status: "PROCESSED", processedAt: new Date() },
     });
   } catch (err) {
+    Sentry.captureException(err, { tags: { webhook: "razorpay", eventType } });
     await db.webhookEvent.update({
       where: { id: event.id },
       data: {

@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { env } from "@/env";
@@ -17,64 +18,83 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const now = new Date();
-  const results: Record<string, number> = {};
+  try {
+    const results = await Sentry.withMonitor(
+      "daily-maintenance",
+      async () => {
+        const now = new Date();
+        const results: Record<string, number> = {};
 
-  // 1. Lapsed subscriptions past their paid period → expire their enrollments.
-  const lapsed = await db.subscription.findMany({
-    where: {
-      status: { in: ["PAST_DUE", "CANCELLED", "EXPIRED"] },
-      currentPeriodEnd: { lt: now },
-      enrollments: { some: { status: "ACTIVE" } },
-    },
-    select: { id: true },
-  });
-  for (const sub of lapsed) {
-    const updated = await db.enrollment.updateMany({
-      where: { subscriptionId: sub.id, status: "ACTIVE" },
-      data: { status: "EXPIRED", expiresAt: now },
-    });
-    results.enrollmentsExpired = (results.enrollmentsExpired ?? 0) + updated.count;
-  }
+        // 1. Lapsed subscriptions past their paid period → expire their enrollments.
+        const lapsed = await db.subscription.findMany({
+          where: {
+            status: { in: ["PAST_DUE", "CANCELLED", "EXPIRED"] },
+            currentPeriodEnd: { lt: now },
+            enrollments: { some: { status: "ACTIVE" } },
+          },
+          select: { id: true },
+        });
+        for (const sub of lapsed) {
+          const updated = await db.enrollment.updateMany({
+            where: { subscriptionId: sub.id, status: "ACTIVE" },
+            data: { status: "EXPIRED", expiresAt: now },
+          });
+          results.enrollmentsExpired = (results.enrollmentsExpired ?? 0) + updated.count;
+        }
 
-  // 2. Fresh period credits for active subscriptions.
-  const active = await db.subscription.findMany({
-    where: { status: { in: ["ACTIVE", "TRIALING"] } },
-    select: { id: true },
-  });
-  for (const sub of active) {
-    await grantPeriodCredits(sub.id);
-  }
-  results.creditsRefreshed = active.length;
+        // 2. Fresh period credits for active subscriptions.
+        const active = await db.subscription.findMany({
+          where: { status: { in: ["ACTIVE", "TRIALING"] } },
+          select: { id: true },
+        });
+        for (const sub of active) {
+          await grantPeriodCredits(sub.id);
+        }
+        results.creditsRefreshed = active.length;
 
-  // 3. Stale carts + expired pending orders.
-  const staleCarts = await db.cart.updateMany({
-    where: { status: "ACTIVE", updatedAt: { lt: new Date(now.getTime() - 30 * 86400_000) } },
-    data: { status: "ABANDONED" },
-  });
-  results.cartsAbandoned = staleCarts.count;
-  const expiredOrders = await db.order.updateMany({
-    where: { status: "PENDING_PAYMENT", expiresAt: { lt: now } },
-    data: { status: "EXPIRED" },
-  });
-  results.ordersExpired = expiredOrders.count;
+        // 3. Stale carts + expired pending orders.
+        const staleCarts = await db.cart.updateMany({
+          where: {
+            status: "ACTIVE",
+            updatedAt: { lt: new Date(now.getTime() - 30 * 86400_000) },
+          },
+          data: { status: "ABANDONED" },
+        });
+        results.cartsAbandoned = staleCarts.count;
+        const expiredOrders = await db.order.updateMany({
+          where: { status: "PENDING_PAYMENT", expiresAt: { lt: now } },
+          data: { status: "EXPIRED" },
+        });
+        results.ordersExpired = expiredOrders.count;
 
-  // 4. Repeatedly-failing webhooks → notify admins via AuditLog (alerting: issue #11).
-  const failing = await db.webhookEvent.count({
-    where: { status: "FAILED", attempts: { gte: 3 } },
-  });
-  if (failing > 0) {
-    await db.auditLog.create({
-      data: {
-        actorKind: "SYSTEM",
-        action: "cron.webhooks.failing",
-        entityType: "WebhookEvent",
-        entityId: "aggregate",
-        after: { count: failing },
+        // 4. Repeatedly-failing webhooks → notify admins via AuditLog (alerting: issue #11).
+        const failing = await db.webhookEvent.count({
+          where: { status: "FAILED", attempts: { gte: 3 } },
+        });
+        if (failing > 0) {
+          await db.auditLog.create({
+            data: {
+              actorKind: "SYSTEM",
+              action: "cron.webhooks.failing",
+              entityType: "WebhookEvent",
+              entityId: "aggregate",
+              after: { count: failing },
+            },
+          });
+        }
+        results.failingWebhooks = failing;
+
+        return results;
       },
-    });
-  }
-  results.failingWebhooks = failing;
+      {
+        schedule: { type: "crontab", value: "0 0 * * *" },
+        timezone: "Etc/UTC",
+      },
+    );
 
-  return NextResponse.json({ ok: true, results });
+    return NextResponse.json({ ok: true, results });
+  } catch (err) {
+    Sentry.captureException(err, { tags: { cron: "daily-maintenance" } });
+    return NextResponse.json({ error: "maintenance failed" }, { status: 500 });
+  }
 }

@@ -1,5 +1,7 @@
 import "server-only";
 
+import * as Sentry from "@sentry/nextjs";
+
 import { db } from "@/lib/db";
 import { writeLedgerEntry } from "@/lib/commerce/fulfillment";
 
@@ -61,6 +63,10 @@ export async function handleRazorpaySubscriptionEvent(
       where: { id: sub.id },
       data: { status: "ACTIVE", ...period },
     });
+    Sentry.logger.info("subscription status change", {
+      subscriptionId: sub.id,
+      status: "ACTIVE",
+    });
     if (paymentEntity?.id) {
       await db.$transaction(async (tx) => {
         const existing = await tx.payment.findFirst({
@@ -100,6 +106,10 @@ export async function handleRazorpaySubscriptionEvent(
       where: { id: sub.id },
       data: { status: "ACTIVE", ...period },
     });
+    Sentry.logger.info("subscription status change", {
+      subscriptionId: sub.id,
+      status: "ACTIVE",
+    });
     await grantPeriodCredits(sub.id);
     return;
   }
@@ -115,6 +125,7 @@ export async function handleRazorpaySubscriptionEvent(
       pausedAt: mapped === "PAUSED" ? new Date() : undefined,
     },
   });
+  Sentry.logger.info("subscription status change", { subscriptionId: sub.id, status: mapped });
 
   if (mapped === "CANCELLED" || mapped === "EXPIRED" || mapped === "PAST_DUE") {
     // PAST_DUE keeps access until period end; hard lapse expires it.
@@ -138,7 +149,7 @@ export async function handleRazorpaySubscriptionEvent(
             : "Library access from your membership is paused. Your purchases are untouched.",
         actionUrl: "/billing",
       },
-    }).catch(() => undefined);
+    }).catch((err) => Sentry.captureException(err));
   }
 }
 

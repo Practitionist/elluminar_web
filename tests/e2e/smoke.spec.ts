@@ -52,3 +52,8 @@ test("certificate verification handles unknown codes", async ({ page }) => {
   await page.goto("/verify/XXXX-XXXX-XXXX");
   await expect(page.getByText(/no credential matches/i)).toBeVisible();
 });
+
+test("cart renders empty state for anonymous visitors", async ({ page }) => {
+  await page.goto("/cart");
+  await expect(page.getByText(/your cart is empty/i)).toBeVisible();
+});

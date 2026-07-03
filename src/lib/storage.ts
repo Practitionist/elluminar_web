@@ -1,5 +1,6 @@
 import "server-only";
 
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@supabase/supabase-js";
 
 import { env } from "@/env";
@@ -61,7 +62,10 @@ export async function createMediaUpload(input: {
   const { data, error } = await storageClient()
     .storage.from(input.bucket)
     .createSignedUploadUrl(path);
-  if (error) throw new Error(`Storage presign failed: ${error.message}`);
+  if (error) {
+    Sentry.captureException(error, { tags: { vendor: "supabase-storage" } });
+    throw new Error(`Storage presign failed: ${error.message}`);
+  }
 
   await db.mediaAsset.update({ where: { id: asset.id }, data: { path } });
   return { assetId: asset.id, path, uploadUrl: data.signedUrl, token: data.token };
@@ -86,7 +90,10 @@ export async function getSignedReadUrl(assetId: string, expiresInSeconds = 60 * 
   const { data, error } = await storageClient()
     .storage.from(asset.bucket)
     .createSignedUrl(asset.path, expiresInSeconds);
-  if (error) throw new Error(`Signed URL failed: ${error.message}`);
+  if (error) {
+    Sentry.captureException(error, { tags: { vendor: "supabase-storage" } });
+    throw new Error(`Signed URL failed: ${error.message}`);
+  }
   return data.signedUrl;
 }
 
@@ -115,7 +122,10 @@ export async function uploadBufferAsAsset(input: {
   const { error } = await storageClient()
     .storage.from(input.bucket)
     .upload(path, input.buffer, { contentType: input.mime, upsert: true });
-  if (error) throw new Error(`Storage upload failed: ${error.message}`);
+  if (error) {
+    Sentry.captureException(error, { tags: { vendor: "supabase-storage" } });
+    throw new Error(`Storage upload failed: ${error.message}`);
+  }
 
   return db.mediaAsset.update({
     where: { id: asset.id },
