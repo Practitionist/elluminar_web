@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "src/generated/**",
     ".netlify/**",
+    // Reference snapshots for the design brief — not part of this app.
+    "prompts/**",
   ]),
 ]);
 
