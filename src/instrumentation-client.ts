@@ -16,7 +16,11 @@ Sentry.init({
     "https://70be6d71cfc83110b1cc4864dff0eb6b@o4509348815372289.ingest.us.sentry.io/4511669953757184",
 
   // Add optional integrations for additional features
-  integrations: [Sentry.replayIntegration()],
+  integrations: [
+    Sentry.replayIntegration(),
+    // Surface console.error calls (e.g. React/Base UI warnings) as Sentry events.
+    Sentry.captureConsoleIntegration({ levels: ["error"] }),
+  ],
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate,
