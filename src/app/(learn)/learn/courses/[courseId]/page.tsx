@@ -1,0 +1,329 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { requireUser } from "@/lib/auth/session";
+import { resolveCourseAccess } from "@/lib/commerce/entitlements";
+import { db } from "@/lib/db";
+import { getVideoPlayback } from "@/lib/fermion/video";
+import { isLessonUnlocked } from "@/lib/learning/lesson-access";
+import { tiptapToPlainText } from "@/lib/richtext";
+import { getSignedReadUrl, isStorageConfigured } from "@/lib/storage";
+
+import { AssignmentPanel } from "./assignment-panel";
+import { MarkCompleteButton } from "./mark-complete-button";
+import { VideoLessonPlayer } from "./video-lesson-player";
+
+export const metadata = { title: "Course player" };
+
+export default async function CoursePlayerPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ courseId: string }>;
+  searchParams: Promise<{ lesson?: string }>;
+}) {
+  const { courseId } = await params;
+  const { lesson: lessonParam } = await searchParams;
+  const session = await requireUser(`/learn/courses/${courseId}`);
+
+  const { access, enrollment } = await resolveCourseAccess(session.user.id, courseId);
+  const course = await db.course.findUnique({
+    where: { id: courseId },
+    include: {
+      tenant: { select: { slug: true, displayName: true } },
+      sections: {
+        orderBy: { position: "asc" },
+        include: { lessons: { orderBy: { position: "asc" } } },
+      },
+    },
+  });
+  if (!course) notFound();
+  if (!access || !enrollment) {
+    redirect(`/courses/${course.tenant.slug}/${course.slug}`);
+  }
+
+  const progress = await db.lessonProgress.findMany({
+    where: { enrollmentId: enrollment.id },
+  });
+  const progressByLesson = new Map(progress.map((p) => [p.lessonId, p]));
+
+  const allLessons = course.sections.flatMap((s) => s.lessons);
+  const activeLesson =
+    allLessons.find((l) => l.id === lessonParam) ??
+    allLessons.find((l) => progressByLesson.get(l.id)?.status !== "COMPLETED") ??
+    allLessons[0];
+  if (!activeLesson) {
+    return (
+      <div className="py-16 text-center text-muted-foreground">
+        This course has no lessons yet.
+      </div>
+    );
+  }
+
+  const { unlocked, unlocksAt } = isLessonUnlocked(activeLesson, enrollment);
+  const activeProgress = progressByLesson.get(activeLesson.id);
+  const isCompleted = activeProgress?.status === "COMPLETED";
+
+  // Type-specific data
+  let playback: Awaited<ReturnType<typeof getVideoPlayback>> | null = null;
+  if (unlocked && activeLesson.type === "VIDEO" && activeLesson.videoAssetId) {
+    playback = await getVideoPlayback(activeLesson.videoAssetId).catch(() => null);
+  }
+  const assignment =
+    unlocked && activeLesson.type === "ASSIGNMENT"
+      ? await db.assignment.findUnique({
+          where: { lessonId: activeLesson.id },
+          include: {
+            submissions: {
+              where: { userId: session.user.id },
+              orderBy: { attemptNo: "desc" },
+            },
+          },
+        })
+      : null;
+  const quiz =
+    unlocked && activeLesson.type === "QUIZ"
+      ? await db.quiz.findUnique({
+          where: { lessonId: activeLesson.id },
+          include: {
+            attempts: {
+              where: { userId: session.user.id },
+              orderBy: { attemptNo: "desc" },
+            },
+            _count: { select: { questions: true } },
+          },
+        })
+      : null;
+  const resources =
+    unlocked && activeLesson.type === "RESOURCE"
+      ? await db.lessonResource.findMany({
+          where: { lessonId: activeLesson.id },
+          include: { mediaAsset: true },
+        })
+      : [];
+  const resourceLinks = isStorageConfigured()
+    ? await Promise.all(
+        resources.map(async (r) => ({
+          id: r.id,
+          title: r.title ?? r.mediaAsset.filename,
+          url: await getSignedReadUrl(r.mediaAssetId).catch(() => null),
+        })),
+      )
+    : resources.map((r) => ({ id: r.id, title: r.title ?? r.mediaAsset.filename, url: null }));
+
+  const embedUrl = (activeLesson.content as { embedUrl?: string } | null)?.embedUrl;
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
+      <aside className="lg:border-r lg:pr-4">
+        <Link
+          href={`/courses/${course.tenant.slug}/${course.slug}`}
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          ← {course.title}
+        </Link>
+        <div className="mt-2 flex items-center gap-2">
+          <Progress value={enrollment.progressPct} className="h-2" />
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {Math.round(enrollment.progressPct)}%
+          </span>
+        </div>
+        <div className="mt-3 flex gap-2 text-xs">
+          <Link
+            href={`/learn/courses/${courseId}/discussions`}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            Discussions →
+          </Link>
+        </div>
+        <nav className="mt-4 space-y-4">
+          {course.sections.map((section) => (
+            <div key={section.id}>
+              <p className="text-xs font-semibold uppercase text-muted-foreground">
+                {section.title}
+              </p>
+              <div className="mt-1 space-y-0.5">
+                {section.lessons.map((lesson) => {
+                  const p = progressByLesson.get(lesson.id);
+                  const { unlocked: lessonUnlocked } = isLessonUnlocked(lesson, enrollment);
+                  const isActive = lesson.id === activeLesson.id;
+                  return (
+                    <Link
+                      key={lesson.id}
+                      href={`/learn/courses/${courseId}?lesson=${lesson.id}`}
+                      className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${
+                        isActive
+                          ? "bg-muted font-medium"
+                          : "text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <span className="w-4 text-center text-xs">
+                        {p?.status === "COMPLETED" ? "✓" : lessonUnlocked ? "○" : "🔒"}
+                      </span>
+                      <span className="line-clamp-1">{lesson.title}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+      </aside>
+
+      <div className="min-w-0 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <Badge variant="outline">{activeLesson.type.toLowerCase().replace("_", " ")}</Badge>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+              {activeLesson.title}
+            </h1>
+          </div>
+          {unlocked && activeLesson.type !== "QUIZ" && activeLesson.type !== "ASSIGNMENT" && (
+            <MarkCompleteButton
+              courseId={courseId}
+              lessonId={activeLesson.id}
+              completed={isCompleted}
+            />
+          )}
+        </div>
+
+        {!unlocked ? (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              This lesson unlocks
+              {unlocksAt
+                ? ` on ${unlocksAt.toLocaleDateString("en-IN", { dateStyle: "medium" })}`
+                : " later"}
+              .
+            </CardContent>
+          </Card>
+        ) : activeLesson.type === "VIDEO" ? (
+          <VideoLessonPlayer
+            courseId={courseId}
+            lessonId={activeLesson.id}
+            playback={
+              playback?.kind === "external"
+                ? { kind: "external", url: playback.url }
+                : playback?.kind === "fermion"
+                  ? { kind: "fermion", data: playback.data as Record<string, unknown> }
+                  : { kind: "pending" }
+            }
+            resumeAt={activeProgress?.lastPositionSec ?? 0}
+          />
+        ) : activeLesson.type === "ARTICLE" ? (
+          <Card>
+            <CardContent className="prose prose-sm max-w-none whitespace-pre-line pt-6 dark:prose-invert">
+              {tiptapToPlainText(activeLesson.content) || "No content yet."}
+            </CardContent>
+          </Card>
+        ) : activeLesson.type === "QUIZ" && quiz ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{quiz.title}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p className="text-muted-foreground">
+                {quiz.drawCount ?? quiz._count.questions} questions · pass at {quiz.passPct}%
+                {quiz.timeLimitSec ? ` · ${Math.round(quiz.timeLimitSec / 60)} min limit` : ""}
+                {quiz.maxAttempts ? ` · ${quiz.maxAttempts} attempts` : ""}
+              </p>
+              {quiz.attempts.length > 0 && (
+                <div className="space-y-1">
+                  {quiz.attempts.slice(0, 3).map((a) => (
+                    <p key={a.id} className="text-xs text-muted-foreground">
+                      Attempt {a.attemptNo}:{" "}
+                      {a.submittedAt
+                        ? `${a.scorePoints}/${a.maxPoints} — ${a.passed ? "passed ✓" : "not passed"}`
+                        : "in progress"}
+                    </p>
+                  ))}
+                </div>
+              )}
+              <Button
+                render={<Link href={`/learn/courses/${courseId}/quiz/${activeLesson.id}`} />}
+              >
+                {quiz.attempts.some((a) => !a.submittedAt)
+                  ? "Resume attempt"
+                  : quiz.attempts.length > 0
+                    ? "Try again"
+                    : "Start quiz"}
+              </Button>
+            </CardContent>
+          </Card>
+        ) : activeLesson.type === "ASSIGNMENT" && assignment ? (
+          <AssignmentPanel
+            courseId={courseId}
+            lessonId={activeLesson.id}
+            assignment={{
+              title: assignment.title,
+              instructions: tiptapToPlainText(assignment.instructions),
+              maxPoints: assignment.maxPoints,
+              submissionKinds: assignment.submissionKinds,
+              allowResubmission: assignment.allowResubmission,
+            }}
+            submissions={assignment.submissions.map((s) => ({
+              id: s.id,
+              attemptNo: s.attemptNo,
+              status: s.status,
+              scorePoints: s.scorePoints,
+              maxPoints: assignment.maxPoints,
+              feedback: (s.feedback as { text?: string } | null)?.text ?? null,
+              submittedAt: s.submittedAt?.toISOString() ?? null,
+            }))}
+          />
+        ) : activeLesson.type === "CODE_LAB" ? (
+          <Card>
+            <CardContent className="space-y-3 py-10 text-center">
+              <p className="text-muted-foreground">
+                Interactive code lab
+                {(activeLesson.labConfig as { labRef?: string } | null)?.labRef
+                  ? ` (${(activeLesson.labConfig as { labRef?: string }).labRef})`
+                  : ""}{" "}
+                — launches embedded once Fermion is configured.
+              </p>
+            </CardContent>
+          </Card>
+        ) : activeLesson.type === "RESOURCE" ? (
+          <Card>
+            <CardContent className="space-y-2 pt-6">
+              {resourceLinks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No files attached.</p>
+              ) : (
+                resourceLinks.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between text-sm">
+                    <span>{r.title}</span>
+                    {r.url ? (
+                      <Button
+                        render={<a href={r.url} target="_blank" rel="noreferrer" />}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Download
+                      </Button>
+                    ) : (
+                      <Badge variant="outline">storage not configured</Badge>
+                    )}
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        ) : activeLesson.type === "EMBED" && embedUrl ? (
+          <div className="aspect-video w-full overflow-hidden rounded-lg border">
+            <iframe src={embedUrl} className="h-full w-full" allowFullScreen />
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              Nothing to show for this lesson yet.
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
