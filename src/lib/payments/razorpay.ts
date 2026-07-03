@@ -86,3 +86,66 @@ export const razorpayProvider: PaymentProvider = {
     return safeEqual(expected, signature);
   },
 };
+
+// ── Razorpay Subscriptions (recurring mandates) ─────────────────────
+// Provider-specific by nature; Dodo's equivalent slots in behind the same
+// call sites when issue #1 lands.
+
+export async function ensureRazorpayPlan(input: {
+  name: string;
+  amountMinor: bigint;
+  currency: string;
+  interval: "MONTHLY" | "ANNUAL";
+}): Promise<string> {
+  const plan = await razorpay().plans.create({
+    period: input.interval === "MONTHLY" ? "monthly" : "yearly",
+    interval: 1,
+    item: {
+      name: input.name,
+      amount: Number(input.amountMinor),
+      currency: input.currency,
+    },
+  });
+  return plan.id;
+}
+
+export async function createRazorpaySubscription(input: {
+  razorpayPlanId: string;
+  interval: "MONTHLY" | "ANNUAL";
+  notes?: Record<string, string>;
+}): Promise<{ providerSubRef: string; clientPayload: Record<string, unknown> }> {
+  const subscription = await razorpay().subscriptions.create({
+    plan_id: input.razorpayPlanId,
+    total_count: input.interval === "MONTHLY" ? 120 : 10, // 10 years of cycles
+    customer_notify: 1,
+    notes: input.notes,
+  });
+  return {
+    providerSubRef: subscription.id,
+    clientPayload: {
+      provider: "RAZORPAY",
+      keyId: env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? env.RAZORPAY_KEY_ID,
+      razorpaySubscriptionId: subscription.id,
+    },
+  };
+}
+
+export async function cancelRazorpaySubscription(
+  providerSubRef: string,
+  cancelAtCycleEnd: boolean,
+) {
+  await razorpay().subscriptions.cancel(providerSubRef, cancelAtCycleEnd);
+}
+
+export function verifyRazorpaySubscriptionSignature(params: {
+  providerPaymentRef: string;
+  providerSubRef: string;
+  signature: string;
+}): boolean {
+  if (!env.RAZORPAY_KEY_SECRET) return false;
+  const expected = hmacSha256(
+    env.RAZORPAY_KEY_SECRET,
+    `${params.providerPaymentRef}|${params.providerSubRef}`,
+  );
+  return safeEqual(expected, params.signature);
+}
