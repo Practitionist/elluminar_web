@@ -1,0 +1,3261 @@
+// ══════ prisma/models/ai.prisma ══════
+/// Metered AI wallet (teardown "steal": daily allowance + paid top-ups).
+model AiWallet {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id])
+  balanceCredits       BigInt    @default(0)
+  dailyAllowance       Int       @default(0)
+  allowanceRefreshedAt DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+/// Sellable AI credit top-up SKU (priced/carted/ordered via AI_CREDIT_PACK itemType).
+model AiCreditPack {
+  id        String   @id @default(cuid())
+  name      String
+  credits   BigInt
+  active    Boolean  @default(true)
+  sort      Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prices     Price[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+}
+
+/// Per-call AI usage metering (cost visibility + wallet deduction).
+model AiUsageEvent {
+  id            String    @id @default(cuid())
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id])
+  feature       AiFeature
+  model         String
+  inputTokens   Int       @default(0)
+  outputTokens  Int       @default(0)
+  credits       Int       @default(0)
+  costMicrosUsd BigInt?
+  contextType   String?
+  contextId     String?
+  tenantId      String? // soft ref → Tenant.id (analytics only)
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([feature, createdAt])
+}
+
+/// AI teaching-assistant conversations (V1 surface; tables now).
+model AiConversation {
+  id                String               @id @default(cuid())
+  userId            String
+  user              User                 @relation(fields: [userId], references: [id])
+  courseId          String?
+  course            Course?              @relation(fields: [courseId], references: [id])
+  lessonId          String?
+  lesson            Lesson?              @relation(fields: [lessonId], references: [id])
+  projectInstanceId String?
+  projectInstance   ProjectInstance?     @relation(fields: [projectInstanceId], references: [id])
+  title             String?
+  status            AiConversationStatus @default(ACTIVE)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  messages AiMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model AiMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           AiRole
+  content        Json
+  tokens         Int?
+  createdAt      DateTime       @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+// ══════ prisma/models/assessment.prisma ══════
+/// Quiz attached to a lesson, or standalone (lessonId null) for future
+/// certification-bearing exams (PRD §7.2C) — no restructure needed later.
+model Quiz {
+  id               String          @id @default(cuid())
+  lessonId         String?         @unique
+  lesson           Lesson?         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  title            String
+  instructions     String?
+  timeLimitSec     Int?
+  maxAttempts      Int?
+  passPct          Int             @default(60)
+  drawCount        Int? // random draw N from the question bank
+  shuffleQuestions Boolean         @default(true)
+  shuffleOptions   Boolean         @default(true)
+  showAnswers      QuizShowAnswers @default(AFTER_ATTEMPT)
+  proctored        Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+}
+
+model QuizQuestion {
+  id          String       @id @default(cuid())
+  quizId      String
+  quiz        Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type        QuestionType
+  prompt      Json
+  options     Json?
+  correct     Json
+  points      Int          @default(1)
+  explanation String?
+  poolTag     String? // question-bank grouping for randomized draws
+  position    Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([quizId, position])
+}
+
+model QuizAttempt {
+  id           String        @id @default(cuid())
+  quizId       String
+  quiz         Quiz          @relation(fields: [quizId], references: [id])
+  userId       String
+  user         User          @relation(fields: [userId], references: [id])
+  enrollmentId String?
+  enrollment   Enrollment?   @relation(fields: [enrollmentId], references: [id])
+  attemptNo    Int
+  seed         Int // reproducible randomization
+  startedAt    DateTime      @default(now())
+  dueAt        DateTime?
+  submittedAt  DateTime?
+  answers      Json?
+  scorePoints  Int?
+  maxPoints    Int
+  passed       Boolean?
+  gradedAt     DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  proctorRecord ProctorRecord?
+
+  @@unique([quizId, userId, attemptNo])
+  @@index([userId])
+}
+
+model Assignment {
+  id                String      @id @default(cuid())
+  lessonId          String      @unique
+  lesson            Lesson      @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  title             String
+  instructions      Json
+  gradingType       GradingType @default(MANUAL)
+  maxPoints         Int         @default(100)
+  rubricId          String?
+  rubric            Rubric?     @relation(fields: [rubricId], references: [id])
+  dueOffsetDays     Int?
+  allowLate         Boolean     @default(true)
+  allowResubmission Boolean     @default(true)
+  submissionKinds   String[]    @default(["TEXT"]) // TEXT | FILE | REPO_URL | URL
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  submissions AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id           String           @id @default(cuid())
+  assignmentId String
+  assignment   Assignment       @relation(fields: [assignmentId], references: [id])
+  userId       String
+  user         User             @relation(fields: [userId], references: [id])
+  enrollmentId String
+  enrollment   Enrollment       @relation(fields: [enrollmentId], references: [id])
+  attemptNo    Int              @default(1)
+  text         String?
+  repoUrl      String?
+  url          String?
+  status       SubmissionStatus @default(DRAFT)
+  submittedAt  DateTime?
+  late         Boolean          @default(false)
+  scorePoints  Int?
+  feedback     Json?
+  gradedById   String? // soft ref → User.id
+  gradedAt     DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  files           SubmissionFile[]
+  peerReviewTasks PeerReviewTask[]
+
+  @@unique([assignmentId, userId, attemptNo])
+  @@index([assignmentId, status])
+  @@index([userId])
+}
+
+/// File attached to an assignment submission OR a project milestone submission
+/// (exactly one — CHECK in SQL).
+model SubmissionFile {
+  id                     String               @id @default(cuid())
+  assignmentSubmissionId String?
+  assignmentSubmission   AssignmentSubmission? @relation(fields: [assignmentSubmissionId], references: [id], onDelete: Cascade)
+  milestoneSubmissionId  String?
+  milestoneSubmission    MilestoneSubmission? @relation(fields: [milestoneSubmissionId], references: [id], onDelete: Cascade)
+  mediaAssetId           String
+  mediaAsset             MediaAsset           @relation(fields: [mediaAssetId], references: [id])
+  createdAt              DateTime             @default(now())
+
+  @@index([assignmentSubmissionId])
+  @@index([milestoneSubmissionId])
+}
+
+model PeerReviewTask {
+  id             String           @id @default(cuid())
+  submissionId   String
+  submission     AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewerUserId String
+  reviewer       User             @relation(fields: [reviewerUserId], references: [id])
+  status         PeerReviewStatus @default(ASSIGNED)
+  dueAt          DateTime
+  scorePoints    Int?
+  feedback       Json?
+  submittedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([reviewerUserId, status])
+}
+
+/// Fermion usage metering + audit for code labs, DSA runs, and sandbox VMs.
+model SandboxSession {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id])
+  lessonId          String?
+  lesson            Lesson?         @relation(fields: [lessonId], references: [id])
+  projectInstanceId String?
+  projectInstance   ProjectInstance? @relation(fields: [projectInstanceId], references: [id])
+  kind              SandboxKind
+  provider          SandboxProvider @default(FERMION)
+  providerRef       String
+  startedAt         DateTime        @default(now())
+  endedAt           DateTime?
+  durationSec       Int?
+  metadata          Json?
+  createdAt         DateTime        @default(now())
+
+  @@index([userId, startedAt])
+  @@index([lessonId])
+}
+
+/// Browser-locked / proctored assessment record (post-MVP surface; table now).
+model ProctorRecord {
+  id            String         @id @default(cuid())
+  quizAttemptId String         @unique
+  quizAttempt   QuizAttempt    @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
+  config        Json
+  events        Json?
+  verdict       ProctorVerdict @default(PENDING)
+  reviewedById  String? // soft ref → User.id
+  reviewedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+// ══════ prisma/models/auth.prisma ══════
+// BetterAuth-managed tables (core + admin + twoFactor + organization/teams/
+// dynamic-access-control + sso plugins), extended with domain fields and
+// back-relations. Shapes reconciled against `npx @better-auth/cli generate`.
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // admin plugin
+  role       String?   @default("user")
+  banned     Boolean?  @default(false)
+  banReason  String?
+  banExpires DateTime?
+
+  // twoFactor plugin
+  twoFactorEnabled Boolean? @default(false)
+
+  // domain fields
+  phone          String?
+  timezone       String    @default("Asia/Kolkata")
+  locale         String    @default("en")
+  marketingOptIn Boolean   @default(false)
+  onboardedAt    DateTime?
+  anonymizedAt   DateTime? // DPDP/GDPR erasure = PII overwritten in place
+
+  // auth relations
+  sessions        Session[]
+  accounts        Account[]
+  twoFactors      TwoFactor[]
+  members         Member[]
+  invitationsSent Invitation[]
+  teamMembers     TeamMember[]
+  ssoProviders    SsoProvider[]
+
+  // platform relations
+  providerIdentities     UserProviderIdentity[]
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
+  deviceTokens           DeviceToken[]
+
+  // learning relations
+  enrollments        Enrollment[]
+  liveSessionsHosted LiveSession[]    @relation("LiveSessionHost")
+  liveAttendances    LiveAttendance[]
+  quizAttempts       QuizAttempt[]
+  assignmentSubmissions AssignmentSubmission[]
+  peerReviewTasks    PeerReviewTask[]
+  sandboxSessions    SandboxSession[]
+
+  // project & mentorship relations
+  projectInstances      ProjectInstance[]
+  projectCollaborations ProjectInstanceCollaborator[]
+  mentorProfile         MentorProfile?
+  mentorBookings        MentorBooking[]
+
+  // commerce relations
+  carts                   Cart[]
+  orders                  Order[]
+  couponRedemptions       CouponRedemption[]
+  giftedOrderItemsClaimed OrderItem[]        @relation("OrderItemGiftClaimedBy")
+  subscriptions           Subscription[]
+  ledgerAccounts          LedgerAccount[]
+
+  // enterprise relations
+  licenseSeats        LicenseSeat[]
+  programEnrollments  ProgramEnrollment[]
+  licenseConsumptions LicenseConsumption[]
+
+  // career relations
+  credentials             Credential[]
+  portfolioProfile        PortfolioProfile?
+  endorsements            MentorEndorsement[]
+  talentBookmarksReceived TalentBookmark[]
+
+  // community relations
+  catalogReviews    CatalogReview[]
+  discussionThreads DiscussionThread[]
+  discussionPosts   DiscussionPost[]
+  postVotes         PostVote[]
+  podMemberships    PodMember[]
+  xpEvents          XpEvent[]
+  streak            UserStreak?
+  badges            UserBadge[]
+
+  // growth & AI relations
+  referralCodes   ReferralCode[]
+  referral        Referral?
+  aiWallet        AiWallet?
+  aiUsageEvents   AiUsageEvent[]
+  aiConversations AiConversation[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // admin plugin
+  impersonatedBy String?
+
+  // organization plugin
+  activeOrganizationId String?
+  activeTeamId         String?
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model TwoFactor {
+  id                      String    @id @default(cuid())
+  secret                  String
+  backupCodes             String
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified                Boolean?  @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+
+  @@index([secret])
+  @@index([userId])
+  @@map("twoFactor")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  members           Member[]
+  invitations       Invitation[]
+  teams             Team[]
+  organizationRoles OrganizationRole[]
+  ssoProviders      SsoProvider[]
+  tenant            Tenant?
+
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member")
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String?
+  status         String       @default("pending")
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  inviterId      String
+  inviter        User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  teamId         String?
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("invitation")
+}
+
+model Team {
+  id             String       @id @default(cuid())
+  name           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime?    @updatedAt
+
+  teamMembers TeamMember[]
+
+  @@index([organizationId])
+  @@map("team")
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([userId])
+  @@map("teamMember")
+}
+
+/// Dynamic access control: per-organization custom roles.
+model OrganizationRole {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           String
+  permission     String // JSON-stringified permission statements
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime?    @updatedAt
+
+  @@unique([organizationId, role])
+  @@map("organizationRole")
+}
+
+/// Enterprise SSO: OIDC/SAML provider registered per organization/domain.
+model SsoProvider {
+  id             String        @id @default(cuid())
+  issuer         String
+  domain         String
+  oidcConfig     String?
+  samlConfig     String?
+  userId         String?
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerId     String        @unique
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  domainVerified Boolean       @default(false)
+
+  @@index([domain])
+  @@map("ssoProvider")
+}
+
+// ══════ prisma/models/career.prisma ══════
+model CertificateTemplate {
+  id        String                  @id @default(cuid())
+  tenantId  String?
+  tenant    Tenant?                 @relation(fields: [tenantId], references: [id])
+  name      String
+  kind      CertificateTemplateKind @default(GENERIC)
+  design    Json
+  coBrand   Json? // partner logos / signatures for enterprise co-branding
+  active    Boolean                 @default(true)
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  credentials Credential[]
+  courses     Course[]
+  projects    Project[]
+  programs    Program[]
+}
+
+/// Verifiable credential with a public /verify/[code] page (MVP).
+/// Exactly one of courseId / projectInstanceId / programEnrollmentId (CHECK in SQL).
+model Credential {
+  id                  String              @id @default(cuid())
+  publicId            String              @unique @default(cuid())
+  verificationCode    String              @unique
+  userId              String
+  user                User                @relation(fields: [userId], references: [id])
+  kind                CredentialKind
+  courseId            String?
+  course              Course?             @relation(fields: [courseId], references: [id])
+  projectInstanceId   String?
+  projectInstance     ProjectInstance?    @relation(fields: [projectInstanceId], references: [id])
+  programEnrollmentId String?
+  programEnrollment   ProgramEnrollment?  @relation(fields: [programEnrollmentId], references: [id])
+  templateId          String?
+  template            CertificateTemplate? @relation(fields: [templateId], references: [id])
+  title               String
+  description         String?
+  grade               String?
+  issuedAt            DateTime            @default(now())
+  expiresAt           DateTime?
+  revokedAt           DateTime?
+  revokeReason        String?
+  pdfAssetId          String?
+  pdfAsset            MediaAsset?         @relation(fields: [pdfAssetId], references: [id])
+  metadata            Json?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([userId, kind])
+}
+
+/// Public proof-of-work profile, auto-populated from passed ProjectInstances.
+model PortfolioProfile {
+  id                String              @id @default(cuid())
+  userId            String              @unique
+  user              User                @relation(fields: [userId], references: [id])
+  slug              String              @unique
+  headline          String?
+  about             Json?
+  visibility        PortfolioVisibility @default(PRIVATE)
+  talentOptIn       Boolean             @default(false) // hiring-partner search consent
+  talentPreferences Json?
+  links             Json?
+  featured          Json?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+model MentorEndorsement {
+  id                String          @id @default(cuid())
+  projectInstanceId String
+  projectInstance   ProjectInstance @relation(fields: [projectInstanceId], references: [id])
+  mentorProfileId   String
+  mentorProfile     MentorProfile   @relation(fields: [mentorProfileId], references: [id])
+  userId            String // endorsed learner
+  user              User            @relation(fields: [userId], references: [id])
+  text              String
+  skills            String[]        @default([])
+  visible           Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([projectInstanceId, mentorProfileId])
+  @@index([userId])
+}
+
+/// Hiring-partner candidate pipeline (post-MVP surface; table now).
+model TalentBookmark {
+  id              String   @id @default(cuid())
+  hiringTenantId  String
+  hiringTenant    Tenant   @relation(fields: [hiringTenantId], references: [id])
+  candidateUserId String
+  candidate       User     @relation(fields: [candidateUserId], references: [id])
+  note            String?
+  createdById     String? // soft ref → User.id
+  createdAt       DateTime @default(now())
+
+  @@unique([hiringTenantId, candidateUserId])
+}
+
+// ══════ prisma/models/catalog.prisma ══════
+model Category {
+  id       String     @id @default(cuid())
+  slug     String     @unique
+  name     String
+  parentId String?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  icon     String?
+  sort     Int        @default(0)
+
+  courses  Course[]
+  projects Project[]
+}
+
+/// One course entity with a delivery-mode toggle (self-paced / live) — PRD §6.1.
+/// Code features (CODE_LAB lessons) are optional per lesson: the platform is
+/// content-agnostic even though launch targeting is technical-first.
+model Course {
+  id                    String            @id @default(cuid())
+  tenantId              String
+  tenant                Tenant            @relation(fields: [tenantId], references: [id])
+  createdById           String? // soft ref → User.id
+  kind                  CourseKind        @default(COURSE)
+  title                 String
+  slug                  String
+  subtitle              String?
+  description           Json?
+  outcomes              String[]          @default([])
+  prerequisites         String[]          @default([])
+  language              String            @default("en")
+  level                 CourseLevel       @default(BEGINNER)
+  categoryId            String?
+  category              Category?         @relation(fields: [categoryId], references: [id])
+  tags                  String[]          @default([])
+  thumbnailAssetId      String? // soft ref → MediaAsset.id
+  trailerVideoAssetId   String? // soft ref → VideoAsset.id
+  status                PublishStatus     @default(DRAFT)
+  visibility            CatalogVisibility @default(MARKETPLACE)
+  selfPacedEnabled      Boolean           @default(true)
+  liveEnabled           Boolean           @default(false)
+  estimatedHours        Float?
+  certificateEnabled    Boolean           @default(true)
+  certificateTemplateId String?
+  certificateTemplate   CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
+  refundWindowDays      Int               @default(14)
+  publishedAt           DateTime?
+  seo                   Json?
+  ratingAvg             Float?
+  ratingCount           Int               @default(0)
+  enrollmentCount       Int               @default(0)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  sections          CourseSection[]
+  lessons           Lesson[]
+  cohorts           Cohort[]
+  enrollments       Enrollment[]
+  reviews           CatalogReview[]
+  prices            Price[]
+  cartItems         CartItem[]
+  orderItems        OrderItem[]
+  bundleItems       BundleItem[]
+  programItems      ProgramItem[]
+  credentials       Credential[]
+  discussionThreads DiscussionThread[]
+  announcements     Announcement[]
+  liveSessions        LiveSession[]
+  pods                Pod[]
+  aiConversations     AiConversation[]
+  licenseConsumptions LicenseConsumption[]
+
+  @@unique([tenantId, slug])
+  @@index([status, visibility])
+  @@index([categoryId])
+}
+
+model CourseSection {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  position    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lessons Lesson[]
+
+  @@index([courseId, position])
+}
+
+model Lesson {
+  id               String      @id @default(cuid())
+  sectionId        String
+  section          CourseSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  courseId         String // denormalized for direct course-level queries
+  course           Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  type             LessonType
+  title            String
+  position         Int
+  isFreePreview    Boolean     @default(false)
+  releaseAfterDays Int? // drip: days after enrollment
+  releaseAt        DateTime? // drip: absolute date
+  durationSec      Int?
+  content          Json? // article body / embed config
+  videoAssetId     String?
+  videoAsset       VideoAsset? @relation(fields: [videoAssetId], references: [id])
+  labConfig        Json? // Fermion lab / DSA problem refs (CODE_LAB lessons)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  resources         LessonResource[]
+  progress          LessonProgress[]
+  quiz              Quiz?
+  assignment        Assignment?
+  sandboxSessions   SandboxSession[]
+  discussionThreads DiscussionThread[]
+  aiConversations   AiConversation[]
+  recordingSources  LiveSession[]      @relation("RecordingLesson")
+
+  @@index([courseId, position])
+  @@index([sectionId, position])
+}
+
+model LessonResource {
+  id           String     @id @default(cuid())
+  lessonId     String
+  lesson       Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  mediaAssetId String
+  mediaAsset   MediaAsset @relation(fields: [mediaAssetId], references: [id])
+  title        String?
+  createdAt    DateTime   @default(now())
+
+  @@index([lessonId])
+}
+
+/// A scheduled live run of a course (premium price, real-time delivery).
+model Cohort {
+  id                 String       @id @default(cuid())
+  courseId           String
+  course             Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  name               String
+  slug               String
+  description        String?
+  startsAt           DateTime
+  endsAt             DateTime?
+  enrollmentOpensAt  DateTime?
+  enrollmentClosesAt DateTime?
+  capacity           Int?
+  timezone           String       @default("Asia/Kolkata")
+  status             CohortStatus @default(DRAFT)
+  communityUrl       String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  enrollments       Enrollment[]
+  liveSessions      LiveSession[]
+  prices            Price[]
+  cartItems         CartItem[]
+  orderItems        OrderItem[]
+  announcements     Announcement[]
+  pods              Pod[]
+  discussionThreads DiscussionThread[]
+
+  @@unique([courseId, slug])
+  @@index([courseId, status])
+}
+
+/// Marketplace rating/review for a Course or Project (exactly one — CHECK in SQL).
+model CatalogReview {
+  id              String                 @id @default(cuid())
+  userId          String
+  user            User                   @relation(fields: [userId], references: [id])
+  courseId        String?
+  course          Course?                @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  projectId       String?
+  project         Project?               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rating          Int // 1–5
+  title           String?
+  body            String?
+  status          ReviewModerationStatus @default(PENDING)
+  tenantReply     String?
+  tenantRepliedAt DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@unique([userId, courseId])
+  @@unique([userId, projectId])
+  @@index([courseId, status])
+  @@index([projectId, status])
+}
+
+// ══════ prisma/models/commerce.prisma ══════
+/// Multi-currency, PPP-ready, effective-dated price for any sellable.
+/// Exactly one target FK matching itemType (CHECK in SQL).
+/// PROJECT prices may vary by learner-selected mentor seniority (PRD §8.5).
+model Price {
+  id               String           @id @default(cuid())
+  itemType         CommerceItemType
+  courseId         String?
+  course           Course?          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  cohortId         String?
+  cohort           Cohort?          @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  projectId        String?
+  project          Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  planId           String?
+  plan             SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
+  bundleId         String?
+  bundle           Bundle?          @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  digitalProductId String?
+  digitalProduct   DigitalProduct?  @relation(fields: [digitalProductId], references: [id], onDelete: Cascade)
+  mentorOfferingId String?
+  mentorOffering   MentorOffering?  @relation(fields: [mentorOfferingId], references: [id], onDelete: Cascade)
+  aiCreditPackId   String?
+  aiCreditPack     AiCreditPack?    @relation(fields: [aiCreditPackId], references: [id], onDelete: Cascade)
+  currency         String           @default("INR") // ISO 4217
+  region           String? // null = default; PPP regions post-MVP
+  interval         BillingInterval? // plans only
+  mentorLevel      MentorLevel? // project prices by reviewer seniority
+  amountMinor      BigInt
+  compareAtMinor   BigInt?
+  active           Boolean          @default(true)
+  effectiveFrom    DateTime?
+  effectiveTo      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  orderItems OrderItem[]
+
+  @@index([itemType, currency, region, active])
+  @@index([courseId])
+  @@index([cohortId])
+  @@index([projectId])
+  @@index([planId])
+}
+
+model Cart {
+  id               String     @id @default(cuid())
+  userId           String?
+  user             User?      @relation(fields: [userId], references: [id])
+  anonymousId      String?
+  currency         String     @default("INR")
+  status           CartStatus @default(ACTIVE)
+  convertedOrderId String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  items CartItem[]
+
+  @@index([userId, status])
+  @@index([anonymousId, status])
+}
+
+model CartItem {
+  id                 String           @id @default(cuid())
+  cartId             String
+  cart               Cart             @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  itemType           CommerceItemType
+  courseId           String?
+  course             Course?          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  cohortId           String?
+  cohort             Cohort?          @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  projectId          String?
+  project            Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  planId             String?
+  plan               SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
+  bundleId           String?
+  bundle             Bundle?          @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  digitalProductId   String?
+  digitalProduct     DigitalProduct?  @relation(fields: [digitalProductId], references: [id], onDelete: Cascade)
+  mentorOfferingId   String?
+  mentorOffering     MentorOffering?  @relation(fields: [mentorOfferingId], references: [id], onDelete: Cascade)
+  aiCreditPackId     String?
+  aiCreditPack       AiCreditPack?    @relation(fields: [aiCreditPackId], references: [id], onDelete: Cascade)
+  quantity           Int              @default(1)
+  giftRecipientEmail String?
+  metadata           Json? // variant escape hatch: mentor level, gift message, pack size
+  addedAt            DateTime         @default(now())
+
+  @@index([cartId])
+}
+
+model Coupon {
+  id           String       @id @default(cuid())
+  code         String       @unique // case-insensitive lower(code) unique index in SQL
+  tenantId     String? // null = platform-wide
+  tenant       Tenant?      @relation(fields: [tenantId], references: [id])
+  name         String
+  campaign     String? // scholarship / marketing campaign tag
+  discountType DiscountType
+  percentBps   Int? // PERCENT: e.g. 2000 = 20%
+  amountMinor  BigInt? // FIXED_AMOUNT
+  currency     String?
+  appliesTo    Json? // itemTypes / courseIds / projectIds / planCodes / tenantIds / minSubtotalMinor
+  startsAt     DateTime?
+  endsAt       DateTime?
+  maxRedemptions Int?
+  maxPerUser   Int          @default(1)
+  active       Boolean      @default(true)
+  createdById  String? // soft ref → User.id
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  redemptions CouponRedemption[]
+  orders      Order[]
+
+  @@index([tenantId, active])
+  @@index([campaign])
+}
+
+model CouponRedemption {
+  id            String   @id @default(cuid())
+  couponId      String
+  coupon        Coupon   @relation(fields: [couponId], references: [id])
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id])
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  discountMinor BigInt
+  createdAt     DateTime @default(now())
+
+  @@unique([couponId, orderId])
+  @@index([userId, couponId])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNo       Int         @unique @default(autoincrement())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  status        OrderStatus @default(DRAFT)
+  currency      String      @default("INR")
+  subtotalMinor BigInt      @default(0)
+  discountMinor BigInt      @default(0)
+  taxMinor      BigInt      @default(0)
+  totalMinor    BigInt      @default(0)
+  couponId      String?
+  coupon        Coupon?     @relation(fields: [couponId], references: [id])
+  billTo        Json? // name / email / phone / address / gstin snapshot
+  placedAt      DateTime?
+  paidAt        DateTime?
+  expiresAt     DateTime?
+  metadata      Json?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  items             OrderItem[]
+  payments          Payment[]
+  couponRedemptions CouponRedemption[]
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+}
+
+/// One purchased line item. Fulfillment links are REVERSE-ONLY
+/// (Enrollment.orderItemId, ProjectInstance.orderItemId, Subscription.originOrderItemId,
+/// MentorBooking.orderItemId) because a BUNDLE item fans out to N fulfillments.
+model OrderItem {
+  id                    String            @id @default(cuid())
+  orderId               String
+  order                 Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemType              CommerceItemType
+  courseId              String?
+  course                Course?           @relation(fields: [courseId], references: [id])
+  cohortId              String?
+  cohort                Cohort?           @relation(fields: [cohortId], references: [id])
+  projectId             String?
+  project               Project?          @relation(fields: [projectId], references: [id])
+  planId                String?
+  plan                  SubscriptionPlan? @relation(fields: [planId], references: [id])
+  bundleId              String?
+  bundle                Bundle?           @relation(fields: [bundleId], references: [id])
+  digitalProductId      String?
+  digitalProduct        DigitalProduct?   @relation(fields: [digitalProductId], references: [id])
+  mentorOfferingId      String?
+  mentorOffering        MentorOffering?   @relation(fields: [mentorOfferingId], references: [id])
+  aiCreditPackId        String?
+  aiCreditPack          AiCreditPack?     @relation(fields: [aiCreditPackId], references: [id])
+  sellerTenantId        String? // null = platform SKU (plans, AI packs)
+  sellerTenant          Tenant?           @relation(fields: [sellerTenantId], references: [id])
+  titleSnapshot         String
+  priceId               String?
+  price                 Price?            @relation(fields: [priceId], references: [id])
+  unitAmountMinor       BigInt
+  quantity              Int               @default(1)
+  discountMinor         BigInt            @default(0)
+  taxMinor              BigInt            @default(0)
+  taxRateBps            Int               @default(0)
+  totalMinor            BigInt
+  commissionBpsSnapshot Int?
+  platformFeeMinor      BigInt?
+  sellerEarningsMinor   BigInt?
+  refundWindowDays      Int               @default(14)
+  refundableUntil       DateTime?
+  fulfillmentStatus     FulfillmentStatus @default(PENDING)
+  giftRecipientEmail    String?
+  giftClaimToken        String?           @unique
+  giftClaimedById       String?
+  giftClaimedBy         User?             @relation("OrderItemGiftClaimedBy", fields: [giftClaimedById], references: [id])
+  giftClaimedAt         DateTime?
+  metadata              Json? // variant snapshot: mentor level, pack size, gift message
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  enrollments      Enrollment[]
+  projectInstances ProjectInstance[]
+  subscriptions    Subscription[]
+  mentorBookings   MentorBooking[]
+  refunds          Refund[]
+  ledgerEntries    LedgerEntry[]
+
+  @@index([orderId])
+  @@index([sellerTenantId, createdAt])
+  @@index([fulfillmentStatus])
+}
+
+model Payment {
+  id                 String              @id @default(cuid())
+  orderId            String?
+  order              Order?              @relation(fields: [orderId], references: [id])
+  subscriptionId     String?
+  subscription       Subscription?       @relation(fields: [subscriptionId], references: [id])
+  orgLicenseId       String? // enterprise contract payments (provider MANUAL)
+  orgLicense         OrgLicense?         @relation(fields: [orgLicenseId], references: [id])
+  provider           PaymentProviderKind
+  providerOrderRef   String?
+  providerPaymentRef String?
+  method             String? // card / upi / netbanking / emi / wallet
+  amountMinor        BigInt
+  currency           String              @default("INR")
+  status             PaymentStatus       @default(CREATED)
+  failureCode        String?
+  failureMessage     String?
+  capturedAt         DateTime?
+  raw                Json?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  refunds  Refund[]
+  invoices Invoice[]
+
+  @@unique([provider, providerPaymentRef])
+  @@index([orderId])
+  @@index([subscriptionId])
+  @@index([status, createdAt])
+}
+
+/// Refund lifecycle in one table: self-serve request → decision → provider processing.
+model Refund {
+  id                String       @id @default(cuid())
+  paymentId         String
+  payment           Payment      @relation(fields: [paymentId], references: [id])
+  orderItemId       String?
+  orderItem         OrderItem?   @relation(fields: [orderItemId], references: [id])
+  kind              RefundKind   @default(ITEM)
+  amountMinor       BigInt
+  currency          String       @default("INR")
+  reason            RefundReason
+  note              String?
+  status            RefundStatus @default(REQUESTED)
+  requestedById     String? // soft ref → User.id
+  decidedById       String? // soft ref → User.id
+  decidedAt         DateTime?
+  providerRefundRef String?
+  processedAt       DateTime?
+  raw               Json?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  creditNotes   Invoice[]
+  ledgerEntries LedgerEntry[]
+
+  @@index([paymentId])
+  @@index([status, createdAt])
+}
+
+/// Learner tiers (FREE/LEARN/MENTOR/CAREER), creator plan (CREATOR_PRO),
+/// and future org subscriptions. Entitlements are a Zod-typed Json contract.
+model SubscriptionPlan {
+  id           String       @id @default(cuid())
+  code         String       @unique
+  audience     PlanAudience @default(LEARNER)
+  name         String
+  tagline      String?
+  description  Json?
+  entitlements Json // Zod-typed: library access, cohort access, capstone discount bps, credits…
+  trialDays    Int          @default(0)
+  sort         Int          @default(0)
+  active       Boolean      @default(true)
+  providerRefs Json? // razorpay plan ids per interval×currency; dodo product ids post-MVP
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  subscriptions        Subscription[] @relation("PlanSubscriptions")
+  pendingSubscriptions Subscription[] @relation("PendingPlanSubscriptions")
+  prices               Price[]
+  cartItems            CartItem[]
+  orderItems           OrderItem[]
+}
+
+model Subscription {
+  id                String              @id @default(cuid())
+  userId            String?
+  user              User?               @relation(fields: [userId], references: [id])
+  tenantId          String? // CREATOR_PRO / org subscriptions
+  tenant            Tenant?             @relation(fields: [tenantId], references: [id])
+  planId            String
+  plan              SubscriptionPlan    @relation("PlanSubscriptions", fields: [planId], references: [id])
+  provider          PaymentProviderKind @default(RAZORPAY)
+  providerSubRef    String?
+  originOrderItemId String?
+  originOrderItem   OrderItem?          @relation(fields: [originOrderItemId], references: [id])
+  status            SubscriptionStatus  @default(INCOMPLETE)
+  interval          BillingInterval     @default(MONTHLY)
+  currentPeriodStart DateTime?
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean             @default(false)
+  cancelledAt       DateTime?
+  pendingPlanId     String? // scheduled plan change at period end
+  pendingPlan       SubscriptionPlan?   @relation("PendingPlanSubscriptions", fields: [pendingPlanId], references: [id])
+  pendingInterval   BillingInterval?
+  pausedAt          DateTime? // hardship pause (teardown requirement)
+  resumesAt         DateTime?
+  endedAt           DateTime?
+  trialEndsAt       DateTime?
+  metadata          Json?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  credits       SubscriptionCredit[]
+  payments      Payment[]
+  enrollments   Enrollment[]
+  ledgerEntries LedgerEntry[]
+
+  @@unique([provider, providerSubRef])
+  @@index([userId, status])
+  @@index([tenantId, status])
+  @@index([status, currentPeriodEnd])
+}
+
+/// Stateful entitlement consumption per period (Mentor: 1 Sprint/mo; Career: 1 Flagship/yr).
+model SubscriptionCredit {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  creditType     CreditType
+  periodKey      String // e.g. "2026-07" or "2026"
+  grantedCount   Int          @default(0)
+  usedCount      Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  projectInstances ProjectInstance[]
+
+  @@unique([subscriptionId, creditType, periodKey])
+}
+
+/// Soft bundles — checkout upsells, never forced (PRD §6.5). Post-MVP surface.
+model Bundle {
+  id               String        @id @default(cuid())
+  tenantId         String?
+  tenant           Tenant?       @relation(fields: [tenantId], references: [id])
+  title            String
+  slug             String        @unique
+  description      String?
+  discountType     DiscountType  @default(PERCENT)
+  discountValueBps Int?
+  amountOffMinor   BigInt?
+  status           PublishStatus @default(DRAFT)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  items      BundleItem[]
+  prices     Price[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+}
+
+model BundleItem {
+  id        String          @id @default(cuid())
+  bundleId  String
+  bundle    Bundle          @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  itemType  ProgramItemType // COURSE | PROJECT
+  courseId  String?
+  course    Course?         @relation(fields: [courseId], references: [id])
+  projectId String?
+  project   Project?        @relation(fields: [projectId], references: [id])
+  position  Int             @default(0)
+
+  @@index([bundleId, position])
+}
+
+/// Multi-format creator commerce (ebooks/templates) — post-MVP surface.
+model DigitalProduct {
+  id          String             @id @default(cuid())
+  tenantId    String
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  title       String
+  slug        String
+  description Json?
+  kind        DigitalProductKind @default(OTHER)
+  fileAssetId String?
+  fileAsset   MediaAsset?        @relation(fields: [fileAssetId], references: [id])
+  externalUrl String?
+  status      PublishStatus      @default(DRAFT)
+  visibility  CatalogVisibility  @default(MARKETPLACE)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  prices     Price[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@unique([tenantId, slug])
+}
+
+/// Tax documents: one TAX_INVOICE per payment, one CREDIT_NOTE per refund
+/// (partial uniques in SQL) — GST credit notes without restructure.
+model Invoice {
+  id         String      @id @default(cuid())
+  kind       InvoiceKind @default(TAX_INVOICE)
+  paymentId  String
+  payment    Payment     @relation(fields: [paymentId], references: [id])
+  refundId   String?
+  refund     Refund?     @relation(fields: [refundId], references: [id])
+  number     String      @unique
+  series     String      @default("INV")
+  issuedAt   DateTime    @default(now())
+  data       Json // line items + GST breakdown snapshot
+  pdfAssetId String?
+  pdfAsset   MediaAsset? @relation(fields: [pdfAssetId], references: [id])
+  createdAt  DateTime    @default(now())
+
+  @@index([paymentId])
+}
+
+/// Transactional counter for gapless invoice numbering per series.
+model InvoiceSeries {
+  id         String   @id @default(cuid())
+  series     String   @unique
+  nextNumber Int      @default(1)
+  updatedAt  DateTime @updatedAt
+}
+
+// ══════ prisma/models/community.prisma ══════
+/// Doubt/discussion thread scoped to a course, cohort, lesson, project,
+/// project instance, or tenant space (at least one scope FK — CHECK in SQL).
+model DiscussionThread {
+  id                String          @id @default(cuid())
+  scopeType         ThreadScopeType
+  courseId          String?
+  course            Course?         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  cohortId          String?
+  cohort            Cohort?         @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  lessonId          String?
+  lesson            Lesson?         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  projectId         String?
+  project           Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectInstanceId String?
+  projectInstance   ProjectInstance? @relation(fields: [projectInstanceId], references: [id], onDelete: Cascade)
+  tenantId          String?
+  tenant            Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  authorId          String
+  author            User            @relation(fields: [authorId], references: [id])
+  title             String
+  body              Json
+  kind              ThreadKind      @default(QUESTION)
+  status            ThreadStatus    @default(OPEN)
+  pinned            Boolean         @default(false)
+  acceptedPostId    String?
+  upvoteCount       Int             @default(0)
+  replyCount        Int             @default(0)
+  lastActivityAt    DateTime        @default(now())
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  posts DiscussionPost[]
+  votes PostVote[]
+
+  @@index([courseId, lastActivityAt])
+  @@index([cohortId, lastActivityAt])
+  @@index([lessonId])
+  @@index([projectId])
+}
+
+model DiscussionPost {
+  id           String           @id @default(cuid())
+  threadId     String
+  thread       DiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User             @relation(fields: [authorId], references: [id])
+  parentPostId String?
+  parentPost   DiscussionPost?  @relation("PostReplies", fields: [parentPostId], references: [id])
+  replies      DiscussionPost[] @relation("PostReplies")
+  body         Json
+  isAccepted   Boolean          @default(false)
+  upvoteCount  Int              @default(0)
+  status       PostStatus       @default(VISIBLE)
+  editedAt     DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  votes PostVote[]
+
+  @@index([threadId, createdAt])
+}
+
+/// Upvote on a thread or post (exactly one — CHECK in SQL).
+model PostVote {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  threadId  String?
+  thread    DiscussionThread? @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  postId    String?
+  post      DiscussionPost?  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  value     Int              @default(1)
+  createdAt DateTime         @default(now())
+
+  @@unique([userId, threadId])
+  @@unique([userId, postId])
+}
+
+model Announcement {
+  id              String        @id @default(cuid())
+  tenantId        String
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  courseId        String?
+  course          Course?       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  cohortId        String?
+  cohort          Cohort?       @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  programCohortId String?
+  programCohort   ProgramCohort? @relation(fields: [programCohortId], references: [id])
+  authorId        String? // soft ref → User.id
+  title           String
+  body            Json
+  publishedAt     DateTime?
+  channels        String[]      @default([]) // in_app / email / whatsapp
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([courseId, publishedAt])
+  @@index([cohortId, publishedAt])
+}
+
+/// 4–6 learner peer-accountability groups (PRD §7.2D) — post-MVP surface.
+model Pod {
+  id             String    @id @default(cuid())
+  courseId       String?
+  course         Course?   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  cohortId       String?
+  cohort         Cohort?   @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  name           String
+  capacity       Int       @default(6)
+  meetingCadence String?
+  channelUrl     String?
+  status         PodStatus @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  members PodMember[]
+}
+
+model PodMember {
+  id       String        @id @default(cuid())
+  podId    String
+  pod      Pod           @relation(fields: [podId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User          @relation(fields: [userId], references: [id])
+  role     PodMemberRole @default(MEMBER)
+  joinedAt DateTime      @default(now())
+  leftAt   DateTime?
+
+  @@unique([podId, userId])
+}
+
+/// Gamification event stream (XP). Leaderboards are computed views.
+model XpEvent {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  kind       String // LESSON_COMPLETED / STREAK_DAY / PROJECT_PASSED / …
+  points     Int
+  refType    String?
+  refId      String?
+  occurredAt DateTime @default(now())
+
+  @@index([userId, occurredAt])
+}
+
+model UserStreak {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id])
+  currentDays      Int       @default(0)
+  longestDays      Int       @default(0)
+  lastActivityDate DateTime?
+  updatedAt        DateTime  @updatedAt
+}
+
+model Badge {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String
+  icon        String?
+  criteria    Json
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  userBadges UserBadge[]
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  badgeId   String
+  badge     Badge    @relation(fields: [badgeId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  awardedAt DateTime @default(now())
+  context   Json?
+
+  @@unique([badgeId, userId])
+}
+
+// ══════ prisma/models/enterprise.prisma ══════
+/// Enterprise/university "Program" SKU: curated course sequence + optional
+/// mentor-guided capstone + co-branded certificate + cohort ops (PRD §6.4).
+model Program {
+  id                    String        @id @default(cuid())
+  ownerTenantId         String
+  ownerTenant           Tenant        @relation(fields: [ownerTenantId], references: [id])
+  title                 String
+  slug                  String
+  description           Json?
+  branding              Json?
+  certificateTemplateId String?
+  certificateTemplate   CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
+  status                ProgramStatus @default(DRAFT)
+  createdById           String? // soft ref → User.id
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  items    ProgramItem[]
+  cohorts  ProgramCohort[]
+  licenses OrgLicense[]
+
+  @@unique([ownerTenantId, slug])
+}
+
+model ProgramItem {
+  id                String          @id @default(cuid())
+  programId         String
+  program           Program         @relation(fields: [programId], references: [id], onDelete: Cascade)
+  position          Int
+  itemType          ProgramItemType
+  courseId          String?
+  course            Course?         @relation(fields: [courseId], references: [id])
+  projectId         String?
+  project           Project?        @relation(fields: [projectId], references: [id])
+  required          Boolean         @default(true)
+  unlockAfterItemId String?
+
+  @@index([programId, position])
+}
+
+model ProgramCohort {
+  id        String       @id @default(cuid())
+  programId String
+  program   Program      @relation(fields: [programId], references: [id])
+  name      String
+  startsAt  DateTime?
+  endsAt    DateTime?
+  capacity  Int?
+  timezone  String       @default("Asia/Kolkata")
+  status    CohortStatus @default(DRAFT)
+  opsNotes  String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  enrollments   ProgramEnrollment[]
+  liveSessions  LiveSession[]
+  announcements Announcement[]
+
+  @@index([programId, status])
+}
+
+/// License bought by an enterprise/university tenant: seat-based catalog
+/// access, a specific Program, or a monetary CREDIT_POOL (prepaid
+/// contractValueMinor drawn down at catalog prices via LicenseConsumption).
+model OrgLicense {
+  id                 String        @id @default(cuid())
+  tenantId           String // buyer org
+  tenant             Tenant        @relation(fields: [tenantId], references: [id])
+  kind               LicenseKind
+  programId          String?
+  program            Program?      @relation(fields: [programId], references: [id])
+  seats              Int
+  startsAt           DateTime
+  endsAt             DateTime
+  contractRef        String?
+  contractValueMinor BigInt?
+  currency           String?       @default("INR")
+  catalogScope       Json? // course/category allowlist for CATALOG kind
+  status             LicenseStatus @default(DRAFT)
+  notes              String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  seatsAssigned LicenseSeat[]
+  payments      Payment[]
+  consumptions  LicenseConsumption[]
+  enrollments   Enrollment[]
+
+  @@index([tenantId, status])
+}
+
+/// One credit-pool redemption (or catalog-seat attribution record).
+/// Pool balance = OrgLicense.contractValueMinor − Σ amountMinor.
+/// Exactly one of courseId/projectId (CHECK in SQL); the per-user uniques
+/// absorb double-redeem races.
+model LicenseConsumption {
+  id                String           @id @default(cuid())
+  licenseId         String
+  license           OrgLicense       @relation(fields: [licenseId], references: [id])
+  userId            String
+  user              User             @relation(fields: [userId], references: [id])
+  itemType          ProgramItemType
+  courseId          String?
+  course            Course?          @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  projectId         String?
+  project           Project?         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  amountMinor       BigInt
+  enrollmentId      String?
+  enrollment        Enrollment?      @relation(fields: [enrollmentId], references: [id])
+  projectInstanceId String?
+  projectInstance   ProjectInstance? @relation(fields: [projectInstanceId], references: [id])
+  createdAt         DateTime         @default(now())
+
+  @@unique([licenseId, userId, courseId])
+  @@unique([licenseId, userId, projectId])
+  @@index([licenseId, createdAt])
+}
+
+model LicenseSeat {
+  id          String     @id @default(cuid())
+  licenseId   String
+  license     OrgLicense @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?      @relation(fields: [userId], references: [id])
+  inviteEmail String?
+  status      SeatStatus @default(INVITED)
+  assignedAt  DateTime   @default(now())
+  activatedAt DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  programEnrollments ProgramEnrollment[]
+
+  @@unique([licenseId, userId])
+  @@index([licenseId, status])
+}
+
+/// Learner participation in a program cohort — fans out to course Enrollments
+/// and ProjectInstances with source=PROGRAM.
+model ProgramEnrollment {
+  id              String                  @id @default(cuid())
+  programCohortId String
+  programCohort   ProgramCohort           @relation(fields: [programCohortId], references: [id])
+  userId          String
+  user            User                    @relation(fields: [userId], references: [id])
+  licenseSeatId   String?
+  licenseSeat     LicenseSeat?            @relation(fields: [licenseSeatId], references: [id])
+  status          ProgramEnrollmentStatus @default(ENROLLED)
+  enrolledAt      DateTime                @default(now())
+  completedAt     DateTime?
+  finalGrade      String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  enrollments      Enrollment[]
+  projectInstances ProjectInstance[]
+  credentials      Credential[]
+
+  @@unique([programCohortId, userId])
+  @@index([userId])
+}
+
+/// Async compliance/completion report generation for org admins.
+model ReportExport {
+  id            String       @id @default(cuid())
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
+  kind          ReportKind
+  params        Json
+  status        ReportStatus @default(QUEUED)
+  fileAssetId   String?
+  fileAsset     MediaAsset?  @relation(fields: [fileAssetId], references: [id])
+  requestedById String? // soft ref → User.id
+  completedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([tenantId, status])
+}
+
+// ══════ prisma/models/enums.prisma ══════
+// ─── Tenancy ─────────────────────────────────────────────────────────
+
+enum TenantType {
+  CREATOR
+  ENTERPRISE
+  UNIVERSITY
+  HIRING_PARTNER
+}
+
+enum TenantStatus {
+  APPLIED
+  IN_REVIEW
+  APPROVED
+  SUSPENDED
+  ARCHIVED
+}
+
+enum CreatorPlan {
+  STANDARD
+  PRO
+}
+
+// ─── Catalog ─────────────────────────────────────────────────────────
+
+enum CourseKind {
+  COURSE
+  MINI
+  FUNNEL_STAGE
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+/// Shared publish lifecycle for Course / Project / DigitalProduct.
+enum PublishStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  UNLISTED
+  ARCHIVED
+}
+
+/// Per-listing marketplace opt-in (PRD §9.4: dual discovery).
+enum CatalogVisibility {
+  MARKETPLACE
+  TENANT_ONLY
+  PRIVATE
+}
+
+enum LessonType {
+  VIDEO
+  ARTICLE
+  QUIZ
+  ASSIGNMENT
+  CODE_LAB
+  RESOURCE
+  EMBED
+}
+
+enum CohortStatus {
+  DRAFT
+  OPEN
+  RUNNING
+  COMPLETED
+  CANCELLED
+}
+
+enum ReviewModerationStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+  REMOVED
+}
+
+// ─── Learning ────────────────────────────────────────────────────────
+
+enum EnrollmentSource {
+  PURCHASE
+  SUBSCRIPTION
+  ORG_LICENSE
+  PROGRAM
+  FREE
+  ADMIN_GRANT
+  GIFT
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  REVOKED
+  EXPIRED
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum LiveSessionPurpose {
+  COHORT_CLASS
+  WEBINAR
+  AMA
+  MENTOR_CHECKPOINT
+  DEFENSE
+  MENTOR_BOOKING
+  PROGRAM_SESSION
+}
+
+enum LiveProvider {
+  FERMION
+  EXTERNAL_LINK
+}
+
+enum LiveSessionStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+// ─── Assessment ──────────────────────────────────────────────────────
+
+enum QuizShowAnswers {
+  NEVER
+  AFTER_ATTEMPT
+  AFTER_ALL_ATTEMPTS
+  AFTER_CLOSE
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTI_CHOICE
+  TRUE_FALSE
+  SHORT_TEXT
+  CODE_OUTPUT
+}
+
+enum GradingType {
+  MANUAL
+  AUTO
+  PEER
+}
+
+enum SubmissionStatus {
+  DRAFT
+  SUBMITTED
+  GRADING
+  GRADED
+  RETURNED
+  RESUBMIT_REQUESTED
+}
+
+enum PeerReviewStatus {
+  ASSIGNED
+  SUBMITTED
+  EXPIRED
+}
+
+enum SandboxKind {
+  INTERACTIVE_LAB
+  DSA_RUN
+  SANDBOX_VM
+}
+
+enum SandboxProvider {
+  FERMION
+}
+
+enum ProctorVerdict {
+  PENDING
+  CLEAN
+  SUSPECT
+  VIOLATION
+}
+
+// ─── Projects & mentorship ───────────────────────────────────────────
+
+enum ProjectTier {
+  SPRINT
+  CAPSTONE
+  FLAGSHIP
+}
+
+enum ProjectInstanceStatus {
+  PENDING_KICKOFF
+  IN_PROGRESS
+  IN_REVIEW
+  CHANGES_REQUESTED
+  DEFENSE_PENDING
+  PASSED
+  FAILED
+  WITHDRAWN
+  REFUNDED
+}
+
+enum ProjectInstanceSource {
+  PURCHASE
+  SUBSCRIPTION_CREDIT
+  ORG_LICENSE
+  PROGRAM
+  ADMIN_GRANT
+}
+
+enum CollaboratorRole {
+  OWNER
+  COLLABORATOR
+}
+
+enum MentorAssignmentRole {
+  PRIMARY
+  SECONDARY
+  SHADOW
+}
+
+enum MilestoneSubmissionStatus {
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+enum ProjectReviewKind {
+  AI_FIRST_PASS
+  MENTOR_CHECKPOINT
+  MENTOR_FINAL
+  DEFENSE
+}
+
+enum ProjectReviewStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ReviewDecision {
+  APPROVED
+  CHANGES_REQUESTED
+  REJECTED
+  PASS
+  FAIL
+}
+
+enum DefenseStatus {
+  SCHEDULED
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+  RESCHEDULED
+}
+
+enum DefenseVerdict {
+  PASS
+  FAIL
+  RETRY
+}
+
+enum MentorLevel {
+  ASSOCIATE
+  SENIOR
+  PRINCIPAL
+}
+
+enum MentorStatus {
+  APPLIED
+  IN_REVIEW
+  ACTIVE
+  PAUSED
+  SUSPENDED
+  EXITED
+}
+
+enum MentorOfferingKind {
+  MOCK_INTERVIEW
+  OFFICE_HOURS
+  CONSULTATION
+  RESUME_REVIEW
+}
+
+enum MentorBookingStatus {
+  REQUESTED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+// ─── Commerce ────────────────────────────────────────────────────────
+
+enum CommerceItemType {
+  COURSE
+  COHORT_SEAT
+  PROJECT
+  PLAN
+  BUNDLE
+  DIGITAL_PRODUCT
+  MENTOR_OFFERING
+  AI_CREDIT_PACK
+}
+
+enum BillingInterval {
+  MONTHLY
+  ANNUAL
+}
+
+enum CartStatus {
+  ACTIVE
+  CONVERTED
+  ABANDONED
+  MERGED
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED_AMOUNT
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING_PAYMENT
+  PAID
+  PARTIALLY_REFUNDED
+  REFUNDED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum FulfillmentStatus {
+  PENDING
+  FULFILLED
+  REVOKED
+  REFUNDED
+}
+
+enum PaymentProviderKind {
+  RAZORPAY
+  DODO
+  MANUAL
+  FREE
+}
+
+enum PaymentStatus {
+  CREATED
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum RefundKind {
+  ITEM
+  ORDER
+  PARTIAL
+}
+
+enum RefundReason {
+  WITHIN_WINDOW
+  PRE_KICKOFF
+  COHORT_CANCELLED
+  GOODWILL
+  DISPUTE
+  FRAUD
+  OTHER
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum PlanAudience {
+  LEARNER
+  CREATOR
+  ENTERPRISE
+  HIRING_PARTNER
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELLED
+  EXPIRED
+  INCOMPLETE
+}
+
+enum CreditType {
+  SPRINT_PROJECT
+  FLAGSHIP_PROJECT
+}
+
+enum DigitalProductKind {
+  EBOOK
+  TEMPLATE
+  DATASET
+  OTHER
+}
+
+enum InvoiceKind {
+  TAX_INVOICE
+  CREDIT_NOTE
+}
+
+// ─── Ledger ──────────────────────────────────────────────────────────
+
+enum LedgerOwnerType {
+  PLATFORM
+  TENANT
+  MENTOR
+  USER
+}
+
+enum LedgerEntryType {
+  SALE_EARNING
+  SUBSCRIPTION_EARNING
+  PLATFORM_FEE
+  REFUND_REVERSAL
+  MENTOR_FEE
+  MENTOR_FEE_REVERSAL
+  PAYOUT
+  PAYOUT_REVERSAL
+  REFERRAL_REWARD
+  ADJUSTMENT
+}
+
+enum PayoutStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum PayoutMethod {
+  BANK_TRANSFER
+  UPI
+  MANUAL
+  RAZORPAYX
+}
+
+// ─── Enterprise ──────────────────────────────────────────────────────
+
+enum ProgramStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProgramItemType {
+  COURSE
+  PROJECT
+}
+
+enum LicenseKind {
+  CATALOG
+  PROGRAM
+  CREDIT_POOL
+}
+
+enum LicenseStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum SeatStatus {
+  INVITED
+  ACTIVATED
+  REVOKED
+}
+
+enum ProgramEnrollmentStatus {
+  ENROLLED
+  IN_PROGRESS
+  COMPLETED
+  DROPPED
+}
+
+enum ReportKind {
+  COMPLETION
+  COMPLIANCE
+  SKILL_GAP
+  ENGAGEMENT
+}
+
+enum ReportStatus {
+  QUEUED
+  RUNNING
+  READY
+  FAILED
+}
+
+// ─── Career ──────────────────────────────────────────────────────────
+
+enum CredentialKind {
+  COURSE
+  PROJECT
+  PROGRAM
+}
+
+enum CertificateTemplateKind {
+  COURSE
+  PROJECT
+  PROGRAM
+  GENERIC
+}
+
+enum PortfolioVisibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+// ─── Community ───────────────────────────────────────────────────────
+
+enum ThreadScopeType {
+  COURSE
+  COHORT
+  LESSON
+  PROJECT
+  PROJECT_INSTANCE
+  TENANT
+}
+
+enum ThreadKind {
+  QUESTION
+  DISCUSSION
+}
+
+enum ThreadStatus {
+  OPEN
+  RESOLVED
+  LOCKED
+  REMOVED
+}
+
+enum PostStatus {
+  VISIBLE
+  REMOVED
+  FLAGGED
+}
+
+enum PodStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum PodMemberRole {
+  LEAD
+  MEMBER
+}
+
+// ─── Growth ──────────────────────────────────────────────────────────
+
+enum ReferralCodeKind {
+  LEARNER
+  CREATOR
+  AFFILIATE
+}
+
+enum ReferralStatus {
+  PENDING
+  QUALIFIED
+  REWARDED
+  EXPIRED
+}
+
+// ─── AI ──────────────────────────────────────────────────────────────
+
+enum AiFeature {
+  AI_TUTOR
+  FIRST_PASS_REVIEW
+  DEFENSE_QA
+  QUIZ_GEN
+  RUBRIC_DRAFT
+  TRANSCRIPTION
+  OTHER
+}
+
+enum AiRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+enum AiConversationStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+// ─── Platform ────────────────────────────────────────────────────────
+
+enum StorageProvider {
+  SUPABASE
+  EXTERNAL_URL
+}
+
+enum MediaKind {
+  IMAGE
+  DOCUMENT
+  VIDEO_SOURCE
+  ARCHIVE
+  CERT_PDF
+  OTHER
+}
+
+enum MediaStatus {
+  UPLOADING
+  READY
+  FAILED
+  DELETED
+}
+
+enum VideoProvider {
+  FERMION
+  EXTERNAL
+}
+
+enum VideoStatus {
+  UPLOAD_PENDING
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+  DELETED
+}
+
+enum IdentityProvider {
+  FERMION
+  RAZORPAY
+  DODO
+  NOVU
+}
+
+enum WebhookProvider {
+  RAZORPAY
+  DODO
+  FERMION
+  RESEND
+  OTHER
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  SKIPPED
+}
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+  WEB
+}
+
+enum ActorKind {
+  USER
+  ADMIN
+  SYSTEM
+  WEBHOOK
+  AI
+}
+
+enum IntegritySubjectType {
+  ASSIGNMENT_SUBMISSION
+  MILESTONE_SUBMISSION
+  QUIZ_ATTEMPT
+  DEFENSE
+  CREDENTIAL
+}
+
+enum IntegrityKind {
+  PLAGIARISM
+  AI_GENERATED
+  SIMILARITY
+  PROCTOR_VIOLATION
+  MANUAL_REPORT
+}
+
+enum IntegrityStatus {
+  OPEN
+  UNDER_REVIEW
+  CONFIRMED
+  DISMISSED
+}
+
+enum RaisedByKind {
+  SYSTEM
+  AI
+  USER
+  MENTOR
+}
+
+// ══════ prisma/models/growth.prisma ══════
+/// Referral/affiliate code owned by a user (learner) or tenant (creator/affiliate).
+/// Platform-issued codes may have neither owner (CHECK: ≤1 owner in SQL).
+model ReferralCode {
+  id            String           @id @default(cuid())
+  ownerUserId   String?
+  ownerUser     User?            @relation(fields: [ownerUserId], references: [id])
+  ownerTenantId String?
+  ownerTenant   Tenant?          @relation(fields: [ownerTenantId], references: [id])
+  code          String           @unique
+  kind          ReferralCodeKind @default(LEARNER)
+  rewardConfig  Json
+  active        Boolean          @default(true)
+  expiresAt     DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  referrals Referral[]
+}
+
+model Referral {
+  id                  String         @id @default(cuid())
+  referralCodeId      String
+  referralCode        ReferralCode   @relation(fields: [referralCodeId], references: [id])
+  referredUserId      String?        @unique
+  referredUser        User?          @relation(fields: [referredUserId], references: [id])
+  referredEmail       String?
+  status              ReferralStatus @default(PENDING)
+  qualifiedAt         DateTime?
+  rewardedAt          DateTime?
+  rewardLedgerEntryId String? // soft ref → LedgerEntry.id
+  firstOrderId        String? // soft ref → Order.id
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([referralCodeId, status])
+}
+
+/// Generic waitlist (Career tier gating, free funnel intake, feature interest).
+model Waitlist {
+  id        String   @id @default(cuid())
+  email     String
+  source    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@unique([email, source])
+}
+
+// ══════ prisma/models/learning.prisma ══════
+/// A learner's relationship to a course (optionally to a specific live cohort).
+/// `subscriptionId` is load-bearing: when a subscription lapses, exactly these
+/// enrollments are expired.
+model Enrollment {
+  id                  String            @id @default(cuid())
+  userId              String
+  user                User              @relation(fields: [userId], references: [id])
+  courseId            String
+  course              Course            @relation(fields: [courseId], references: [id])
+  cohortId            String?
+  cohort              Cohort?           @relation(fields: [cohortId], references: [id])
+  source              EnrollmentSource
+  orderItemId         String?
+  orderItem           OrderItem?        @relation(fields: [orderItemId], references: [id])
+  subscriptionId      String?
+  subscription        Subscription?     @relation(fields: [subscriptionId], references: [id])
+  orgLicenseId        String? // load-bearing: seat revocation/license expiry targets exactly these
+  orgLicense          OrgLicense?       @relation(fields: [orgLicenseId], references: [id])
+  programEnrollmentId String?
+  programEnrollment   ProgramEnrollment? @relation(fields: [programEnrollmentId], references: [id])
+  status              EnrollmentStatus  @default(ACTIVE)
+  activatedAt         DateTime          @default(now())
+  expiresAt           DateTime? // licensed/subscription seats
+  completedAt         DateTime?
+  progressPct         Float             @default(0)
+  lastActivityAt      DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  lessonProgress        LessonProgress[]
+  quizAttempts          QuizAttempt[]
+  assignmentSubmissions AssignmentSubmission[]
+  licenseConsumptions   LicenseConsumption[]
+
+  @@unique([userId, courseId, cohortId])
+  @@index([courseId, status])
+  @@index([userId, status])
+  @@index([subscriptionId])
+  @@index([orgLicenseId])
+}
+
+model LessonProgress {
+  id             String         @id @default(cuid())
+  enrollmentId   String
+  enrollment     Enrollment     @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lessonId       String
+  lesson         Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  status         ProgressStatus @default(NOT_STARTED)
+  secondsWatched Int            @default(0)
+  lastPositionSec Int           @default(0)
+  completedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([enrollmentId, lessonId])
+  @@index([lessonId])
+}
+
+/// Any scheduled live event: cohort classes, webinars/AMAs, mentor checkpoints,
+/// project defenses, mentor bookings, enterprise program sessions.
+/// Recording hand-off: recordingVideoAsset → attached as recordingLesson (PRD §6.1).
+model LiveSession {
+  id                    String             @id @default(cuid())
+  tenantId              String
+  tenant                Tenant             @relation(fields: [tenantId], references: [id])
+  purpose               LiveSessionPurpose
+  courseId              String?
+  course                Course?            @relation(fields: [courseId], references: [id])
+  cohortId              String?
+  cohort                Cohort?            @relation(fields: [cohortId], references: [id])
+  projectInstanceId     String?
+  projectInstance       ProjectInstance?   @relation(fields: [projectInstanceId], references: [id])
+  programCohortId       String?
+  programCohort         ProgramCohort?     @relation(fields: [programCohortId], references: [id])
+  title                 String
+  description           String?
+  scheduledStartAt      DateTime
+  scheduledEndAt        DateTime
+  timezone              String             @default("Asia/Kolkata")
+  provider              LiveProvider       @default(FERMION)
+  providerSessionRef    String?
+  joinUrl               String?
+  hostUserId            String
+  host                  User               @relation("LiveSessionHost", fields: [hostUserId], references: [id])
+  status                LiveSessionStatus  @default(SCHEDULED)
+  startedAt             DateTime?
+  endedAt               DateTime?
+  recordingVideoAssetId String?
+  recordingVideoAsset   VideoAsset?        @relation("LiveSessionRecording", fields: [recordingVideoAssetId], references: [id])
+  recordingLessonId     String?
+  recordingLesson       Lesson?            @relation("RecordingLesson", fields: [recordingLessonId], references: [id])
+  calendarEventRef      String? // Google Calendar sync (integration post-MVP)
+  maxParticipants       Int?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  attendances     LiveAttendance[]
+  defenseSessions DefenseSession[]
+  mentorBookings  MentorBooking[]
+
+  @@index([cohortId, scheduledStartAt])
+  @@index([tenantId, status, scheduledStartAt])
+  @@index([projectInstanceId])
+}
+
+model LiveAttendance {
+  id            String      @id @default(cuid())
+  liveSessionId String
+  liveSession   LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  joinedAt      DateTime    @default(now())
+  leftAt        DateTime?
+  durationSec   Int         @default(0)
+  createdAt     DateTime    @default(now())
+
+  @@unique([liveSessionId, userId])
+  @@index([userId])
+}
+
+// ══════ prisma/models/ledger.prisma ══════
+/// One account per (owner, currency). Owner consistency + per-owner uniqueness
+/// enforced by CHECK + partial unique indexes in SQL.
+model LedgerAccount {
+  id                 String          @id @default(cuid())
+  ownerType          LedgerOwnerType
+  tenantId           String?
+  tenant             Tenant?         @relation(fields: [tenantId], references: [id])
+  mentorProfileId    String?
+  mentorProfile      MentorProfile?  @relation(fields: [mentorProfileId], references: [id])
+  userId             String? // learner referral rewards / credits
+  user               User?           @relation(fields: [userId], references: [id])
+  currency           String          @default("INR")
+  balanceCachedMinor BigInt          @default(0)
+  balanceCachedAt    DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  entries LedgerEntry[]
+  payouts Payout[]
+
+  @@index([ownerType, currency])
+  @@index([tenantId])
+  @@index([mentorProfileId])
+  @@index([userId])
+}
+
+/// Append-only money movements. Signed amounts; account balance = SUM(entries).
+model LedgerEntry {
+  id                String          @id @default(cuid())
+  accountId         String
+  account           LedgerAccount   @relation(fields: [accountId], references: [id])
+  entryType         LedgerEntryType
+  amountMinor       BigInt // signed
+  currency          String          @default("INR")
+  orderItemId       String?
+  orderItem         OrderItem?      @relation(fields: [orderItemId], references: [id])
+  refundId          String?
+  refund            Refund?         @relation(fields: [refundId], references: [id])
+  payoutId          String?
+  payout            Payout?         @relation(fields: [payoutId], references: [id])
+  projectInstanceId String?
+  projectInstance   ProjectInstance? @relation(fields: [projectInstanceId], references: [id])
+  subscriptionId    String?
+  subscription      Subscription?   @relation(fields: [subscriptionId], references: [id])
+  memo              String?
+  idempotencyKey    String?         @unique
+  createdById       String? // soft ref → User.id
+  createdAt         DateTime        @default(now())
+
+  @@index([accountId, createdAt])
+  @@index([entryType, createdAt])
+}
+
+model Payout {
+  id               String       @id @default(cuid())
+  accountId        String
+  account          LedgerAccount @relation(fields: [accountId], references: [id])
+  amountMinor      BigInt
+  currency         String       @default("INR")
+  status           PayoutStatus @default(DRAFT)
+  method           PayoutMethod @default(MANUAL)
+  providerRef      String?
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  statementAssetId String?
+  statementAsset   MediaAsset?  @relation(fields: [statementAssetId], references: [id])
+  initiatedById    String? // soft ref → User.id
+  approvedById     String? // soft ref → User.id
+  processedAt      DateTime?
+  failureReason    String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  ledgerEntries LedgerEntry[]
+
+  @@index([accountId, status])
+  @@index([status, createdAt])
+}
+
+// ══════ prisma/models/mentorship.prisma ══════
+/// Vetted mentor pool — pooled across the marketplace (vs. single-tenant platforms).
+model MentorProfile {
+  id                 String       @id @default(cuid())
+  userId             String       @unique
+  user               User         @relation(fields: [userId], references: [id])
+  headline           String
+  bio                Json?
+  expertiseTags      String[]     @default([])
+  level              MentorLevel  @default(ASSOCIATE)
+  status             MentorStatus @default(APPLIED)
+  appliedAt          DateTime     @default(now())
+  vettedById         String? // soft ref → User.id
+  vettedAt           DateTime?
+  timezone           String       @default("Asia/Kolkata")
+  languages          String[]     @default(["en"])
+  maxActiveInstances Int          @default(5)
+  defaultPayoutBps   Int          @default(5500) // 55% of mentor-attributable fee (PRD §8.3 band)
+  availability       Json?
+  resumeAssetId      String? // soft ref → MediaAsset.id
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  assignments    MentorAssignment[]
+  offerings      MentorOffering[]
+  ledgerAccounts LedgerAccount[]
+  endorsements   MentorEndorsement[]
+
+  @@index([status, level])
+}
+
+/// Bookable mentor services (mock interviews, office hours) — post-MVP surface.
+model MentorOffering {
+  id              String             @id @default(cuid())
+  mentorProfileId String
+  mentorProfile   MentorProfile      @relation(fields: [mentorProfileId], references: [id])
+  kind            MentorOfferingKind
+  title           String
+  description     String?
+  durationMin     Int                @default(45)
+  active          Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  bookings   MentorBooking[]
+  prices     Price[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([mentorProfileId, active])
+}
+
+model MentorBooking {
+  id            String              @id @default(cuid())
+  offeringId    String
+  offering      MentorOffering      @relation(fields: [offeringId], references: [id])
+  learnerUserId String
+  learner       User                @relation(fields: [learnerUserId], references: [id])
+  orderItemId   String?
+  orderItem     OrderItem?          @relation(fields: [orderItemId], references: [id])
+  scheduledAt   DateTime?
+  liveSessionId String?
+  liveSession   LiveSession?        @relation(fields: [liveSessionId], references: [id])
+  status        MentorBookingStatus @default(REQUESTED)
+  learnerNotes  String?
+  mentorNotes   Json?
+  rating        Int?
+  reviewText    String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([offeringId, status])
+  @@index([learnerUserId])
+}
+
+// ══════ prisma/models/platform.prisma ══════
+/// Generic uploaded file (Supabase Storage). Decorative references to this table
+/// (thumbnails, logos, banners) are soft `*AssetId` strings; pipeline-critical
+/// references (lesson resources, submission files, generated PDFs) are real relations.
+model MediaAsset {
+  id           String          @id @default(cuid())
+  tenantId     String?
+  tenant       Tenant?         @relation(fields: [tenantId], references: [id])
+  uploadedById String? // soft ref → User.id
+  storage      StorageProvider @default(SUPABASE)
+  bucket       String?
+  path         String?
+  url          String?
+  filename     String
+  mime         String
+  sizeBytes    BigInt          @default(0)
+  kind         MediaKind       @default(OTHER)
+  status       MediaStatus     @default(UPLOADING)
+  checksum     String?
+  metadata     Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  lessonResources LessonResource[]
+  submissionFiles SubmissionFile[]
+  digitalProducts DigitalProduct[]
+  credentials     Credential[]
+  invoices        Invoice[]
+  payouts         Payout[]
+  reportExports   ReportExport[]
+  videoSources    VideoAsset[]     @relation("VideoSourceAsset")
+
+  @@index([tenantId, kind])
+  @@index([uploadedById])
+}
+
+/// Provider-hosted video (Fermion at MVP). The provider is swappable —
+/// no Fermion IDs leak beyond providerVideoRef/playbackMeta.
+model VideoAsset {
+  id               String        @id @default(cuid())
+  tenantId         String
+  tenant           Tenant        @relation(fields: [tenantId], references: [id])
+  provider         VideoProvider @default(FERMION)
+  providerVideoRef String?
+  title            String?
+  durationSec      Int?
+  status           VideoStatus   @default(UPLOAD_PENDING)
+  thumbnailUrl     String?
+  drmEnabled       Boolean       @default(true)
+  playbackMeta     Json?
+  sourceAssetId    String?
+  sourceAsset      MediaAsset?   @relation("VideoSourceAsset", fields: [sourceAssetId], references: [id])
+  uploadedById     String? // soft ref → User.id
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  lessons           Lesson[]
+  liveRecordings    LiveSession[]    @relation("LiveSessionRecording")
+  defenseRecordings DefenseSession[] @relation("DefenseRecording")
+
+  @@unique([provider, providerVideoRef])
+  @@index([tenantId, status])
+}
+
+/// Maps our users to external provider identities (Fermion user, Razorpay/Dodo customer).
+model UserProviderIdentity {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider    IdentityProvider
+  externalRef String
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([provider, userId])
+  @@unique([provider, externalRef])
+}
+
+/// Idempotency backbone for all inbound provider webhooks.
+model WebhookEvent {
+  id             String          @id @default(cuid())
+  provider       WebhookProvider
+  eventRef       String?
+  eventType      String
+  signatureValid Boolean         @default(false)
+  payload        Json
+  status         WebhookStatus   @default(RECEIVED)
+  attempts       Int             @default(0)
+  error          String?
+  receivedAt     DateTime        @default(now())
+  processedAt    DateTime?
+
+  @@unique([provider, eventRef])
+  @@index([provider, status, receivedAt])
+}
+
+/// In-app notification inbox. Delivery fan-out (email/SMS/WhatsApp/push) is
+/// recorded in channelsSent; Novu orchestration is post-MVP.
+model Notification {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category     String
+  title        String
+  body         String?
+  actionUrl    String?
+  data         Json?
+  readAt       DateTime?
+  channelsSent String[]  @default([])
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prefs     Json // category × channel matrix (email/sms/whatsapp/push)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DeviceToken {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform   DevicePlatform
+  token      String         @unique
+  revoked    Boolean        @default(false)
+  lastSeenAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+
+  @@index([userId])
+}
+
+/// Append-only audit trail. Actor references are soft (no FK) for write throughput
+/// and because users are anonymized, never deleted.
+model AuditLog {
+  id          String    @id @default(cuid())
+  actorUserId String?
+  actorKind   ActorKind @default(USER)
+  tenantId    String?
+  action      String
+  entityType  String
+  entityId    String
+  before      Json?
+  after       Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([entityType, entityId])
+  @@index([tenantId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+/// Plagiarism / AI-generation / proctoring flags across submission types.
+model IntegrityFlag {
+  id           String               @id @default(cuid())
+  subjectType  IntegritySubjectType
+  subjectId    String
+  kind         IntegrityKind
+  score        Float?
+  evidence     Json?
+  status       IntegrityStatus      @default(OPEN)
+  raisedByKind RaisedByKind         @default(SYSTEM)
+  raisedById   String? // soft ref → User.id
+  resolvedById String? // soft ref → User.id
+  resolvedAt   DateTime?
+  resolution   String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([subjectType, subjectId])
+  @@index([status, createdAt])
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  description String?
+  enabled     Boolean  @default(false)
+  rules       Json?
+  updatedById String? // soft ref → User.id
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Business configuration (default commission bps, mentor fee shares, GST rate,
+/// refund defaults, entitlement toggles) — editable without deploys.
+model PlatformConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       Json
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Double-submit guard for checkout and other non-idempotent server actions.
+model IdempotencyKey {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  scope     String
+  resultRef String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+// ══════ prisma/models/projects.prisma ══════
+/// Catalog definition of a mentor-guided project (Sprint / Capstone / Flagship).
+/// The differentiated IP: ambiguous real-world briefs, held-out evaluation,
+/// rubric-based mentor review, live defense (PRD §6.2).
+model Project {
+  id                        String            @id @default(cuid())
+  tenantId                  String
+  tenant                    Tenant            @relation("TenantProjects", fields: [tenantId], references: [id])
+  createdById               String? // soft ref → User.id
+  title                     String
+  slug                      String
+  tier                      ProjectTier
+  summary                   String
+  brief                     Json // ambiguous, real-world spec (rich text)
+  techStack                 String[]          @default([])
+  categoryId                String?
+  category                  Category?         @relation(fields: [categoryId], references: [id])
+  tags                      String[]          @default([])
+  thumbnailAssetId          String? // soft ref → MediaAsset.id
+  durationWeeksMin          Int
+  durationWeeksMax          Int
+  mentorHoursBudget         Decimal           @db.Decimal(6, 2)
+  status                    PublishStatus     @default(DRAFT)
+  visibility                CatalogVisibility @default(MARKETPLACE)
+  difficulty                String?
+  rubricId                  String
+  rubric                    Rubric            @relation(fields: [rubricId], references: [id])
+  heldOutEvalConfig         Json? // private test harness — NEVER exposed to learners
+  defenseRequired           Boolean           @default(false)
+  partnerTenantId           String?
+  partnerTenant             Tenant?           @relation("ProjectPartnerTenant", fields: [partnerTenantId], references: [id])
+  partnerCompanyName        String?
+  partnerCompanyLogoAssetId String? // soft ref → MediaAsset.id
+  prerequisites             String[]          @default([])
+  outcomes                  String[]          @default([])
+  certificateEnabled        Boolean           @default(true)
+  certificateTemplateId     String?
+  certificateTemplate       CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
+  refundableUntilKickoff    Boolean           @default(true)
+  publishedAt               DateTime?
+  ratingAvg                 Float?
+  ratingCount               Int               @default(0)
+  purchaseCount             Int               @default(0)
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+
+  milestones        Milestone[]
+  instances         ProjectInstance[]
+  prices              Price[]
+  cartItems           CartItem[]
+  orderItems          OrderItem[]
+  bundleItems         BundleItem[]
+  programItems        ProgramItem[]
+  reviews             CatalogReview[]
+  discussionThreads   DiscussionThread[]
+  licenseConsumptions LicenseConsumption[]
+
+  @@unique([tenantId, slug])
+  @@index([status, visibility, tier])
+  @@index([categoryId])
+}
+
+/// Milestone template within a project definition.
+model Milestone {
+  id                 String   @id @default(cuid())
+  projectId          String
+  project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title              String
+  description        Json
+  position           Int
+  expectedWeek       Int?
+  deliverables       Json
+  isReviewCheckpoint Boolean  @default(false)
+  weightPct          Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  submissions MilestoneSubmission[]
+
+  @@index([projectId, position])
+}
+
+/// A learner's purchased run of a project. mentorKickoffAt is the refund cutoff.
+model ProjectInstance {
+  id                   String                @id @default(cuid())
+  projectId            String
+  project              Project               @relation(fields: [projectId], references: [id])
+  userId               String
+  user                 User                  @relation(fields: [userId], references: [id])
+  orderItemId          String?
+  orderItem            OrderItem?            @relation(fields: [orderItemId], references: [id])
+  subscriptionCreditId String?
+  subscriptionCredit   SubscriptionCredit?   @relation(fields: [subscriptionCreditId], references: [id])
+  source               ProjectInstanceSource
+  status               ProjectInstanceStatus @default(PENDING_KICKOFF)
+  programEnrollmentId  String? // program fan-out attribution (idempotent resync)
+  programEnrollment    ProgramEnrollment?    @relation(fields: [programEnrollmentId], references: [id])
+  requestedMentorLevel MentorLevel? // learner-selected reviewer seniority (PRD §8.5)
+  mentorKickoffAt      DateTime? // set at kickoff → refund cutoff
+  startedAt            DateTime?
+  dueAt                DateTime?
+  completedAt          DateTime?
+  finalScore           Float?
+  repoUrl              String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  collaborators        ProjectInstanceCollaborator[]
+  mentorAssignments    MentorAssignment[]
+  milestoneSubmissions MilestoneSubmission[]
+  projectReviews       ProjectReview[]
+  defenseSessions      DefenseSession[]
+  liveSessions         LiveSession[]
+  credentials          Credential[]
+  sandboxSessions      SandboxSession[]
+  discussionThreads    DiscussionThread[]
+  aiConversations      AiConversation[]
+  ledgerEntries        LedgerEntry[]
+  endorsements         MentorEndorsement[]
+  licenseConsumptions  LicenseConsumption[]
+
+  @@index([projectId, status])
+  @@index([userId, status])
+  @@index([programEnrollmentId])
+}
+
+/// Paired externships (Crio-style teams of 2) — V1 free funnel; table now.
+model ProjectInstanceCollaborator {
+  id                String           @id @default(cuid())
+  projectInstanceId String
+  projectInstance   ProjectInstance  @relation(fields: [projectInstanceId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User             @relation(fields: [userId], references: [id])
+  role              CollaboratorRole @default(COLLABORATOR)
+  joinedAt          DateTime         @default(now())
+
+  @@unique([projectInstanceId, userId])
+}
+
+/// Mentor ↔ instance assignment history (reassignments preserved — review data
+/// is a compliance-grade record per PRD §9.6).
+model MentorAssignment {
+  id                String               @id @default(cuid())
+  projectInstanceId String
+  projectInstance   ProjectInstance      @relation(fields: [projectInstanceId], references: [id])
+  mentorProfileId   String
+  mentorProfile     MentorProfile        @relation(fields: [mentorProfileId], references: [id])
+  role              MentorAssignmentRole @default(PRIMARY)
+  assignedAt        DateTime             @default(now())
+  assignedById      String? // soft ref → User.id
+  unassignedAt      DateTime?
+  payoutBpsOverride Int?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([projectInstanceId])
+  @@index([mentorProfileId, unassignedAt])
+}
+
+model MilestoneSubmission {
+  id                String                    @id @default(cuid())
+  projectInstanceId String
+  projectInstance   ProjectInstance           @relation(fields: [projectInstanceId], references: [id])
+  milestoneId       String
+  milestone         Milestone                 @relation(fields: [milestoneId], references: [id])
+  attemptNo         Int                       @default(1)
+  notes             Json?
+  repoUrl           String?
+  artifactUrl       String?
+  status            MilestoneSubmissionStatus @default(SUBMITTED)
+  submittedAt       DateTime                  @default(now())
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  files   SubmissionFile[]
+  reviews ProjectReview[]
+
+  @@unique([projectInstanceId, milestoneId, attemptNo])
+  @@index([status])
+}
+
+/// Versioned rubric — immutable once referenced by a review (new version = new row).
+model Rubric {
+  id          String   @id @default(cuid())
+  tenantId    String?
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id])
+  name        String
+  version     Int      @default(1)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  criteria    RubricCriterion[]
+  projects    Project[]
+  assignments Assignment[]
+}
+
+model RubricCriterion {
+  id          String   @id @default(cuid())
+  rubricId    String
+  rubric      Rubric   @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  weightPct   Int
+  levels      Json // score bands + descriptors
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  scores RubricScore[]
+
+  @@index([rubricId, position])
+}
+
+/// A review pass over an instance or a specific milestone submission.
+/// reviewerId null = AI review. Defense outcome is canonical HERE
+/// (kind=DEFENSE, decision) — DefenseSession is the logistics record.
+model ProjectReview {
+  id                    String              @id @default(cuid())
+  projectInstanceId     String
+  projectInstance       ProjectInstance     @relation(fields: [projectInstanceId], references: [id])
+  milestoneSubmissionId String?
+  milestoneSubmission   MilestoneSubmission? @relation(fields: [milestoneSubmissionId], references: [id])
+  kind                  ProjectReviewKind
+  reviewerId            String? // soft ref → User.id (null = AI)
+  status                ProjectReviewStatus @default(PENDING)
+  decision              ReviewDecision?
+  overallScore          Float?
+  summary               Json?
+  aiMetadata            Json?
+  turnaroundTargetAt    DateTime? // review SLA
+  startedAt             DateTime?
+  completedAt           DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  rubricScores RubricScore[]
+
+  @@index([projectInstanceId, kind])
+  @@index([status, turnaroundTargetAt])
+}
+
+model RubricScore {
+  id                String          @id @default(cuid())
+  projectReviewId   String
+  projectReview     ProjectReview   @relation(fields: [projectReviewId], references: [id], onDelete: Cascade)
+  rubricCriterionId String
+  rubricCriterion   RubricCriterion @relation(fields: [rubricCriterionId], references: [id])
+  score             Float
+  maxScore          Float
+  comment           String?
+  createdAt         DateTime        @default(now())
+
+  @@unique([projectReviewId, rubricCriterionId])
+}
+
+/// Live defense logistics (scheduling, recording, AI question plan).
+/// Verdict of record lives on ProjectReview(kind=DEFENSE).decision.
+model DefenseSession {
+  id                    String         @id @default(cuid())
+  projectInstanceId     String
+  projectInstance       ProjectInstance @relation(fields: [projectInstanceId], references: [id])
+  scheduledAt           DateTime
+  liveSessionId         String?
+  liveSession           LiveSession?   @relation(fields: [liveSessionId], references: [id])
+  status                DefenseStatus  @default(SCHEDULED)
+  aiQuestionPlan        Json?
+  transcriptAssetId     String? // soft ref → MediaAsset.id
+  recordingVideoAssetId String?
+  recordingVideoAsset   VideoAsset?    @relation("DefenseRecording", fields: [recordingVideoAssetId], references: [id])
+  verdict               DefenseVerdict?
+  notes                 Json?
+  conductedById         String? // soft ref → User.id
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([projectInstanceId])
+  @@index([status, scheduledAt])
+}
+
+// ══════ prisma/models/tenancy.prisma ══════
+/// Commerce/branding profile of a BetterAuth Organization — the "tenant" of the
+/// multi-tenant marketplace. Creators, enterprises, universities, and hiring
+/// partners are all tenants (type discriminator).
+model Tenant {
+  id                      String       @id @default(cuid())
+  organizationId          String       @unique
+  organization            Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type                    TenantType   @default(CREATOR)
+  status                  TenantStatus @default(APPLIED)
+  slug                    String       @unique // storefront path /c/[slug]
+  displayName             String
+  about                   Json?
+  logoAssetId             String? // soft ref → MediaAsset.id
+  bannerAssetId           String? // soft ref → MediaAsset.id
+  brandColors             Json?
+  subdomain               String?      @unique // post-MVP surface
+  customDomain            String?      @unique // post-MVP surface
+  domainVerifiedAt        DateTime?
+  marketplaceOptInDefault Boolean      @default(true)
+  commissionBps           Int          @default(2000) // 20% standard plan (PRD §8.5)
+  creatorPlan             CreatorPlan  @default(STANDARD)
+  payoutDetails           Json? // bank / UPI / PAN
+  gstin                   String?
+  supportEmail            String?
+  socials                 Json?
+  appliedAt               DateTime     @default(now())
+  approvedById            String? // soft ref → User.id
+  approvedAt              DateTime?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  courses               Course[]
+  projects              Project[]           @relation("TenantProjects")
+  partneredProjects     Project[]           @relation("ProjectPartnerTenant")
+  liveSessions          LiveSession[]
+  rubrics               Rubric[]
+  coupons               Coupon[]
+  bundles               Bundle[]
+  digitalProducts       DigitalProduct[]
+  orderItems            OrderItem[]
+  subscriptions         Subscription[]
+  programs              Program[]
+  orgLicenses           OrgLicense[]
+  reportExports         ReportExport[]
+  certificateTemplates  CertificateTemplate[]
+  talentBookmarks       TalentBookmark[]
+  discussionThreads     DiscussionThread[]
+  announcements         Announcement[]
+  ledgerAccounts        LedgerAccount[]
+  mediaAssets           MediaAsset[]
+  videoAssets           VideoAsset[]
+  referralCodes         ReferralCode[]
+
+  @@index([type, status])
+}
+
+// ══════ prisma/schema.prisma ══════
+// lms-web — finalized schema (pre- + post-MVP domains).
+//
+// Conventions:
+// - Money: BigInt minor units (paise/cents) + ISO currency string; percentages in basis points (Int).
+// - Rich text: Tiptap JSON in `Json` columns.
+// - IDs: String cuid(). Every mutable model has createdAt/updatedAt.
+// - Soft asset refs: `*AssetId String?` WITHOUT a relation = decorative reference to
+//   MediaAsset/VideoAsset (thumbnails, logos). Pipeline-critical assets use real relations.
+// - Soft actor refs: audit-ish `*ById String?` columns reference User.id without a relation
+//   (users are anonymized, never deleted — see User.anonymizedAt).
+// - Polymorphic "exactly one FK" sets are enforced by CHECK constraints in migration SQL.
+// - Future features must be ADDITIVE (new tables/columns); core tables never restructure.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
