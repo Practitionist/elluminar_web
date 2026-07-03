@@ -1,0 +1,12 @@
+export { HeroSection } from "./hero-section";
+export { StatsBar } from "./stats-bar";
+export { EmpowerSection } from "./empower-section";
+export { HowItWorksSection } from "./how-it-works-section";
+export { FeaturesSection } from "./features-section";
+export { CoursesSection } from "./courses-section";
+export { ProjectsSection } from "./projects-section";
+export { PremiumFeaturesSection } from "./premium-features-section";
+export { SocialProofSection } from "./social-proof-section";
+export { TestimonialsSection } from "./testimonials-section";
+export { FAQSection } from "./faq-section";
+export { PricingSection } from "./pricing-section";
