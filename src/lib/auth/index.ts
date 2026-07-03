@@ -68,6 +68,30 @@ export const auth = betterAuth({
     },
   },
 
+  databaseHooks: {
+    session: {
+      create: {
+        // Seat auto-match on every sign-in (email/password, OAuth, SSO):
+        // claims INVITED enterprise seats for verified emails. Defensively
+        // wrapped — enterprise failures must never block sign-in.
+        after: async (session) => {
+          try {
+            const user = await db.user.findUnique({
+              where: { id: session.userId },
+              select: { id: true, email: true, emailVerified: true },
+            });
+            if (user?.emailVerified) {
+              const { activateSeatsForUser } = await import("@/lib/enterprise/roster");
+              await activateSeatsForUser(user.id, user.email);
+            }
+          } catch (err) {
+            console.error("[seat auto-match]", err);
+          }
+        },
+      },
+    },
+  },
+
   plugins: [
     organization({
       ac,
