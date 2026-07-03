@@ -1,0 +1,149 @@
+/// Enterprise/university "Program" SKU: curated course sequence + optional
+/// mentor-guided capstone + co-branded certificate + cohort ops (PRD §6.4).
+model Program {
+  id                    String        @id @default(cuid())
+  ownerTenantId         String
+  ownerTenant           Tenant        @relation(fields: [ownerTenantId], references: [id])
+  title                 String
+  slug                  String
+  description           Json?
+  branding              Json?
+  certificateTemplateId String?
+  certificateTemplate   CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
+  status                ProgramStatus @default(DRAFT)
+  createdById           String? // soft ref → User.id
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  items    ProgramItem[]
+  cohorts  ProgramCohort[]
+  licenses OrgLicense[]
+
+  @@unique([ownerTenantId, slug])
+}
+
+model ProgramItem {
+  id                String          @id @default(cuid())
+  programId         String
+  program           Program         @relation(fields: [programId], references: [id], onDelete: Cascade)
+  position          Int
+  itemType          ProgramItemType
+  courseId          String?
+  course            Course?         @relation(fields: [courseId], references: [id])
+  projectId         String?
+  project           Project?        @relation(fields: [projectId], references: [id])
+  required          Boolean         @default(true)
+  unlockAfterItemId String?
+
+  @@index([programId, position])
+}
+
+model ProgramCohort {
+  id        String       @id @default(cuid())
+  programId String
+  program   Program      @relation(fields: [programId], references: [id])
+  name      String
+  startsAt  DateTime?
+  endsAt    DateTime?
+  capacity  Int?
+  timezone  String       @default("Asia/Kolkata")
+  status    CohortStatus @default(DRAFT)
+  opsNotes  String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  enrollments   ProgramEnrollment[]
+  liveSessions  LiveSession[]
+  announcements Announcement[]
+
+  @@index([programId, status])
+}
+
+/// Seat-based license bought by an enterprise/university tenant:
+/// catalog-wide access or a specific Program.
+model OrgLicense {
+  id                 String        @id @default(cuid())
+  tenantId           String // buyer org
+  tenant             Tenant        @relation(fields: [tenantId], references: [id])
+  kind               LicenseKind
+  programId          String?
+  program            Program?      @relation(fields: [programId], references: [id])
+  seats              Int
+  startsAt           DateTime
+  endsAt             DateTime
+  contractRef        String?
+  contractValueMinor BigInt?
+  currency           String?       @default("INR")
+  catalogScope       Json? // course/category allowlist for CATALOG kind
+  status             LicenseStatus @default(DRAFT)
+  notes              String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  seatsAssigned LicenseSeat[]
+  payments      Payment[]
+
+  @@index([tenantId, status])
+}
+
+model LicenseSeat {
+  id          String     @id @default(cuid())
+  licenseId   String
+  license     OrgLicense @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?      @relation(fields: [userId], references: [id])
+  inviteEmail String?
+  status      SeatStatus @default(INVITED)
+  assignedAt  DateTime   @default(now())
+  activatedAt DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  programEnrollments ProgramEnrollment[]
+
+  @@unique([licenseId, userId])
+  @@index([licenseId, status])
+}
+
+/// Learner participation in a program cohort — fans out to course Enrollments
+/// and ProjectInstances with source=PROGRAM.
+model ProgramEnrollment {
+  id              String                  @id @default(cuid())
+  programCohortId String
+  programCohort   ProgramCohort           @relation(fields: [programCohortId], references: [id])
+  userId          String
+  user            User                    @relation(fields: [userId], references: [id])
+  licenseSeatId   String?
+  licenseSeat     LicenseSeat?            @relation(fields: [licenseSeatId], references: [id])
+  status          ProgramEnrollmentStatus @default(ENROLLED)
+  enrolledAt      DateTime                @default(now())
+  completedAt     DateTime?
+  finalGrade      String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  enrollments Enrollment[]
+  credentials Credential[]
+
+  @@unique([programCohortId, userId])
+  @@index([userId])
+}
+
+/// Async compliance/completion report generation for org admins.
+model ReportExport {
+  id            String       @id @default(cuid())
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
+  kind          ReportKind
+  params        Json
+  status        ReportStatus @default(QUEUED)
+  fileAssetId   String?
+  fileAsset     MediaAsset?  @relation(fields: [fileAssetId], references: [id])
+  requestedById String? // soft ref → User.id
+  completedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([tenantId, status])
+}

@@ -1,0 +1,55 @@
+/// Commerce/branding profile of a BetterAuth Organization — the "tenant" of the
+/// multi-tenant marketplace. Creators, enterprises, universities, and hiring
+/// partners are all tenants (type discriminator).
+model Tenant {
+  id                      String       @id @default(cuid())
+  organizationId          String       @unique
+  organization            Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type                    TenantType   @default(CREATOR)
+  status                  TenantStatus @default(APPLIED)
+  slug                    String       @unique // storefront path /c/[slug]
+  displayName             String
+  about                   Json?
+  logoAssetId             String? // soft ref → MediaAsset.id
+  bannerAssetId           String? // soft ref → MediaAsset.id
+  brandColors             Json?
+  subdomain               String?      @unique // post-MVP surface
+  customDomain            String?      @unique // post-MVP surface
+  domainVerifiedAt        DateTime?
+  marketplaceOptInDefault Boolean      @default(true)
+  commissionBps           Int          @default(2000) // 20% standard plan (PRD §8.5)
+  creatorPlan             CreatorPlan  @default(STANDARD)
+  payoutDetails           Json? // bank / UPI / PAN
+  gstin                   String?
+  supportEmail            String?
+  socials                 Json?
+  appliedAt               DateTime     @default(now())
+  approvedById            String? // soft ref → User.id
+  approvedAt              DateTime?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  courses               Course[]
+  projects              Project[]           @relation("TenantProjects")
+  partneredProjects     Project[]           @relation("ProjectPartnerTenant")
+  liveSessions          LiveSession[]
+  rubrics               Rubric[]
+  coupons               Coupon[]
+  bundles               Bundle[]
+  digitalProducts       DigitalProduct[]
+  orderItems            OrderItem[]
+  subscriptions         Subscription[]
+  programs              Program[]
+  orgLicenses           OrgLicense[]
+  reportExports         ReportExport[]
+  certificateTemplates  CertificateTemplate[]
+  talentBookmarks       TalentBookmark[]
+  discussionThreads     DiscussionThread[]
+  announcements         Announcement[]
+  ledgerAccounts        LedgerAccount[]
+  mediaAssets           MediaAsset[]
+  videoAssets           VideoAsset[]
+  referralCodes         ReferralCode[]
+
+  @@index([type, status])
+}

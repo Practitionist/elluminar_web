@@ -1,0 +1,47 @@
+/// Referral/affiliate code owned by a user (learner) or tenant (creator/affiliate).
+/// Platform-issued codes may have neither owner (CHECK: ≤1 owner in SQL).
+model ReferralCode {
+  id            String           @id @default(cuid())
+  ownerUserId   String?
+  ownerUser     User?            @relation(fields: [ownerUserId], references: [id])
+  ownerTenantId String?
+  ownerTenant   Tenant?          @relation(fields: [ownerTenantId], references: [id])
+  code          String           @unique
+  kind          ReferralCodeKind @default(LEARNER)
+  rewardConfig  Json
+  active        Boolean          @default(true)
+  expiresAt     DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  referrals Referral[]
+}
+
+model Referral {
+  id                  String         @id @default(cuid())
+  referralCodeId      String
+  referralCode        ReferralCode   @relation(fields: [referralCodeId], references: [id])
+  referredUserId      String?        @unique
+  referredUser        User?          @relation(fields: [referredUserId], references: [id])
+  referredEmail       String?
+  status              ReferralStatus @default(PENDING)
+  qualifiedAt         DateTime?
+  rewardedAt          DateTime?
+  rewardLedgerEntryId String? // soft ref → LedgerEntry.id
+  firstOrderId        String? // soft ref → Order.id
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([referralCodeId, status])
+}
+
+/// Generic waitlist (Career tier gating, free funnel intake, feature interest).
+model Waitlist {
+  id        String   @id @default(cuid())
+  email     String
+  source    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@unique([email, source])
+}

@@ -1,0 +1,21 @@
+// lms-web — finalized schema (pre- + post-MVP domains).
+//
+// Conventions:
+// - Money: BigInt minor units (paise/cents) + ISO currency string; percentages in basis points (Int).
+// - Rich text: Tiptap JSON in `Json` columns.
+// - IDs: String cuid(). Every mutable model has createdAt/updatedAt.
+// - Soft asset refs: `*AssetId String?` WITHOUT a relation = decorative reference to
+//   MediaAsset/VideoAsset (thumbnails, logos). Pipeline-critical assets use real relations.
+// - Soft actor refs: audit-ish `*ById String?` columns reference User.id without a relation
+//   (users are anonymized, never deleted — see User.anonymizedAt).
+// - Polymorphic "exactly one FK" sets are enforced by CHECK constraints in migration SQL.
+// - Future features must be ADDITIVE (new tables/columns); core tables never restructure.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

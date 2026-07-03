@@ -1,0 +1,190 @@
+model Category {
+  id       String     @id @default(cuid())
+  slug     String     @unique
+  name     String
+  parentId String?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  icon     String?
+  sort     Int        @default(0)
+
+  courses  Course[]
+  projects Project[]
+}
+
+/// One course entity with a delivery-mode toggle (self-paced / live) — PRD §6.1.
+/// Code features (CODE_LAB lessons) are optional per lesson: the platform is
+/// content-agnostic even though launch targeting is technical-first.
+model Course {
+  id                    String            @id @default(cuid())
+  tenantId              String
+  tenant                Tenant            @relation(fields: [tenantId], references: [id])
+  createdById           String? // soft ref → User.id
+  kind                  CourseKind        @default(COURSE)
+  title                 String
+  slug                  String
+  subtitle              String?
+  description           Json?
+  outcomes              String[]          @default([])
+  prerequisites         String[]          @default([])
+  language              String            @default("en")
+  level                 CourseLevel       @default(BEGINNER)
+  categoryId            String?
+  category              Category?         @relation(fields: [categoryId], references: [id])
+  tags                  String[]          @default([])
+  thumbnailAssetId      String? // soft ref → MediaAsset.id
+  trailerVideoAssetId   String? // soft ref → VideoAsset.id
+  status                PublishStatus     @default(DRAFT)
+  visibility            CatalogVisibility @default(MARKETPLACE)
+  selfPacedEnabled      Boolean           @default(true)
+  liveEnabled           Boolean           @default(false)
+  estimatedHours        Float?
+  certificateEnabled    Boolean           @default(true)
+  certificateTemplateId String?
+  certificateTemplate   CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
+  refundWindowDays      Int               @default(14)
+  publishedAt           DateTime?
+  seo                   Json?
+  ratingAvg             Float?
+  ratingCount           Int               @default(0)
+  enrollmentCount       Int               @default(0)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  sections          CourseSection[]
+  lessons           Lesson[]
+  cohorts           Cohort[]
+  enrollments       Enrollment[]
+  reviews           CatalogReview[]
+  prices            Price[]
+  cartItems         CartItem[]
+  orderItems        OrderItem[]
+  bundleItems       BundleItem[]
+  programItems      ProgramItem[]
+  credentials       Credential[]
+  discussionThreads DiscussionThread[]
+  announcements     Announcement[]
+  liveSessions      LiveSession[]
+  pods              Pod[]
+  aiConversations   AiConversation[]
+
+  @@unique([tenantId, slug])
+  @@index([status, visibility])
+  @@index([categoryId])
+}
+
+model CourseSection {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  position    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lessons Lesson[]
+
+  @@index([courseId, position])
+}
+
+model Lesson {
+  id               String      @id @default(cuid())
+  sectionId        String
+  section          CourseSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  courseId         String // denormalized for direct course-level queries
+  course           Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  type             LessonType
+  title            String
+  position         Int
+  isFreePreview    Boolean     @default(false)
+  releaseAfterDays Int? // drip: days after enrollment
+  releaseAt        DateTime? // drip: absolute date
+  durationSec      Int?
+  content          Json? // article body / embed config
+  videoAssetId     String?
+  videoAsset       VideoAsset? @relation(fields: [videoAssetId], references: [id])
+  labConfig        Json? // Fermion lab / DSA problem refs (CODE_LAB lessons)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  resources         LessonResource[]
+  progress          LessonProgress[]
+  quiz              Quiz?
+  assignment        Assignment?
+  sandboxSessions   SandboxSession[]
+  discussionThreads DiscussionThread[]
+  aiConversations   AiConversation[]
+  recordingSources  LiveSession[]      @relation("RecordingLesson")
+
+  @@index([courseId, position])
+  @@index([sectionId, position])
+}
+
+model LessonResource {
+  id           String     @id @default(cuid())
+  lessonId     String
+  lesson       Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  mediaAssetId String
+  mediaAsset   MediaAsset @relation(fields: [mediaAssetId], references: [id])
+  title        String?
+  createdAt    DateTime   @default(now())
+
+  @@index([lessonId])
+}
+
+/// A scheduled live run of a course (premium price, real-time delivery).
+model Cohort {
+  id                 String       @id @default(cuid())
+  courseId           String
+  course             Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  name               String
+  slug               String
+  description        String?
+  startsAt           DateTime
+  endsAt             DateTime?
+  enrollmentOpensAt  DateTime?
+  enrollmentClosesAt DateTime?
+  capacity           Int?
+  timezone           String       @default("Asia/Kolkata")
+  status             CohortStatus @default(DRAFT)
+  communityUrl       String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  enrollments       Enrollment[]
+  liveSessions      LiveSession[]
+  prices            Price[]
+  cartItems         CartItem[]
+  orderItems        OrderItem[]
+  announcements     Announcement[]
+  pods              Pod[]
+  discussionThreads DiscussionThread[]
+
+  @@unique([courseId, slug])
+  @@index([courseId, status])
+}
+
+/// Marketplace rating/review for a Course or Project (exactly one — CHECK in SQL).
+model CatalogReview {
+  id              String                 @id @default(cuid())
+  userId          String
+  user            User                   @relation(fields: [userId], references: [id])
+  courseId        String?
+  course          Course?                @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  projectId       String?
+  project         Project?               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rating          Int // 1–5
+  title           String?
+  body            String?
+  status          ReviewModerationStatus @default(PENDING)
+  tenantReply     String?
+  tenantRepliedAt DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@unique([userId, courseId])
+  @@unique([userId, projectId])
+  @@index([courseId, status])
+  @@index([projectId, status])
+}

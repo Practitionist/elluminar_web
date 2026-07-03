@@ -1,0 +1,78 @@
+/// One account per (owner, currency). Owner consistency + per-owner uniqueness
+/// enforced by CHECK + partial unique indexes in SQL.
+model LedgerAccount {
+  id                 String          @id @default(cuid())
+  ownerType          LedgerOwnerType
+  tenantId           String?
+  tenant             Tenant?         @relation(fields: [tenantId], references: [id])
+  mentorProfileId    String?
+  mentorProfile      MentorProfile?  @relation(fields: [mentorProfileId], references: [id])
+  userId             String? // learner referral rewards / credits
+  user               User?           @relation(fields: [userId], references: [id])
+  currency           String          @default("INR")
+  balanceCachedMinor BigInt          @default(0)
+  balanceCachedAt    DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  entries LedgerEntry[]
+  payouts Payout[]
+
+  @@index([ownerType, currency])
+  @@index([tenantId])
+  @@index([mentorProfileId])
+  @@index([userId])
+}
+
+/// Append-only money movements. Signed amounts; account balance = SUM(entries).
+model LedgerEntry {
+  id                String          @id @default(cuid())
+  accountId         String
+  account           LedgerAccount   @relation(fields: [accountId], references: [id])
+  entryType         LedgerEntryType
+  amountMinor       BigInt // signed
+  currency          String          @default("INR")
+  orderItemId       String?
+  orderItem         OrderItem?      @relation(fields: [orderItemId], references: [id])
+  refundId          String?
+  refund            Refund?         @relation(fields: [refundId], references: [id])
+  payoutId          String?
+  payout            Payout?         @relation(fields: [payoutId], references: [id])
+  projectInstanceId String?
+  projectInstance   ProjectInstance? @relation(fields: [projectInstanceId], references: [id])
+  subscriptionId    String?
+  subscription      Subscription?   @relation(fields: [subscriptionId], references: [id])
+  memo              String?
+  idempotencyKey    String?         @unique
+  createdById       String? // soft ref → User.id
+  createdAt         DateTime        @default(now())
+
+  @@index([accountId, createdAt])
+  @@index([entryType, createdAt])
+}
+
+model Payout {
+  id               String       @id @default(cuid())
+  accountId        String
+  account          LedgerAccount @relation(fields: [accountId], references: [id])
+  amountMinor      BigInt
+  currency         String       @default("INR")
+  status           PayoutStatus @default(DRAFT)
+  method           PayoutMethod @default(MANUAL)
+  providerRef      String?
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  statementAssetId String?
+  statementAsset   MediaAsset?  @relation(fields: [statementAssetId], references: [id])
+  initiatedById    String? // soft ref → User.id
+  approvedById     String? // soft ref → User.id
+  processedAt      DateTime?
+  failureReason    String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  ledgerEntries LedgerEntry[]
+
+  @@index([accountId, status])
+  @@index([status, createdAt])
+}

@@ -1,0 +1,73 @@
+/// Vetted mentor pool — pooled across the marketplace (vs. single-tenant platforms).
+model MentorProfile {
+  id                 String       @id @default(cuid())
+  userId             String       @unique
+  user               User         @relation(fields: [userId], references: [id])
+  headline           String
+  bio                Json?
+  expertiseTags      String[]     @default([])
+  level              MentorLevel  @default(ASSOCIATE)
+  status             MentorStatus @default(APPLIED)
+  appliedAt          DateTime     @default(now())
+  vettedById         String? // soft ref → User.id
+  vettedAt           DateTime?
+  timezone           String       @default("Asia/Kolkata")
+  languages          String[]     @default(["en"])
+  maxActiveInstances Int          @default(5)
+  defaultPayoutBps   Int          @default(5500) // 55% of mentor-attributable fee (PRD §8.3 band)
+  availability       Json?
+  resumeAssetId      String? // soft ref → MediaAsset.id
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  assignments    MentorAssignment[]
+  offerings      MentorOffering[]
+  ledgerAccounts LedgerAccount[]
+  endorsements   MentorEndorsement[]
+
+  @@index([status, level])
+}
+
+/// Bookable mentor services (mock interviews, office hours) — post-MVP surface.
+model MentorOffering {
+  id              String             @id @default(cuid())
+  mentorProfileId String
+  mentorProfile   MentorProfile      @relation(fields: [mentorProfileId], references: [id])
+  kind            MentorOfferingKind
+  title           String
+  description     String?
+  durationMin     Int                @default(45)
+  active          Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  bookings   MentorBooking[]
+  prices     Price[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([mentorProfileId, active])
+}
+
+model MentorBooking {
+  id            String              @id @default(cuid())
+  offeringId    String
+  offering      MentorOffering      @relation(fields: [offeringId], references: [id])
+  learnerUserId String
+  learner       User                @relation(fields: [learnerUserId], references: [id])
+  orderItemId   String?
+  orderItem     OrderItem?          @relation(fields: [orderItemId], references: [id])
+  scheduledAt   DateTime?
+  liveSessionId String?
+  liveSession   LiveSession?        @relation(fields: [liveSessionId], references: [id])
+  status        MentorBookingStatus @default(REQUESTED)
+  learnerNotes  String?
+  mentorNotes   Json?
+  rating        Int?
+  reviewText    String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([offeringId, status])
+  @@index([learnerUserId])
+}

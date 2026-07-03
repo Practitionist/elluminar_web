@@ -1,0 +1,211 @@
+/// Generic uploaded file (Supabase Storage). Decorative references to this table
+/// (thumbnails, logos, banners) are soft `*AssetId` strings; pipeline-critical
+/// references (lesson resources, submission files, generated PDFs) are real relations.
+model MediaAsset {
+  id           String          @id @default(cuid())
+  tenantId     String?
+  tenant       Tenant?         @relation(fields: [tenantId], references: [id])
+  uploadedById String? // soft ref → User.id
+  storage      StorageProvider @default(SUPABASE)
+  bucket       String?
+  path         String?
+  url          String?
+  filename     String
+  mime         String
+  sizeBytes    BigInt          @default(0)
+  kind         MediaKind       @default(OTHER)
+  status       MediaStatus     @default(UPLOADING)
+  checksum     String?
+  metadata     Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  lessonResources LessonResource[]
+  submissionFiles SubmissionFile[]
+  digitalProducts DigitalProduct[]
+  credentials     Credential[]
+  invoices        Invoice[]
+  payouts         Payout[]
+  reportExports   ReportExport[]
+  videoSources    VideoAsset[]     @relation("VideoSourceAsset")
+
+  @@index([tenantId, kind])
+  @@index([uploadedById])
+}
+
+/// Provider-hosted video (Fermion at MVP). The provider is swappable —
+/// no Fermion IDs leak beyond providerVideoRef/playbackMeta.
+model VideoAsset {
+  id               String        @id @default(cuid())
+  tenantId         String
+  tenant           Tenant        @relation(fields: [tenantId], references: [id])
+  provider         VideoProvider @default(FERMION)
+  providerVideoRef String?
+  title            String?
+  durationSec      Int?
+  status           VideoStatus   @default(UPLOAD_PENDING)
+  thumbnailUrl     String?
+  drmEnabled       Boolean       @default(true)
+  playbackMeta     Json?
+  sourceAssetId    String?
+  sourceAsset      MediaAsset?   @relation("VideoSourceAsset", fields: [sourceAssetId], references: [id])
+  uploadedById     String? // soft ref → User.id
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  lessons           Lesson[]
+  liveRecordings    LiveSession[]    @relation("LiveSessionRecording")
+  defenseRecordings DefenseSession[] @relation("DefenseRecording")
+
+  @@unique([provider, providerVideoRef])
+  @@index([tenantId, status])
+}
+
+/// Maps our users to external provider identities (Fermion user, Razorpay/Dodo customer).
+model UserProviderIdentity {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider    IdentityProvider
+  externalRef String
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([provider, userId])
+  @@unique([provider, externalRef])
+}
+
+/// Idempotency backbone for all inbound provider webhooks.
+model WebhookEvent {
+  id             String          @id @default(cuid())
+  provider       WebhookProvider
+  eventRef       String?
+  eventType      String
+  signatureValid Boolean         @default(false)
+  payload        Json
+  status         WebhookStatus   @default(RECEIVED)
+  attempts       Int             @default(0)
+  error          String?
+  receivedAt     DateTime        @default(now())
+  processedAt    DateTime?
+
+  @@unique([provider, eventRef])
+  @@index([provider, status, receivedAt])
+}
+
+/// In-app notification inbox. Delivery fan-out (email/SMS/WhatsApp/push) is
+/// recorded in channelsSent; Novu orchestration is post-MVP.
+model Notification {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category     String
+  title        String
+  body         String?
+  actionUrl    String?
+  data         Json?
+  readAt       DateTime?
+  channelsSent String[]  @default([])
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prefs     Json // category × channel matrix (email/sms/whatsapp/push)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DeviceToken {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform   DevicePlatform
+  token      String         @unique
+  revoked    Boolean        @default(false)
+  lastSeenAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+
+  @@index([userId])
+}
+
+/// Append-only audit trail. Actor references are soft (no FK) for write throughput
+/// and because users are anonymized, never deleted.
+model AuditLog {
+  id          String    @id @default(cuid())
+  actorUserId String?
+  actorKind   ActorKind @default(USER)
+  tenantId    String?
+  action      String
+  entityType  String
+  entityId    String
+  before      Json?
+  after       Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([entityType, entityId])
+  @@index([tenantId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+/// Plagiarism / AI-generation / proctoring flags across submission types.
+model IntegrityFlag {
+  id           String               @id @default(cuid())
+  subjectType  IntegritySubjectType
+  subjectId    String
+  kind         IntegrityKind
+  score        Float?
+  evidence     Json?
+  status       IntegrityStatus      @default(OPEN)
+  raisedByKind RaisedByKind         @default(SYSTEM)
+  raisedById   String? // soft ref → User.id
+  resolvedById String? // soft ref → User.id
+  resolvedAt   DateTime?
+  resolution   String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([subjectType, subjectId])
+  @@index([status, createdAt])
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  description String?
+  enabled     Boolean  @default(false)
+  rules       Json?
+  updatedById String? // soft ref → User.id
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Business configuration (default commission bps, mentor fee shares, GST rate,
+/// refund defaults, entitlement toggles) — editable without deploys.
+model PlatformConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       Json
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Double-submit guard for checkout and other non-idempotent server actions.
+model IdempotencyKey {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  scope     String
+  resultRef String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}

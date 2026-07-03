@@ -1,0 +1,270 @@
+// BetterAuth-managed tables (core + admin + twoFactor + organization/teams/
+// dynamic-access-control + sso plugins), extended with domain fields and
+// back-relations. Shapes reconciled against `npx @better-auth/cli generate`.
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // admin plugin
+  role       String?   @default("user")
+  banned     Boolean?  @default(false)
+  banReason  String?
+  banExpires DateTime?
+
+  // twoFactor plugin
+  twoFactorEnabled Boolean? @default(false)
+
+  // domain fields
+  phone          String?
+  timezone       String    @default("Asia/Kolkata")
+  locale         String    @default("en")
+  marketingOptIn Boolean   @default(false)
+  onboardedAt    DateTime?
+  anonymizedAt   DateTime? // DPDP/GDPR erasure = PII overwritten in place
+
+  // auth relations
+  sessions        Session[]
+  accounts        Account[]
+  twoFactors      TwoFactor[]
+  members         Member[]
+  invitationsSent Invitation[]
+  teamMembers     TeamMember[]
+  ssoProviders    SsoProvider[]
+
+  // platform relations
+  providerIdentities     UserProviderIdentity[]
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
+  deviceTokens           DeviceToken[]
+
+  // learning relations
+  enrollments        Enrollment[]
+  liveSessionsHosted LiveSession[]    @relation("LiveSessionHost")
+  liveAttendances    LiveAttendance[]
+  quizAttempts       QuizAttempt[]
+  assignmentSubmissions AssignmentSubmission[]
+  peerReviewTasks    PeerReviewTask[]
+  sandboxSessions    SandboxSession[]
+
+  // project & mentorship relations
+  projectInstances      ProjectInstance[]
+  projectCollaborations ProjectInstanceCollaborator[]
+  mentorProfile         MentorProfile?
+  mentorBookings        MentorBooking[]
+
+  // commerce relations
+  carts                   Cart[]
+  orders                  Order[]
+  couponRedemptions       CouponRedemption[]
+  giftedOrderItemsClaimed OrderItem[]        @relation("OrderItemGiftClaimedBy")
+  subscriptions           Subscription[]
+  ledgerAccounts          LedgerAccount[]
+
+  // enterprise relations
+  licenseSeats       LicenseSeat[]
+  programEnrollments ProgramEnrollment[]
+
+  // career relations
+  credentials             Credential[]
+  portfolioProfile        PortfolioProfile?
+  endorsements            MentorEndorsement[]
+  talentBookmarksReceived TalentBookmark[]
+
+  // community relations
+  catalogReviews    CatalogReview[]
+  discussionThreads DiscussionThread[]
+  discussionPosts   DiscussionPost[]
+  postVotes         PostVote[]
+  podMemberships    PodMember[]
+  xpEvents          XpEvent[]
+  streak            UserStreak?
+  badges            UserBadge[]
+
+  // growth & AI relations
+  referralCodes   ReferralCode[]
+  referral        Referral?
+  aiWallet        AiWallet?
+  aiUsageEvents   AiUsageEvent[]
+  aiConversations AiConversation[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // admin plugin
+  impersonatedBy String?
+
+  // organization plugin
+  activeOrganizationId String?
+  activeTeamId         String?
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model TwoFactor {
+  id          String @id @default(cuid())
+  secret      String
+  backupCodes String
+  userId      String
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("twoFactor")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  members           Member[]
+  invitations       Invitation[]
+  teams             Team[]
+  organizationRoles OrganizationRole[]
+  ssoProviders      SsoProvider[]
+  tenant            Tenant?
+
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member")
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String?
+  status         String       @default("pending")
+  expiresAt      DateTime
+  inviterId      String
+  inviter        User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  teamId         String?
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("invitation")
+}
+
+model Team {
+  id             String       @id @default(cuid())
+  name           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime?    @updatedAt
+
+  teamMembers TeamMember[]
+
+  @@index([organizationId])
+  @@map("team")
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([userId])
+  @@map("teamMember")
+}
+
+/// Dynamic access control: per-organization custom roles.
+model OrganizationRole {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           String
+  permission     String // JSON-stringified permission statements
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime?    @updatedAt
+
+  @@unique([organizationId, role])
+  @@map("organizationRole")
+}
+
+/// Enterprise SSO: OIDC/SAML provider registered per organization/domain.
+model SsoProvider {
+  id             String        @id @default(cuid())
+  issuer         String
+  domain         String
+  oidcConfig     String?
+  samlConfig     String?
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerId     String        @unique
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  domainVerified Boolean       @default(false)
+
+  @@index([domain])
+  @@map("ssoProvider")
+}

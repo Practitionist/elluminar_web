@@ -1,0 +1,450 @@
+/// Multi-currency, PPP-ready, effective-dated price for any sellable.
+/// Exactly one target FK matching itemType (CHECK in SQL).
+/// PROJECT prices may vary by learner-selected mentor seniority (PRD §8.5).
+model Price {
+  id               String           @id @default(cuid())
+  itemType         CommerceItemType
+  courseId         String?
+  course           Course?          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  cohortId         String?
+  cohort           Cohort?          @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  projectId        String?
+  project          Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  planId           String?
+  plan             SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
+  bundleId         String?
+  bundle           Bundle?          @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  digitalProductId String?
+  digitalProduct   DigitalProduct?  @relation(fields: [digitalProductId], references: [id], onDelete: Cascade)
+  mentorOfferingId String?
+  mentorOffering   MentorOffering?  @relation(fields: [mentorOfferingId], references: [id], onDelete: Cascade)
+  aiCreditPackId   String?
+  aiCreditPack     AiCreditPack?    @relation(fields: [aiCreditPackId], references: [id], onDelete: Cascade)
+  currency         String           @default("INR") // ISO 4217
+  region           String? // null = default; PPP regions post-MVP
+  interval         BillingInterval? // plans only
+  mentorLevel      MentorLevel? // project prices by reviewer seniority
+  amountMinor      BigInt
+  compareAtMinor   BigInt?
+  active           Boolean          @default(true)
+  effectiveFrom    DateTime?
+  effectiveTo      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  orderItems OrderItem[]
+
+  @@index([itemType, currency, region, active])
+  @@index([courseId])
+  @@index([cohortId])
+  @@index([projectId])
+  @@index([planId])
+}
+
+model Cart {
+  id               String     @id @default(cuid())
+  userId           String?
+  user             User?      @relation(fields: [userId], references: [id])
+  anonymousId      String?
+  currency         String     @default("INR")
+  status           CartStatus @default(ACTIVE)
+  convertedOrderId String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  items CartItem[]
+
+  @@index([userId, status])
+  @@index([anonymousId, status])
+}
+
+model CartItem {
+  id                 String           @id @default(cuid())
+  cartId             String
+  cart               Cart             @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  itemType           CommerceItemType
+  courseId           String?
+  course             Course?          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  cohortId           String?
+  cohort             Cohort?          @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  projectId          String?
+  project            Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  planId             String?
+  plan               SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
+  bundleId           String?
+  bundle             Bundle?          @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  digitalProductId   String?
+  digitalProduct     DigitalProduct?  @relation(fields: [digitalProductId], references: [id], onDelete: Cascade)
+  mentorOfferingId   String?
+  mentorOffering     MentorOffering?  @relation(fields: [mentorOfferingId], references: [id], onDelete: Cascade)
+  aiCreditPackId     String?
+  aiCreditPack       AiCreditPack?    @relation(fields: [aiCreditPackId], references: [id], onDelete: Cascade)
+  quantity           Int              @default(1)
+  giftRecipientEmail String?
+  metadata           Json? // variant escape hatch: mentor level, gift message, pack size
+  addedAt            DateTime         @default(now())
+
+  @@index([cartId])
+}
+
+model Coupon {
+  id           String       @id @default(cuid())
+  code         String       @unique // case-insensitive lower(code) unique index in SQL
+  tenantId     String? // null = platform-wide
+  tenant       Tenant?      @relation(fields: [tenantId], references: [id])
+  name         String
+  campaign     String? // scholarship / marketing campaign tag
+  discountType DiscountType
+  percentBps   Int? // PERCENT: e.g. 2000 = 20%
+  amountMinor  BigInt? // FIXED_AMOUNT
+  currency     String?
+  appliesTo    Json? // itemTypes / courseIds / projectIds / planCodes / tenantIds / minSubtotalMinor
+  startsAt     DateTime?
+  endsAt       DateTime?
+  maxRedemptions Int?
+  maxPerUser   Int          @default(1)
+  active       Boolean      @default(true)
+  createdById  String? // soft ref → User.id
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  redemptions CouponRedemption[]
+  orders      Order[]
+
+  @@index([tenantId, active])
+  @@index([campaign])
+}
+
+model CouponRedemption {
+  id            String   @id @default(cuid())
+  couponId      String
+  coupon        Coupon   @relation(fields: [couponId], references: [id])
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id])
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  discountMinor BigInt
+  createdAt     DateTime @default(now())
+
+  @@unique([couponId, orderId])
+  @@index([userId, couponId])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNo       Int         @unique @default(autoincrement())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  status        OrderStatus @default(DRAFT)
+  currency      String      @default("INR")
+  subtotalMinor BigInt      @default(0)
+  discountMinor BigInt      @default(0)
+  taxMinor      BigInt      @default(0)
+  totalMinor    BigInt      @default(0)
+  couponId      String?
+  coupon        Coupon?     @relation(fields: [couponId], references: [id])
+  billTo        Json? // name / email / phone / address / gstin snapshot
+  placedAt      DateTime?
+  paidAt        DateTime?
+  expiresAt     DateTime?
+  metadata      Json?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  items             OrderItem[]
+  payments          Payment[]
+  couponRedemptions CouponRedemption[]
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+}
+
+/// One purchased line item. Fulfillment links are REVERSE-ONLY
+/// (Enrollment.orderItemId, ProjectInstance.orderItemId, Subscription.originOrderItemId,
+/// MentorBooking.orderItemId) because a BUNDLE item fans out to N fulfillments.
+model OrderItem {
+  id                    String            @id @default(cuid())
+  orderId               String
+  order                 Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemType              CommerceItemType
+  courseId              String?
+  course                Course?           @relation(fields: [courseId], references: [id])
+  cohortId              String?
+  cohort                Cohort?           @relation(fields: [cohortId], references: [id])
+  projectId             String?
+  project               Project?          @relation(fields: [projectId], references: [id])
+  planId                String?
+  plan                  SubscriptionPlan? @relation(fields: [planId], references: [id])
+  bundleId              String?
+  bundle                Bundle?           @relation(fields: [bundleId], references: [id])
+  digitalProductId      String?
+  digitalProduct        DigitalProduct?   @relation(fields: [digitalProductId], references: [id])
+  mentorOfferingId      String?
+  mentorOffering        MentorOffering?   @relation(fields: [mentorOfferingId], references: [id])
+  aiCreditPackId        String?
+  aiCreditPack          AiCreditPack?     @relation(fields: [aiCreditPackId], references: [id])
+  sellerTenantId        String? // null = platform SKU (plans, AI packs)
+  sellerTenant          Tenant?           @relation(fields: [sellerTenantId], references: [id])
+  titleSnapshot         String
+  priceId               String?
+  price                 Price?            @relation(fields: [priceId], references: [id])
+  unitAmountMinor       BigInt
+  quantity              Int               @default(1)
+  discountMinor         BigInt            @default(0)
+  taxMinor              BigInt            @default(0)
+  taxRateBps            Int               @default(0)
+  totalMinor            BigInt
+  commissionBpsSnapshot Int?
+  platformFeeMinor      BigInt?
+  sellerEarningsMinor   BigInt?
+  refundWindowDays      Int               @default(14)
+  refundableUntil       DateTime?
+  fulfillmentStatus     FulfillmentStatus @default(PENDING)
+  giftRecipientEmail    String?
+  giftClaimToken        String?           @unique
+  giftClaimedById       String?
+  giftClaimedBy         User?             @relation("OrderItemGiftClaimedBy", fields: [giftClaimedById], references: [id])
+  giftClaimedAt         DateTime?
+  metadata              Json? // variant snapshot: mentor level, pack size, gift message
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  enrollments      Enrollment[]
+  projectInstances ProjectInstance[]
+  subscriptions    Subscription[]
+  mentorBookings   MentorBooking[]
+  refunds          Refund[]
+  ledgerEntries    LedgerEntry[]
+
+  @@index([orderId])
+  @@index([sellerTenantId, createdAt])
+  @@index([fulfillmentStatus])
+}
+
+model Payment {
+  id                 String              @id @default(cuid())
+  orderId            String?
+  order              Order?              @relation(fields: [orderId], references: [id])
+  subscriptionId     String?
+  subscription       Subscription?       @relation(fields: [subscriptionId], references: [id])
+  orgLicenseId       String? // enterprise contract payments (provider MANUAL)
+  orgLicense         OrgLicense?         @relation(fields: [orgLicenseId], references: [id])
+  provider           PaymentProviderKind
+  providerOrderRef   String?
+  providerPaymentRef String?
+  method             String? // card / upi / netbanking / emi / wallet
+  amountMinor        BigInt
+  currency           String              @default("INR")
+  status             PaymentStatus       @default(CREATED)
+  failureCode        String?
+  failureMessage     String?
+  capturedAt         DateTime?
+  raw                Json?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  refunds  Refund[]
+  invoices Invoice[]
+
+  @@unique([provider, providerPaymentRef])
+  @@index([orderId])
+  @@index([subscriptionId])
+  @@index([status, createdAt])
+}
+
+/// Refund lifecycle in one table: self-serve request → decision → provider processing.
+model Refund {
+  id                String       @id @default(cuid())
+  paymentId         String
+  payment           Payment      @relation(fields: [paymentId], references: [id])
+  orderItemId       String?
+  orderItem         OrderItem?   @relation(fields: [orderItemId], references: [id])
+  kind              RefundKind   @default(ITEM)
+  amountMinor       BigInt
+  currency          String       @default("INR")
+  reason            RefundReason
+  note              String?
+  status            RefundStatus @default(REQUESTED)
+  requestedById     String? // soft ref → User.id
+  decidedById       String? // soft ref → User.id
+  decidedAt         DateTime?
+  providerRefundRef String?
+  processedAt       DateTime?
+  raw               Json?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  creditNotes   Invoice[]
+  ledgerEntries LedgerEntry[]
+
+  @@index([paymentId])
+  @@index([status, createdAt])
+}
+
+/// Learner tiers (FREE/LEARN/MENTOR/CAREER), creator plan (CREATOR_PRO),
+/// and future org subscriptions. Entitlements are a Zod-typed Json contract.
+model SubscriptionPlan {
+  id           String       @id @default(cuid())
+  code         String       @unique
+  audience     PlanAudience @default(LEARNER)
+  name         String
+  tagline      String?
+  description  Json?
+  entitlements Json // Zod-typed: library access, cohort access, capstone discount bps, credits…
+  trialDays    Int          @default(0)
+  sort         Int          @default(0)
+  active       Boolean      @default(true)
+  providerRefs Json? // razorpay plan ids per interval×currency; dodo product ids post-MVP
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  subscriptions        Subscription[] @relation("PlanSubscriptions")
+  pendingSubscriptions Subscription[] @relation("PendingPlanSubscriptions")
+  prices               Price[]
+  cartItems            CartItem[]
+  orderItems           OrderItem[]
+}
+
+model Subscription {
+  id                String              @id @default(cuid())
+  userId            String?
+  user              User?               @relation(fields: [userId], references: [id])
+  tenantId          String? // CREATOR_PRO / org subscriptions
+  tenant            Tenant?             @relation(fields: [tenantId], references: [id])
+  planId            String
+  plan              SubscriptionPlan    @relation("PlanSubscriptions", fields: [planId], references: [id])
+  provider          PaymentProviderKind @default(RAZORPAY)
+  providerSubRef    String?
+  originOrderItemId String?
+  originOrderItem   OrderItem?          @relation(fields: [originOrderItemId], references: [id])
+  status            SubscriptionStatus  @default(INCOMPLETE)
+  interval          BillingInterval     @default(MONTHLY)
+  currentPeriodStart DateTime?
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean             @default(false)
+  cancelledAt       DateTime?
+  pendingPlanId     String? // scheduled plan change at period end
+  pendingPlan       SubscriptionPlan?   @relation("PendingPlanSubscriptions", fields: [pendingPlanId], references: [id])
+  pendingInterval   BillingInterval?
+  pausedAt          DateTime? // hardship pause (teardown requirement)
+  resumesAt         DateTime?
+  endedAt           DateTime?
+  trialEndsAt       DateTime?
+  metadata          Json?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  credits       SubscriptionCredit[]
+  payments      Payment[]
+  enrollments   Enrollment[]
+  ledgerEntries LedgerEntry[]
+
+  @@unique([provider, providerSubRef])
+  @@index([userId, status])
+  @@index([tenantId, status])
+  @@index([status, currentPeriodEnd])
+}
+
+/// Stateful entitlement consumption per period (Mentor: 1 Sprint/mo; Career: 1 Flagship/yr).
+model SubscriptionCredit {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  creditType     CreditType
+  periodKey      String // e.g. "2026-07" or "2026"
+  grantedCount   Int          @default(0)
+  usedCount      Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  projectInstances ProjectInstance[]
+
+  @@unique([subscriptionId, creditType, periodKey])
+}
+
+/// Soft bundles — checkout upsells, never forced (PRD §6.5). Post-MVP surface.
+model Bundle {
+  id               String        @id @default(cuid())
+  tenantId         String?
+  tenant           Tenant?       @relation(fields: [tenantId], references: [id])
+  title            String
+  slug             String        @unique
+  description      String?
+  discountType     DiscountType  @default(PERCENT)
+  discountValueBps Int?
+  amountOffMinor   BigInt?
+  status           PublishStatus @default(DRAFT)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  items      BundleItem[]
+  prices     Price[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+}
+
+model BundleItem {
+  id        String          @id @default(cuid())
+  bundleId  String
+  bundle    Bundle          @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  itemType  ProgramItemType // COURSE | PROJECT
+  courseId  String?
+  course    Course?         @relation(fields: [courseId], references: [id])
+  projectId String?
+  project   Project?        @relation(fields: [projectId], references: [id])
+  position  Int             @default(0)
+
+  @@index([bundleId, position])
+}
+
+/// Multi-format creator commerce (ebooks/templates) — post-MVP surface.
+model DigitalProduct {
+  id          String             @id @default(cuid())
+  tenantId    String
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  title       String
+  slug        String
+  description Json?
+  kind        DigitalProductKind @default(OTHER)
+  fileAssetId String?
+  fileAsset   MediaAsset?        @relation(fields: [fileAssetId], references: [id])
+  externalUrl String?
+  status      PublishStatus      @default(DRAFT)
+  visibility  CatalogVisibility  @default(MARKETPLACE)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  prices     Price[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@unique([tenantId, slug])
+}
+
+/// Tax documents: one TAX_INVOICE per payment, one CREDIT_NOTE per refund
+/// (partial uniques in SQL) — GST credit notes without restructure.
+model Invoice {
+  id         String      @id @default(cuid())
+  kind       InvoiceKind @default(TAX_INVOICE)
+  paymentId  String
+  payment    Payment     @relation(fields: [paymentId], references: [id])
+  refundId   String?
+  refund     Refund?     @relation(fields: [refundId], references: [id])
+  number     String      @unique
+  series     String      @default("INV")
+  issuedAt   DateTime    @default(now())
+  data       Json // line items + GST breakdown snapshot
+  pdfAssetId String?
+  pdfAsset   MediaAsset? @relation(fields: [pdfAssetId], references: [id])
+  createdAt  DateTime    @default(now())
+
+  @@index([paymentId])
+}
+
+/// Transactional counter for gapless invoice numbering per series.
+model InvoiceSeries {
+  id         String   @id @default(cuid())
+  series     String   @unique
+  nextNumber Int      @default(1)
+  updatedAt  DateTime @updatedAt
+}

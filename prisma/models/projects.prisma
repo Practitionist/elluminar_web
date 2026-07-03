@@ -1,0 +1,272 @@
+/// Catalog definition of a mentor-guided project (Sprint / Capstone / Flagship).
+/// The differentiated IP: ambiguous real-world briefs, held-out evaluation,
+/// rubric-based mentor review, live defense (PRD §6.2).
+model Project {
+  id                        String            @id @default(cuid())
+  tenantId                  String
+  tenant                    Tenant            @relation("TenantProjects", fields: [tenantId], references: [id])
+  createdById               String? // soft ref → User.id
+  title                     String
+  slug                      String
+  tier                      ProjectTier
+  summary                   String
+  brief                     Json // ambiguous, real-world spec (rich text)
+  techStack                 String[]          @default([])
+  categoryId                String?
+  category                  Category?         @relation(fields: [categoryId], references: [id])
+  tags                      String[]          @default([])
+  thumbnailAssetId          String? // soft ref → MediaAsset.id
+  durationWeeksMin          Int
+  durationWeeksMax          Int
+  mentorHoursBudget         Decimal           @db.Decimal(6, 2)
+  status                    PublishStatus     @default(DRAFT)
+  visibility                CatalogVisibility @default(MARKETPLACE)
+  difficulty                String?
+  rubricId                  String
+  rubric                    Rubric            @relation(fields: [rubricId], references: [id])
+  heldOutEvalConfig         Json? // private test harness — NEVER exposed to learners
+  defenseRequired           Boolean           @default(false)
+  partnerTenantId           String?
+  partnerTenant             Tenant?           @relation("ProjectPartnerTenant", fields: [partnerTenantId], references: [id])
+  partnerCompanyName        String?
+  partnerCompanyLogoAssetId String? // soft ref → MediaAsset.id
+  prerequisites             String[]          @default([])
+  outcomes                  String[]          @default([])
+  certificateEnabled        Boolean           @default(true)
+  certificateTemplateId     String?
+  certificateTemplate       CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
+  refundableUntilKickoff    Boolean           @default(true)
+  publishedAt               DateTime?
+  ratingAvg                 Float?
+  ratingCount               Int               @default(0)
+  purchaseCount             Int               @default(0)
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+
+  milestones        Milestone[]
+  instances         ProjectInstance[]
+  prices            Price[]
+  cartItems         CartItem[]
+  orderItems        OrderItem[]
+  bundleItems       BundleItem[]
+  programItems      ProgramItem[]
+  reviews           CatalogReview[]
+  discussionThreads DiscussionThread[]
+
+  @@unique([tenantId, slug])
+  @@index([status, visibility, tier])
+  @@index([categoryId])
+}
+
+/// Milestone template within a project definition.
+model Milestone {
+  id                 String   @id @default(cuid())
+  projectId          String
+  project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title              String
+  description        Json
+  position           Int
+  expectedWeek       Int?
+  deliverables       Json
+  isReviewCheckpoint Boolean  @default(false)
+  weightPct          Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  submissions MilestoneSubmission[]
+
+  @@index([projectId, position])
+}
+
+/// A learner's purchased run of a project. mentorKickoffAt is the refund cutoff.
+model ProjectInstance {
+  id                   String                @id @default(cuid())
+  projectId            String
+  project              Project               @relation(fields: [projectId], references: [id])
+  userId               String
+  user                 User                  @relation(fields: [userId], references: [id])
+  orderItemId          String?
+  orderItem            OrderItem?            @relation(fields: [orderItemId], references: [id])
+  subscriptionCreditId String?
+  subscriptionCredit   SubscriptionCredit?   @relation(fields: [subscriptionCreditId], references: [id])
+  source               ProjectInstanceSource
+  status               ProjectInstanceStatus @default(PENDING_KICKOFF)
+  requestedMentorLevel MentorLevel? // learner-selected reviewer seniority (PRD §8.5)
+  mentorKickoffAt      DateTime? // set at kickoff → refund cutoff
+  startedAt            DateTime?
+  dueAt                DateTime?
+  completedAt          DateTime?
+  finalScore           Float?
+  repoUrl              String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  collaborators        ProjectInstanceCollaborator[]
+  mentorAssignments    MentorAssignment[]
+  milestoneSubmissions MilestoneSubmission[]
+  projectReviews       ProjectReview[]
+  defenseSessions      DefenseSession[]
+  liveSessions         LiveSession[]
+  credentials          Credential[]
+  sandboxSessions      SandboxSession[]
+  discussionThreads    DiscussionThread[]
+  aiConversations      AiConversation[]
+  ledgerEntries        LedgerEntry[]
+  endorsements         MentorEndorsement[]
+
+  @@index([projectId, status])
+  @@index([userId, status])
+}
+
+/// Paired externships (Crio-style teams of 2) — V1 free funnel; table now.
+model ProjectInstanceCollaborator {
+  id                String           @id @default(cuid())
+  projectInstanceId String
+  projectInstance   ProjectInstance  @relation(fields: [projectInstanceId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User             @relation(fields: [userId], references: [id])
+  role              CollaboratorRole @default(COLLABORATOR)
+  joinedAt          DateTime         @default(now())
+
+  @@unique([projectInstanceId, userId])
+}
+
+/// Mentor ↔ instance assignment history (reassignments preserved — review data
+/// is a compliance-grade record per PRD §9.6).
+model MentorAssignment {
+  id                String               @id @default(cuid())
+  projectInstanceId String
+  projectInstance   ProjectInstance      @relation(fields: [projectInstanceId], references: [id])
+  mentorProfileId   String
+  mentorProfile     MentorProfile        @relation(fields: [mentorProfileId], references: [id])
+  role              MentorAssignmentRole @default(PRIMARY)
+  assignedAt        DateTime             @default(now())
+  assignedById      String? // soft ref → User.id
+  unassignedAt      DateTime?
+  payoutBpsOverride Int?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([projectInstanceId])
+  @@index([mentorProfileId, unassignedAt])
+}
+
+model MilestoneSubmission {
+  id                String                    @id @default(cuid())
+  projectInstanceId String
+  projectInstance   ProjectInstance           @relation(fields: [projectInstanceId], references: [id])
+  milestoneId       String
+  milestone         Milestone                 @relation(fields: [milestoneId], references: [id])
+  attemptNo         Int                       @default(1)
+  notes             Json?
+  repoUrl           String?
+  artifactUrl       String?
+  status            MilestoneSubmissionStatus @default(SUBMITTED)
+  submittedAt       DateTime                  @default(now())
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  files   SubmissionFile[]
+  reviews ProjectReview[]
+
+  @@unique([projectInstanceId, milestoneId, attemptNo])
+  @@index([status])
+}
+
+/// Versioned rubric — immutable once referenced by a review (new version = new row).
+model Rubric {
+  id          String   @id @default(cuid())
+  tenantId    String?
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id])
+  name        String
+  version     Int      @default(1)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  criteria    RubricCriterion[]
+  projects    Project[]
+  assignments Assignment[]
+}
+
+model RubricCriterion {
+  id          String   @id @default(cuid())
+  rubricId    String
+  rubric      Rubric   @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  weightPct   Int
+  levels      Json // score bands + descriptors
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  scores RubricScore[]
+
+  @@index([rubricId, position])
+}
+
+/// A review pass over an instance or a specific milestone submission.
+/// reviewerId null = AI review. Defense outcome is canonical HERE
+/// (kind=DEFENSE, decision) — DefenseSession is the logistics record.
+model ProjectReview {
+  id                    String              @id @default(cuid())
+  projectInstanceId     String
+  projectInstance       ProjectInstance     @relation(fields: [projectInstanceId], references: [id])
+  milestoneSubmissionId String?
+  milestoneSubmission   MilestoneSubmission? @relation(fields: [milestoneSubmissionId], references: [id])
+  kind                  ProjectReviewKind
+  reviewerId            String? // soft ref → User.id (null = AI)
+  status                ProjectReviewStatus @default(PENDING)
+  decision              ReviewDecision?
+  overallScore          Float?
+  summary               Json?
+  aiMetadata            Json?
+  turnaroundTargetAt    DateTime? // review SLA
+  startedAt             DateTime?
+  completedAt           DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  rubricScores RubricScore[]
+
+  @@index([projectInstanceId, kind])
+  @@index([status, turnaroundTargetAt])
+}
+
+model RubricScore {
+  id                String          @id @default(cuid())
+  projectReviewId   String
+  projectReview     ProjectReview   @relation(fields: [projectReviewId], references: [id], onDelete: Cascade)
+  rubricCriterionId String
+  rubricCriterion   RubricCriterion @relation(fields: [rubricCriterionId], references: [id])
+  score             Float
+  maxScore          Float
+  comment           String?
+  createdAt         DateTime        @default(now())
+
+  @@unique([projectReviewId, rubricCriterionId])
+}
+
+/// Live defense logistics (scheduling, recording, AI question plan).
+/// Verdict of record lives on ProjectReview(kind=DEFENSE).decision.
+model DefenseSession {
+  id                    String         @id @default(cuid())
+  projectInstanceId     String
+  projectInstance       ProjectInstance @relation(fields: [projectInstanceId], references: [id])
+  scheduledAt           DateTime
+  liveSessionId         String?
+  liveSession           LiveSession?   @relation(fields: [liveSessionId], references: [id])
+  status                DefenseStatus  @default(SCHEDULED)
+  aiQuestionPlan        Json?
+  transcriptAssetId     String? // soft ref → MediaAsset.id
+  recordingVideoAssetId String?
+  recordingVideoAsset   VideoAsset?    @relation("DefenseRecording", fields: [recordingVideoAssetId], references: [id])
+  verdict               DefenseVerdict?
+  notes                 Json?
+  conductedById         String? // soft ref → User.id
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([projectInstanceId])
+  @@index([status, scheduledAt])
+}

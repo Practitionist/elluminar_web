@@ -1,0 +1,115 @@
+/// A learner's relationship to a course (optionally to a specific live cohort).
+/// `subscriptionId` is load-bearing: when a subscription lapses, exactly these
+/// enrollments are expired.
+model Enrollment {
+  id                  String            @id @default(cuid())
+  userId              String
+  user                User              @relation(fields: [userId], references: [id])
+  courseId            String
+  course              Course            @relation(fields: [courseId], references: [id])
+  cohortId            String?
+  cohort              Cohort?           @relation(fields: [cohortId], references: [id])
+  source              EnrollmentSource
+  orderItemId         String?
+  orderItem           OrderItem?        @relation(fields: [orderItemId], references: [id])
+  subscriptionId      String?
+  subscription        Subscription?     @relation(fields: [subscriptionId], references: [id])
+  programEnrollmentId String?
+  programEnrollment   ProgramEnrollment? @relation(fields: [programEnrollmentId], references: [id])
+  status              EnrollmentStatus  @default(ACTIVE)
+  activatedAt         DateTime          @default(now())
+  expiresAt           DateTime? // licensed/subscription seats
+  completedAt         DateTime?
+  progressPct         Float             @default(0)
+  lastActivityAt      DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  lessonProgress        LessonProgress[]
+  quizAttempts          QuizAttempt[]
+  assignmentSubmissions AssignmentSubmission[]
+
+  @@unique([userId, courseId, cohortId])
+  @@index([courseId, status])
+  @@index([userId, status])
+  @@index([subscriptionId])
+}
+
+model LessonProgress {
+  id             String         @id @default(cuid())
+  enrollmentId   String
+  enrollment     Enrollment     @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lessonId       String
+  lesson         Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  status         ProgressStatus @default(NOT_STARTED)
+  secondsWatched Int            @default(0)
+  lastPositionSec Int           @default(0)
+  completedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([enrollmentId, lessonId])
+  @@index([lessonId])
+}
+
+/// Any scheduled live event: cohort classes, webinars/AMAs, mentor checkpoints,
+/// project defenses, mentor bookings, enterprise program sessions.
+/// Recording hand-off: recordingVideoAsset → attached as recordingLesson (PRD §6.1).
+model LiveSession {
+  id                    String             @id @default(cuid())
+  tenantId              String
+  tenant                Tenant             @relation(fields: [tenantId], references: [id])
+  purpose               LiveSessionPurpose
+  courseId              String?
+  course                Course?            @relation(fields: [courseId], references: [id])
+  cohortId              String?
+  cohort                Cohort?            @relation(fields: [cohortId], references: [id])
+  projectInstanceId     String?
+  projectInstance       ProjectInstance?   @relation(fields: [projectInstanceId], references: [id])
+  programCohortId       String?
+  programCohort         ProgramCohort?     @relation(fields: [programCohortId], references: [id])
+  title                 String
+  description           String?
+  scheduledStartAt      DateTime
+  scheduledEndAt        DateTime
+  timezone              String             @default("Asia/Kolkata")
+  provider              LiveProvider       @default(FERMION)
+  providerSessionRef    String?
+  joinUrl               String?
+  hostUserId            String
+  host                  User               @relation("LiveSessionHost", fields: [hostUserId], references: [id])
+  status                LiveSessionStatus  @default(SCHEDULED)
+  startedAt             DateTime?
+  endedAt               DateTime?
+  recordingVideoAssetId String?
+  recordingVideoAsset   VideoAsset?        @relation("LiveSessionRecording", fields: [recordingVideoAssetId], references: [id])
+  recordingLessonId     String?
+  recordingLesson       Lesson?            @relation("RecordingLesson", fields: [recordingLessonId], references: [id])
+  calendarEventRef      String? // Google Calendar sync (integration post-MVP)
+  maxParticipants       Int?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  attendances     LiveAttendance[]
+  defenseSessions DefenseSession[]
+  mentorBookings  MentorBooking[]
+
+  @@index([cohortId, scheduledStartAt])
+  @@index([tenantId, status, scheduledStartAt])
+  @@index([projectInstanceId])
+}
+
+model LiveAttendance {
+  id            String      @id @default(cuid())
+  liveSessionId String
+  liveSession   LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  joinedAt      DateTime    @default(now())
+  leftAt        DateTime?
+  durationSec   Int         @default(0)
+  createdAt     DateTime    @default(now())
+
+  @@unique([liveSessionId, userId])
+  @@index([userId])
+}

@@ -1,0 +1,186 @@
+/// Quiz attached to a lesson, or standalone (lessonId null) for future
+/// certification-bearing exams (PRD §7.2C) — no restructure needed later.
+model Quiz {
+  id               String          @id @default(cuid())
+  lessonId         String?         @unique
+  lesson           Lesson?         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  title            String
+  instructions     String?
+  timeLimitSec     Int?
+  maxAttempts      Int?
+  passPct          Int             @default(60)
+  drawCount        Int? // random draw N from the question bank
+  shuffleQuestions Boolean         @default(true)
+  shuffleOptions   Boolean         @default(true)
+  showAnswers      QuizShowAnswers @default(AFTER_ATTEMPT)
+  proctored        Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+}
+
+model QuizQuestion {
+  id          String       @id @default(cuid())
+  quizId      String
+  quiz        Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type        QuestionType
+  prompt      Json
+  options     Json?
+  correct     Json
+  points      Int          @default(1)
+  explanation String?
+  poolTag     String? // question-bank grouping for randomized draws
+  position    Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([quizId, position])
+}
+
+model QuizAttempt {
+  id           String        @id @default(cuid())
+  quizId       String
+  quiz         Quiz          @relation(fields: [quizId], references: [id])
+  userId       String
+  user         User          @relation(fields: [userId], references: [id])
+  enrollmentId String?
+  enrollment   Enrollment?   @relation(fields: [enrollmentId], references: [id])
+  attemptNo    Int
+  seed         Int // reproducible randomization
+  startedAt    DateTime      @default(now())
+  dueAt        DateTime?
+  submittedAt  DateTime?
+  answers      Json?
+  scorePoints  Int?
+  maxPoints    Int
+  passed       Boolean?
+  gradedAt     DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  proctorRecord ProctorRecord?
+
+  @@unique([quizId, userId, attemptNo])
+  @@index([userId])
+}
+
+model Assignment {
+  id                String      @id @default(cuid())
+  lessonId          String      @unique
+  lesson            Lesson      @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  title             String
+  instructions      Json
+  gradingType       GradingType @default(MANUAL)
+  maxPoints         Int         @default(100)
+  rubricId          String?
+  rubric            Rubric?     @relation(fields: [rubricId], references: [id])
+  dueOffsetDays     Int?
+  allowLate         Boolean     @default(true)
+  allowResubmission Boolean     @default(true)
+  submissionKinds   String[]    @default(["TEXT"]) // TEXT | FILE | REPO_URL | URL
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  submissions AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id           String           @id @default(cuid())
+  assignmentId String
+  assignment   Assignment       @relation(fields: [assignmentId], references: [id])
+  userId       String
+  user         User             @relation(fields: [userId], references: [id])
+  enrollmentId String
+  enrollment   Enrollment       @relation(fields: [enrollmentId], references: [id])
+  attemptNo    Int              @default(1)
+  text         String?
+  repoUrl      String?
+  url          String?
+  status       SubmissionStatus @default(DRAFT)
+  submittedAt  DateTime?
+  late         Boolean          @default(false)
+  scorePoints  Int?
+  feedback     Json?
+  gradedById   String? // soft ref → User.id
+  gradedAt     DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  files           SubmissionFile[]
+  peerReviewTasks PeerReviewTask[]
+
+  @@unique([assignmentId, userId, attemptNo])
+  @@index([assignmentId, status])
+  @@index([userId])
+}
+
+/// File attached to an assignment submission OR a project milestone submission
+/// (exactly one — CHECK in SQL).
+model SubmissionFile {
+  id                     String               @id @default(cuid())
+  assignmentSubmissionId String?
+  assignmentSubmission   AssignmentSubmission? @relation(fields: [assignmentSubmissionId], references: [id], onDelete: Cascade)
+  milestoneSubmissionId  String?
+  milestoneSubmission    MilestoneSubmission? @relation(fields: [milestoneSubmissionId], references: [id], onDelete: Cascade)
+  mediaAssetId           String
+  mediaAsset             MediaAsset           @relation(fields: [mediaAssetId], references: [id])
+  createdAt              DateTime             @default(now())
+
+  @@index([assignmentSubmissionId])
+  @@index([milestoneSubmissionId])
+}
+
+model PeerReviewTask {
+  id             String           @id @default(cuid())
+  submissionId   String
+  submission     AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewerUserId String
+  reviewer       User             @relation(fields: [reviewerUserId], references: [id])
+  status         PeerReviewStatus @default(ASSIGNED)
+  dueAt          DateTime
+  scorePoints    Int?
+  feedback       Json?
+  submittedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([reviewerUserId, status])
+}
+
+/// Fermion usage metering + audit for code labs, DSA runs, and sandbox VMs.
+model SandboxSession {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id])
+  lessonId          String?
+  lesson            Lesson?         @relation(fields: [lessonId], references: [id])
+  projectInstanceId String?
+  projectInstance   ProjectInstance? @relation(fields: [projectInstanceId], references: [id])
+  kind              SandboxKind
+  provider          SandboxProvider @default(FERMION)
+  providerRef       String
+  startedAt         DateTime        @default(now())
+  endedAt           DateTime?
+  durationSec       Int?
+  metadata          Json?
+  createdAt         DateTime        @default(now())
+
+  @@index([userId, startedAt])
+  @@index([lessonId])
+}
+
+/// Browser-locked / proctored assessment record (post-MVP surface; table now).
+model ProctorRecord {
+  id            String         @id @default(cuid())
+  quizAttemptId String         @unique
+  quizAttempt   QuizAttempt    @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
+  config        Json
+  events        Json?
+  verdict       ProctorVerdict @default(PENDING)
+  reviewedById  String? // soft ref → User.id
+  reviewedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}

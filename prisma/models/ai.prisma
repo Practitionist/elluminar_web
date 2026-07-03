@@ -1,0 +1,79 @@
+/// Metered AI wallet (teardown "steal": daily allowance + paid top-ups).
+model AiWallet {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id])
+  balanceCredits       BigInt    @default(0)
+  dailyAllowance       Int       @default(0)
+  allowanceRefreshedAt DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+/// Sellable AI credit top-up SKU (priced/carted/ordered via AI_CREDIT_PACK itemType).
+model AiCreditPack {
+  id        String   @id @default(cuid())
+  name      String
+  credits   BigInt
+  active    Boolean  @default(true)
+  sort      Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prices     Price[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+}
+
+/// Per-call AI usage metering (cost visibility + wallet deduction).
+model AiUsageEvent {
+  id            String    @id @default(cuid())
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id])
+  feature       AiFeature
+  model         String
+  inputTokens   Int       @default(0)
+  outputTokens  Int       @default(0)
+  credits       Int       @default(0)
+  costMicrosUsd BigInt?
+  contextType   String?
+  contextId     String?
+  tenantId      String? // soft ref → Tenant.id (analytics only)
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([feature, createdAt])
+}
+
+/// AI teaching-assistant conversations (V1 surface; tables now).
+model AiConversation {
+  id                String               @id @default(cuid())
+  userId            String
+  user              User                 @relation(fields: [userId], references: [id])
+  courseId          String?
+  course            Course?              @relation(fields: [courseId], references: [id])
+  lessonId          String?
+  lesson            Lesson?              @relation(fields: [lessonId], references: [id])
+  projectInstanceId String?
+  projectInstance   ProjectInstance?     @relation(fields: [projectInstanceId], references: [id])
+  title             String?
+  status            AiConversationStatus @default(ACTIVE)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  messages AiMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model AiMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           AiRole
+  content        Json
+  tokens         Int?
+  createdAt      DateTime       @default(now())
+
+  @@index([conversationId, createdAt])
+}

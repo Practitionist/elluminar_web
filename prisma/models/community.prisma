@@ -1,0 +1,179 @@
+/// Doubt/discussion thread scoped to a course, cohort, lesson, project,
+/// project instance, or tenant space (at least one scope FK — CHECK in SQL).
+model DiscussionThread {
+  id                String          @id @default(cuid())
+  scopeType         ThreadScopeType
+  courseId          String?
+  course            Course?         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  cohortId          String?
+  cohort            Cohort?         @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  lessonId          String?
+  lesson            Lesson?         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  projectId         String?
+  project           Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectInstanceId String?
+  projectInstance   ProjectInstance? @relation(fields: [projectInstanceId], references: [id], onDelete: Cascade)
+  tenantId          String?
+  tenant            Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  authorId          String
+  author            User            @relation(fields: [authorId], references: [id])
+  title             String
+  body              Json
+  kind              ThreadKind      @default(QUESTION)
+  status            ThreadStatus    @default(OPEN)
+  pinned            Boolean         @default(false)
+  acceptedPostId    String?
+  upvoteCount       Int             @default(0)
+  replyCount        Int             @default(0)
+  lastActivityAt    DateTime        @default(now())
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  posts DiscussionPost[]
+  votes PostVote[]
+
+  @@index([courseId, lastActivityAt])
+  @@index([cohortId, lastActivityAt])
+  @@index([lessonId])
+  @@index([projectId])
+}
+
+model DiscussionPost {
+  id           String           @id @default(cuid())
+  threadId     String
+  thread       DiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User             @relation(fields: [authorId], references: [id])
+  parentPostId String?
+  parentPost   DiscussionPost?  @relation("PostReplies", fields: [parentPostId], references: [id])
+  replies      DiscussionPost[] @relation("PostReplies")
+  body         Json
+  isAccepted   Boolean          @default(false)
+  upvoteCount  Int              @default(0)
+  status       PostStatus       @default(VISIBLE)
+  editedAt     DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  votes PostVote[]
+
+  @@index([threadId, createdAt])
+}
+
+/// Upvote on a thread or post (exactly one — CHECK in SQL).
+model PostVote {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  threadId  String?
+  thread    DiscussionThread? @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  postId    String?
+  post      DiscussionPost?  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  value     Int              @default(1)
+  createdAt DateTime         @default(now())
+
+  @@unique([userId, threadId])
+  @@unique([userId, postId])
+}
+
+model Announcement {
+  id              String        @id @default(cuid())
+  tenantId        String
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  courseId        String?
+  course          Course?       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  cohortId        String?
+  cohort          Cohort?       @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  programCohortId String?
+  programCohort   ProgramCohort? @relation(fields: [programCohortId], references: [id])
+  authorId        String? // soft ref → User.id
+  title           String
+  body            Json
+  publishedAt     DateTime?
+  channels        String[]      @default([]) // in_app / email / whatsapp
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([courseId, publishedAt])
+  @@index([cohortId, publishedAt])
+}
+
+/// 4–6 learner peer-accountability groups (PRD §7.2D) — post-MVP surface.
+model Pod {
+  id             String    @id @default(cuid())
+  courseId       String?
+  course         Course?   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  cohortId       String?
+  cohort         Cohort?   @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  name           String
+  capacity       Int       @default(6)
+  meetingCadence String?
+  channelUrl     String?
+  status         PodStatus @default(ACTIVE)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  members PodMember[]
+}
+
+model PodMember {
+  id       String        @id @default(cuid())
+  podId    String
+  pod      Pod           @relation(fields: [podId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User          @relation(fields: [userId], references: [id])
+  role     PodMemberRole @default(MEMBER)
+  joinedAt DateTime      @default(now())
+  leftAt   DateTime?
+
+  @@unique([podId, userId])
+}
+
+/// Gamification event stream (XP). Leaderboards are computed views.
+model XpEvent {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  kind       String // LESSON_COMPLETED / STREAK_DAY / PROJECT_PASSED / …
+  points     Int
+  refType    String?
+  refId      String?
+  occurredAt DateTime @default(now())
+
+  @@index([userId, occurredAt])
+}
+
+model UserStreak {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id])
+  currentDays      Int       @default(0)
+  longestDays      Int       @default(0)
+  lastActivityDate DateTime?
+  updatedAt        DateTime  @updatedAt
+}
+
+model Badge {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String
+  icon        String?
+  criteria    Json
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  userBadges UserBadge[]
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  badgeId   String
+  badge     Badge    @relation(fields: [badgeId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  awardedAt DateTime @default(now())
+  context   Json?
+
+  @@unique([badgeId, userId])
+}

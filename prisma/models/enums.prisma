@@ -1,0 +1,705 @@
+// ─── Tenancy ─────────────────────────────────────────────────────────
+
+enum TenantType {
+  CREATOR
+  ENTERPRISE
+  UNIVERSITY
+  HIRING_PARTNER
+}
+
+enum TenantStatus {
+  APPLIED
+  IN_REVIEW
+  APPROVED
+  SUSPENDED
+  ARCHIVED
+}
+
+enum CreatorPlan {
+  STANDARD
+  PRO
+}
+
+// ─── Catalog ─────────────────────────────────────────────────────────
+
+enum CourseKind {
+  COURSE
+  MINI
+  FUNNEL_STAGE
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+/// Shared publish lifecycle for Course / Project / DigitalProduct.
+enum PublishStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  UNLISTED
+  ARCHIVED
+}
+
+/// Per-listing marketplace opt-in (PRD §9.4: dual discovery).
+enum CatalogVisibility {
+  MARKETPLACE
+  TENANT_ONLY
+  PRIVATE
+}
+
+enum LessonType {
+  VIDEO
+  ARTICLE
+  QUIZ
+  ASSIGNMENT
+  CODE_LAB
+  RESOURCE
+  EMBED
+}
+
+enum CohortStatus {
+  DRAFT
+  OPEN
+  RUNNING
+  COMPLETED
+  CANCELLED
+}
+
+enum ReviewModerationStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+  REMOVED
+}
+
+// ─── Learning ────────────────────────────────────────────────────────
+
+enum EnrollmentSource {
+  PURCHASE
+  SUBSCRIPTION
+  ORG_LICENSE
+  PROGRAM
+  FREE
+  ADMIN_GRANT
+  GIFT
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  REVOKED
+  EXPIRED
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum LiveSessionPurpose {
+  COHORT_CLASS
+  WEBINAR
+  AMA
+  MENTOR_CHECKPOINT
+  DEFENSE
+  MENTOR_BOOKING
+  PROGRAM_SESSION
+}
+
+enum LiveProvider {
+  FERMION
+  EXTERNAL_LINK
+}
+
+enum LiveSessionStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+// ─── Assessment ──────────────────────────────────────────────────────
+
+enum QuizShowAnswers {
+  NEVER
+  AFTER_ATTEMPT
+  AFTER_ALL_ATTEMPTS
+  AFTER_CLOSE
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTI_CHOICE
+  TRUE_FALSE
+  SHORT_TEXT
+  CODE_OUTPUT
+}
+
+enum GradingType {
+  MANUAL
+  AUTO
+  PEER
+}
+
+enum SubmissionStatus {
+  DRAFT
+  SUBMITTED
+  GRADING
+  GRADED
+  RETURNED
+  RESUBMIT_REQUESTED
+}
+
+enum PeerReviewStatus {
+  ASSIGNED
+  SUBMITTED
+  EXPIRED
+}
+
+enum SandboxKind {
+  INTERACTIVE_LAB
+  DSA_RUN
+  SANDBOX_VM
+}
+
+enum SandboxProvider {
+  FERMION
+}
+
+enum ProctorVerdict {
+  PENDING
+  CLEAN
+  SUSPECT
+  VIOLATION
+}
+
+// ─── Projects & mentorship ───────────────────────────────────────────
+
+enum ProjectTier {
+  SPRINT
+  CAPSTONE
+  FLAGSHIP
+}
+
+enum ProjectInstanceStatus {
+  PENDING_KICKOFF
+  IN_PROGRESS
+  IN_REVIEW
+  CHANGES_REQUESTED
+  DEFENSE_PENDING
+  PASSED
+  FAILED
+  WITHDRAWN
+  REFUNDED
+}
+
+enum ProjectInstanceSource {
+  PURCHASE
+  SUBSCRIPTION_CREDIT
+  ORG_LICENSE
+  PROGRAM
+  ADMIN_GRANT
+}
+
+enum CollaboratorRole {
+  OWNER
+  COLLABORATOR
+}
+
+enum MentorAssignmentRole {
+  PRIMARY
+  SECONDARY
+  SHADOW
+}
+
+enum MilestoneSubmissionStatus {
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+enum ProjectReviewKind {
+  AI_FIRST_PASS
+  MENTOR_CHECKPOINT
+  MENTOR_FINAL
+  DEFENSE
+}
+
+enum ProjectReviewStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ReviewDecision {
+  APPROVED
+  CHANGES_REQUESTED
+  REJECTED
+  PASS
+  FAIL
+}
+
+enum DefenseStatus {
+  SCHEDULED
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+  RESCHEDULED
+}
+
+enum DefenseVerdict {
+  PASS
+  FAIL
+  RETRY
+}
+
+enum MentorLevel {
+  ASSOCIATE
+  SENIOR
+  PRINCIPAL
+}
+
+enum MentorStatus {
+  APPLIED
+  IN_REVIEW
+  ACTIVE
+  PAUSED
+  SUSPENDED
+  EXITED
+}
+
+enum MentorOfferingKind {
+  MOCK_INTERVIEW
+  OFFICE_HOURS
+  CONSULTATION
+  RESUME_REVIEW
+}
+
+enum MentorBookingStatus {
+  REQUESTED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+// ─── Commerce ────────────────────────────────────────────────────────
+
+enum CommerceItemType {
+  COURSE
+  COHORT_SEAT
+  PROJECT
+  PLAN
+  BUNDLE
+  DIGITAL_PRODUCT
+  MENTOR_OFFERING
+  AI_CREDIT_PACK
+}
+
+enum BillingInterval {
+  MONTHLY
+  ANNUAL
+}
+
+enum CartStatus {
+  ACTIVE
+  CONVERTED
+  ABANDONED
+  MERGED
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED_AMOUNT
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING_PAYMENT
+  PAID
+  PARTIALLY_REFUNDED
+  REFUNDED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum FulfillmentStatus {
+  PENDING
+  FULFILLED
+  REVOKED
+  REFUNDED
+}
+
+enum PaymentProviderKind {
+  RAZORPAY
+  DODO
+  MANUAL
+  FREE
+}
+
+enum PaymentStatus {
+  CREATED
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum RefundKind {
+  ITEM
+  ORDER
+  PARTIAL
+}
+
+enum RefundReason {
+  WITHIN_WINDOW
+  PRE_KICKOFF
+  COHORT_CANCELLED
+  GOODWILL
+  DISPUTE
+  FRAUD
+  OTHER
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum PlanAudience {
+  LEARNER
+  CREATOR
+  ENTERPRISE
+  HIRING_PARTNER
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELLED
+  EXPIRED
+  INCOMPLETE
+}
+
+enum CreditType {
+  SPRINT_PROJECT
+  FLAGSHIP_PROJECT
+}
+
+enum DigitalProductKind {
+  EBOOK
+  TEMPLATE
+  DATASET
+  OTHER
+}
+
+enum InvoiceKind {
+  TAX_INVOICE
+  CREDIT_NOTE
+}
+
+// ─── Ledger ──────────────────────────────────────────────────────────
+
+enum LedgerOwnerType {
+  PLATFORM
+  TENANT
+  MENTOR
+  USER
+}
+
+enum LedgerEntryType {
+  SALE_EARNING
+  SUBSCRIPTION_EARNING
+  PLATFORM_FEE
+  REFUND_REVERSAL
+  MENTOR_FEE
+  MENTOR_FEE_REVERSAL
+  PAYOUT
+  PAYOUT_REVERSAL
+  REFERRAL_REWARD
+  ADJUSTMENT
+}
+
+enum PayoutStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum PayoutMethod {
+  BANK_TRANSFER
+  UPI
+  MANUAL
+  RAZORPAYX
+}
+
+// ─── Enterprise ──────────────────────────────────────────────────────
+
+enum ProgramStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProgramItemType {
+  COURSE
+  PROJECT
+}
+
+enum LicenseKind {
+  CATALOG
+  PROGRAM
+}
+
+enum LicenseStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum SeatStatus {
+  INVITED
+  ACTIVATED
+  REVOKED
+}
+
+enum ProgramEnrollmentStatus {
+  ENROLLED
+  IN_PROGRESS
+  COMPLETED
+  DROPPED
+}
+
+enum ReportKind {
+  COMPLETION
+  COMPLIANCE
+  SKILL_GAP
+  ENGAGEMENT
+}
+
+enum ReportStatus {
+  QUEUED
+  RUNNING
+  READY
+  FAILED
+}
+
+// ─── Career ──────────────────────────────────────────────────────────
+
+enum CredentialKind {
+  COURSE
+  PROJECT
+  PROGRAM
+}
+
+enum CertificateTemplateKind {
+  COURSE
+  PROJECT
+  PROGRAM
+  GENERIC
+}
+
+enum PortfolioVisibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+// ─── Community ───────────────────────────────────────────────────────
+
+enum ThreadScopeType {
+  COURSE
+  COHORT
+  LESSON
+  PROJECT
+  PROJECT_INSTANCE
+  TENANT
+}
+
+enum ThreadKind {
+  QUESTION
+  DISCUSSION
+}
+
+enum ThreadStatus {
+  OPEN
+  RESOLVED
+  LOCKED
+  REMOVED
+}
+
+enum PostStatus {
+  VISIBLE
+  REMOVED
+  FLAGGED
+}
+
+enum PodStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum PodMemberRole {
+  LEAD
+  MEMBER
+}
+
+// ─── Growth ──────────────────────────────────────────────────────────
+
+enum ReferralCodeKind {
+  LEARNER
+  CREATOR
+  AFFILIATE
+}
+
+enum ReferralStatus {
+  PENDING
+  QUALIFIED
+  REWARDED
+  EXPIRED
+}
+
+// ─── AI ──────────────────────────────────────────────────────────────
+
+enum AiFeature {
+  AI_TUTOR
+  FIRST_PASS_REVIEW
+  DEFENSE_QA
+  QUIZ_GEN
+  RUBRIC_DRAFT
+  TRANSCRIPTION
+  OTHER
+}
+
+enum AiRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+enum AiConversationStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+// ─── Platform ────────────────────────────────────────────────────────
+
+enum StorageProvider {
+  SUPABASE
+  EXTERNAL_URL
+}
+
+enum MediaKind {
+  IMAGE
+  DOCUMENT
+  VIDEO_SOURCE
+  ARCHIVE
+  CERT_PDF
+  OTHER
+}
+
+enum MediaStatus {
+  UPLOADING
+  READY
+  FAILED
+  DELETED
+}
+
+enum VideoProvider {
+  FERMION
+  EXTERNAL
+}
+
+enum VideoStatus {
+  UPLOAD_PENDING
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+  DELETED
+}
+
+enum IdentityProvider {
+  FERMION
+  RAZORPAY
+  DODO
+  NOVU
+}
+
+enum WebhookProvider {
+  RAZORPAY
+  DODO
+  FERMION
+  RESEND
+  OTHER
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  SKIPPED
+}
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+  WEB
+}
+
+enum ActorKind {
+  USER
+  ADMIN
+  SYSTEM
+  WEBHOOK
+  AI
+}
+
+enum IntegritySubjectType {
+  ASSIGNMENT_SUBMISSION
+  MILESTONE_SUBMISSION
+  QUIZ_ATTEMPT
+  DEFENSE
+  CREDENTIAL
+}
+
+enum IntegrityKind {
+  PLAGIARISM
+  AI_GENERATED
+  SIMILARITY
+  PROCTOR_VIOLATION
+  MANUAL_REPORT
+}
+
+enum IntegrityStatus {
+  OPEN
+  UNDER_REVIEW
+  CONFIRMED
+  DISMISSED
+}
+
+enum RaisedByKind {
+  SYSTEM
+  AI
+  USER
+  MENTOR
+}

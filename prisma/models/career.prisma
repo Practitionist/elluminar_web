@@ -1,0 +1,99 @@
+model CertificateTemplate {
+  id        String                  @id @default(cuid())
+  tenantId  String?
+  tenant    Tenant?                 @relation(fields: [tenantId], references: [id])
+  name      String
+  kind      CertificateTemplateKind @default(GENERIC)
+  design    Json
+  coBrand   Json? // partner logos / signatures for enterprise co-branding
+  active    Boolean                 @default(true)
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  credentials Credential[]
+  courses     Course[]
+  projects    Project[]
+  programs    Program[]
+}
+
+/// Verifiable credential with a public /verify/[code] page (MVP).
+/// Exactly one of courseId / projectInstanceId / programEnrollmentId (CHECK in SQL).
+model Credential {
+  id                  String              @id @default(cuid())
+  publicId            String              @unique @default(cuid())
+  verificationCode    String              @unique
+  userId              String
+  user                User                @relation(fields: [userId], references: [id])
+  kind                CredentialKind
+  courseId            String?
+  course              Course?             @relation(fields: [courseId], references: [id])
+  projectInstanceId   String?
+  projectInstance     ProjectInstance?    @relation(fields: [projectInstanceId], references: [id])
+  programEnrollmentId String?
+  programEnrollment   ProgramEnrollment?  @relation(fields: [programEnrollmentId], references: [id])
+  templateId          String?
+  template            CertificateTemplate? @relation(fields: [templateId], references: [id])
+  title               String
+  description         String?
+  grade               String?
+  issuedAt            DateTime            @default(now())
+  expiresAt           DateTime?
+  revokedAt           DateTime?
+  revokeReason        String?
+  pdfAssetId          String?
+  pdfAsset            MediaAsset?         @relation(fields: [pdfAssetId], references: [id])
+  metadata            Json?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([userId, kind])
+}
+
+/// Public proof-of-work profile, auto-populated from passed ProjectInstances.
+model PortfolioProfile {
+  id                String              @id @default(cuid())
+  userId            String              @unique
+  user              User                @relation(fields: [userId], references: [id])
+  slug              String              @unique
+  headline          String?
+  about             Json?
+  visibility        PortfolioVisibility @default(PRIVATE)
+  talentOptIn       Boolean             @default(false) // hiring-partner search consent
+  talentPreferences Json?
+  links             Json?
+  featured          Json?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+model MentorEndorsement {
+  id                String          @id @default(cuid())
+  projectInstanceId String
+  projectInstance   ProjectInstance @relation(fields: [projectInstanceId], references: [id])
+  mentorProfileId   String
+  mentorProfile     MentorProfile   @relation(fields: [mentorProfileId], references: [id])
+  userId            String // endorsed learner
+  user              User            @relation(fields: [userId], references: [id])
+  text              String
+  skills            String[]        @default([])
+  visible           Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([projectInstanceId, mentorProfileId])
+  @@index([userId])
+}
+
+/// Hiring-partner candidate pipeline (post-MVP surface; table now).
+model TalentBookmark {
+  id              String   @id @default(cuid())
+  hiringTenantId  String
+  hiringTenant    Tenant   @relation(fields: [hiringTenantId], references: [id])
+  candidateUserId String
+  candidate       User     @relation(fields: [candidateUserId], references: [id])
+  note            String?
+  createdById     String? // soft ref → User.id
+  createdAt       DateTime @default(now())
+
+  @@unique([hiringTenantId, candidateUserId])
+}
