@@ -54,6 +54,11 @@ async function refreshCourseProgress(enrollmentId: string) {
         refId: enrollment.courseId,
       },
     });
+    // Program rollup: a completed course may complete a program.
+    const { rollupCourseCompletion } = await import(
+      "@/lib/enterprise/program-progress"
+    );
+    await rollupCourseCompletion(enrollmentId);
   }
   return pct;
 }

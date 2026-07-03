@@ -323,6 +323,11 @@ export const finalizeProjectInstance = authActionClient
           refId: instance.id,
         },
       });
+      // Program rollup: a passed capstone may complete a program.
+      const { rollupProjectCompletion } = await import(
+        "@/lib/enterprise/program-progress"
+      );
+      await rollupProjectCompletion(instance.id);
     }
     await db.notification.create({
       data: {

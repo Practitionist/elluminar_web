@@ -59,6 +59,56 @@ export async function issueCourseCredentialIfEarned(enrollmentId: string) {
   return credential;
 }
 
+/** Issues a co-branded program credential on completion (idempotent). */
+export async function issueProgramCredential(programEnrollmentId: string) {
+  const pe = await db.programEnrollment.findUniqueOrThrow({
+    where: { id: programEnrollmentId },
+    include: {
+      programCohort: {
+        include: { program: { include: { certificateTemplate: true } } },
+      },
+    },
+  });
+
+  const existing = await db.credential.findFirst({
+    where: { kind: "PROGRAM", programEnrollmentId },
+  });
+  if (existing) return existing;
+
+  const program = pe.programCohort.program;
+  const coBrand = (program.certificateTemplate?.coBrand ?? null) as {
+    partnerName?: string;
+  } | null;
+
+  const credential = await db.credential.create({
+    data: {
+      userId: pe.userId,
+      kind: "PROGRAM",
+      programEnrollmentId,
+      templateId: program.certificateTemplateId,
+      title: program.title,
+      grade: pe.finalGrade,
+      verificationCode: formatVerificationCode(),
+      metadata: {
+        programSlug: program.slug,
+        cohort: pe.programCohort.name,
+        ...(coBrand?.partnerName ? { coBrandPartner: coBrand.partnerName } : {}),
+      },
+    },
+  });
+
+  await db.notification.create({
+    data: {
+      userId: pe.userId,
+      category: "credential",
+      title: "Program certificate earned 🎓",
+      body: `You completed “${program.title}”${coBrand?.partnerName ? ` — co-certified with ${coBrand.partnerName}` : ""}.`,
+      actionUrl: `/verify/${credential.verificationCode}`,
+    },
+  });
+  return credential;
+}
+
 /** Issues a project credential when an instance passes (idempotent). */
 export async function issueProjectCredential(projectInstanceId: string) {
   const instance = await db.projectInstance.findUniqueOrThrow({
