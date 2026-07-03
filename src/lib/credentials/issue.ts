@@ -3,6 +3,7 @@ import "server-only";
 import { customAlphabet } from "nanoid";
 
 import { db } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 
 // Unambiguous, human-readable verification codes (no 0/O/1/I).
 const codeAlphabet = customAlphabet("23456789ABCDEFGHJKMNPQRSTUVWXYZ", 12);
@@ -80,22 +81,36 @@ export async function issueProgramCredential(programEnrollmentId: string) {
     partnerName?: string;
   } | null;
 
-  const credential = await db.credential.create({
-    data: {
-      userId: pe.userId,
-      kind: "PROGRAM",
-      programEnrollmentId,
-      templateId: program.certificateTemplateId,
-      title: program.title,
-      grade: pe.finalGrade,
-      verificationCode: formatVerificationCode(),
-      metadata: {
-        programSlug: program.slug,
-        cohort: pe.programCohort.name,
-        ...(coBrand?.partnerName ? { coBrandPartner: coBrand.partnerName } : {}),
+  let credential;
+  try {
+    credential = await db.credential.create({
+      data: {
+        userId: pe.userId,
+        kind: "PROGRAM",
+        programEnrollmentId,
+        templateId: program.certificateTemplateId,
+        title: program.title,
+        grade: pe.finalGrade,
+        verificationCode: formatVerificationCode(),
+        metadata: {
+          programSlug: program.slug,
+          cohort: pe.programCohort.name,
+          ...(coBrand?.partnerName ? { coBrandPartner: coBrand.partnerName } : {}),
+        },
       },
-    },
-  });
+    });
+  } catch (err) {
+    // Concurrent rollups (course + project completing together) can both pass
+    // the findFirst; the partial unique on (programEnrollmentId) WHERE
+    // kind='PROGRAM' makes the loser land here — return the winner's row.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const winner = await db.credential.findFirst({
+        where: { kind: "PROGRAM", programEnrollmentId },
+      });
+      if (winner) return winner;
+    }
+    throw err;
+  }
 
   await db.notification.create({
     data: {

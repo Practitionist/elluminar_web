@@ -29,7 +29,9 @@ async function assertProgramInTenant(programId: string, tenantId: string) {
 export const upsertProgram = orgAdminClient
   .inputSchema(upsertProgramSchema)
   .action(async ({ parsedInput, ctx }) => {
-    let templateId = parsedInput.certificateTemplateId ?? null;
+    // undefined = leave the program's template untouched on update (the edit
+    // form doesn't send it); null = explicit clear; string = set.
+    let templateId = parsedInput.certificateTemplateId;
     // Convenience: naming a co-brand partner creates/updates a PROGRAM template.
     if (parsedInput.coBrandPartnerName) {
       const existing = templateId
@@ -170,7 +172,10 @@ export const removeProgramItem = orgAdminClient
         where: { programId: parsedInput.programId, unlockAfterItemId: parsedInput.itemId },
         data: { unlockAfterItemId: null },
       }),
-      db.programItem.delete({ where: { id: parsedInput.itemId } }),
+      // Scoped to the asserted program — a bare id would delete across programs.
+      db.programItem.deleteMany({
+        where: { id: parsedInput.itemId, programId: parsedInput.programId },
+      }),
     ]);
     revalidatePath(`/org/${ctx.tenant.slug}/programs/${parsedInput.programId}`);
     return { ok: true };
@@ -262,7 +267,12 @@ export const upsertProgramCohort = orgAdminClient
       capacity: parsedInput.capacity ?? null,
     };
     if (parsedInput.cohortId) {
-      await db.programCohort.update({ where: { id: parsedInput.cohortId }, data });
+      // Scoped to the asserted program — a bare id would update across programs.
+      const updated = await db.programCohort.updateMany({
+        where: { id: parsedInput.cohortId, programId: parsedInput.programId },
+        data,
+      });
+      if (updated.count === 0) throw new ActionError("Cohort not found.");
     } else {
       await db.programCohort.create({
         data: { ...data, programId: parsedInput.programId, status: "OPEN" },

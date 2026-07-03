@@ -144,6 +144,10 @@ export const auth = betterAuth({
         disabled: false,
         defaultRole: "member",
       },
+      // Sign-ins only match providers with domainVerified = true — the flag
+      // the platform-admin trust toggle flips. Without this, unreviewed
+      // providers would be usable immediately after registration.
+      domainVerification: { enabled: true },
     }),
     twoFactor({
       issuer: "lms-web",

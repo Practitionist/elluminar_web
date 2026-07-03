@@ -38,20 +38,26 @@ export async function recomputeProgramProgress(programEnrollmentId: string) {
   );
 
   if (allDone && !pe.completedAt) {
-    await db.programEnrollment.update({
-      where: { id: pe.id },
+    // Credential first — it's idempotent (unique-guarded), so if anything
+    // here fails completedAt stays null and the next rollup heals the
+    // sequence instead of being locked out by a half-completed enrollment.
+    await issueProgramCredential(pe.id);
+    const claimed = await db.programEnrollment.updateMany({
+      where: { id: pe.id, completedAt: null },
       data: { status: "COMPLETED", completedAt: new Date() },
     });
-    await issueProgramCredential(pe.id);
-    await db.xpEvent.create({
-      data: {
-        userId: pe.userId,
-        kind: "PROGRAM_COMPLETED",
-        points: 800,
-        refType: "ProgramEnrollment",
-        refId: pe.id,
-      },
-    });
+    // The claim races concurrent rollups; only the winner grants XP.
+    if (claimed.count === 1) {
+      await db.xpEvent.create({
+        data: {
+          userId: pe.userId,
+          kind: "PROGRAM_COMPLETED",
+          points: 800,
+          refType: "ProgramEnrollment",
+          refId: pe.id,
+        },
+      });
+    }
     return { completed: true };
   }
 
@@ -64,28 +70,38 @@ export async function recomputeProgramProgress(programEnrollmentId: string) {
   return { completed: allDone };
 }
 
+/**
+ * Rollups are best-effort side effects of lesson/project completion: the
+ * whole body is guarded so a transient DB error can never fail the primary
+ * action whose core writes already succeeded.
+ */
+async function rollup(lookup: () => Promise<{ programEnrollmentId: string | null } | null>) {
+  try {
+    const linked = await lookup();
+    if (linked?.programEnrollmentId) {
+      await recomputeProgramProgress(linked.programEnrollmentId);
+    }
+  } catch (err) {
+    console.error("[program rollup]", err);
+  }
+}
+
 /** Rollup trigger for course completion: recompute any linked programs. */
 export async function rollupCourseCompletion(enrollmentId: string) {
-  const enrollment = await db.enrollment.findUnique({
-    where: { id: enrollmentId },
-    select: { programEnrollmentId: true },
-  });
-  if (enrollment?.programEnrollmentId) {
-    await recomputeProgramProgress(enrollment.programEnrollmentId).catch((err) =>
-      console.error("[program rollup]", err),
-    );
-  }
+  await rollup(() =>
+    db.enrollment.findUnique({
+      where: { id: enrollmentId },
+      select: { programEnrollmentId: true },
+    }),
+  );
 }
 
 /** Rollup trigger for project finalization. */
 export async function rollupProjectCompletion(projectInstanceId: string) {
-  const instance = await db.projectInstance.findUnique({
-    where: { id: projectInstanceId },
-    select: { programEnrollmentId: true },
-  });
-  if (instance?.programEnrollmentId) {
-    await recomputeProgramProgress(instance.programEnrollmentId).catch((err) =>
-      console.error("[program rollup]", err),
-    );
-  }
+  await rollup(() =>
+    db.projectInstance.findUnique({
+      where: { id: projectInstanceId },
+      select: { programEnrollmentId: true },
+    }),
+  );
 }

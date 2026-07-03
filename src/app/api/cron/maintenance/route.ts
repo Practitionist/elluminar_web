@@ -111,11 +111,14 @@ export async function POST(request: NextRequest) {
         });
         results.expiredEnrollmentsSwept = swept.count;
 
-        // 7. Stuck report exports (after() cut short) → regenerate.
+        // 7. Stuck report exports (after() cut short) → regenerate. Staleness
+        //    is judged by updatedAt (last activity), not createdAt — an
+        //    actively-running old report must not be re-entered; the claim
+        //    inside generateReport is the second line of defense.
         const stuckReports = await db.reportExport.findMany({
           where: {
             status: { in: ["QUEUED", "RUNNING"] },
-            createdAt: { lt: new Date(now.getTime() - 15 * 60_000) },
+            updatedAt: { lt: new Date(now.getTime() - 15 * 60_000) },
           },
           take: 5,
           select: { id: true },

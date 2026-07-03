@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { writeLedgerEntry } from "@/lib/commerce/fulfillment";
 import { getGstRateBps } from "@/lib/commerce/pricing";
 import { canAfford, computeConsumptionEconomics } from "@/lib/enterprise/credit-math";
+import { Prisma } from "@/generated/prisma/client";
 
 export class RedemptionError extends Error {}
 
@@ -115,8 +116,13 @@ export async function redeemFromCreditPool(input: {
           amountMinor: grossMinor,
         },
       })
-      .catch(() => {
-        throw new RedemptionError("You've already redeemed this item from the pool.");
+      .catch((err) => {
+        // Only a unique-constraint hit means "already redeemed" — FK errors,
+        // serialization failures etc. must surface as what they are.
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+          throw new RedemptionError("You've already redeemed this item from the pool.");
+        }
+        throw err;
       });
 
     // Fulfillment

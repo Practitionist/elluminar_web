@@ -6,7 +6,12 @@ import { isStorageConfigured, STORAGE_BUCKETS, uploadBufferAsAsset } from "@/lib
 /** Minimal CSV escaping (quotes + commas + newlines). */
 function csvEscape(value: unknown): string {
   const s = String(value ?? "");
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  // Neutralize formula/DDE injection (=, +, -, @, tab/CR starters) — learner
+  // names are attacker-controlled and org admins open these in Excel/Sheets.
+  const neutralized = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+  return /[",\n]/.test(neutralized)
+    ? `"${neutralized.replace(/"/g, '""')}"`
+    : neutralized;
 }
 
 function toCsv(headers: string[], rows: Array<Array<unknown>>): string {
@@ -19,13 +24,21 @@ function toCsv(headers: string[], rows: Array<Array<unknown>>): string {
  * Idempotent: safe for the cron to re-run stale QUEUED rows.
  */
 export async function generateReport(reportExportId: string) {
-  const report = await db.reportExport.findUnique({ where: { id: reportExportId } });
-  if (!report || report.status === "READY") return report;
-
-  await db.reportExport.update({
-    where: { id: reportExportId },
+  // Atomic claim: QUEUED/FAILED rows are claimable immediately; a RUNNING row
+  // only after 15 idle minutes (a runner died mid-generation). Losing the
+  // claim means another runner has it — don't generate twice.
+  const claimed = await db.reportExport.updateMany({
+    where: {
+      id: reportExportId,
+      OR: [
+        { status: { in: ["QUEUED", "FAILED"] } },
+        { status: "RUNNING", updatedAt: { lt: new Date(Date.now() - 15 * 60_000) } },
+      ],
+    },
     data: { status: "RUNNING" },
   });
+  const report = await db.reportExport.findUnique({ where: { id: reportExportId } });
+  if (!report || claimed.count === 0) return report;
 
   try {
     let csv: string;
