@@ -24,7 +24,8 @@ export default async function AdminLicensesPage() {
     },
   });
 
-  const soon = new Date(Date.now() + 60 * 86400_000);
+  const now = new Date();
+  const soon = new Date(now.getTime() + 60 * 86400_000);
 
   return (
     <div className="space-y-6">
