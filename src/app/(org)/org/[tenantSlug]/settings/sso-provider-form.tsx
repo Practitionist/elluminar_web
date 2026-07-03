@@ -8,6 +8,7 @@ import { registerOrgSsoProvider, removeOrgSsoProvider } from "@/actions/org-sso"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { env } from "@/env";
 
 const slugify = (v: string) =>
   v.toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/[\s_]+/g, "-").slice(0, 48);
@@ -85,7 +86,7 @@ export function SsoProviderForm({ tenantSlug }: { tenantSlug: string }) {
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        Redirect URI for your IdP: {typeof window !== "undefined" ? window.location.origin : ""}
+        Redirect URI for your IdP: {env.NEXT_PUBLIC_APP_URL}
         /api/auth/sso/callback/&lt;provider-id&gt;. SAML support lands next — OIDC
         covers Okta, Entra ID, Google Workspace, and JumpCloud today.
       </p>

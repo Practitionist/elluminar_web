@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
+  claimSeatForEmail,
   importRosterRows,
   parseRosterCsv,
   revokeSeatCore,
@@ -120,19 +121,12 @@ export const transferSeat = orgAdminClient
     await db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "OrgLicense" WHERE id = ${seat.licenseId} FOR UPDATE`;
       await revokeSeatCore(tx, parsedInput.seatId);
-      const existingUser = await tx.user.findUnique({
-        where: { email: parsedInput.newEmail.toLowerCase() },
-        select: { id: true, emailVerified: true },
-      });
-      await tx.licenseSeat.create({
-        data: {
-          licenseId: seat.licenseId,
-          inviteEmail: parsedInput.newEmail.toLowerCase(),
-          ...(existingUser?.emailVerified
-            ? { userId: existingUser.id, status: "ACTIVATED", activatedAt: new Date() }
-            : { status: "INVITED" }),
-        },
-      });
+      // Reuses a REVOKED row for the new email; rolls the revoke back if the
+      // email already holds a live seat.
+      const outcome = await claimSeatForEmail(tx, seat.licenseId, parsedInput.newEmail);
+      if (outcome === "already-seated") {
+        throw new ActionError("That email already holds a seat on this license.");
+      }
     });
 
     await sendOrgInvitations(ctx.tenant.organizationId, [parsedInput.newEmail]);

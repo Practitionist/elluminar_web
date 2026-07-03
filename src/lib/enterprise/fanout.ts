@@ -7,10 +7,14 @@ import { db } from "@/lib/db";
  * and ProjectInstances per ProgramItem. Idempotent and re-runnable — adding
  * items to a program later and resyncing creates only the delta.
  *
- * ADOPT-DON'T-DUPLICATE (top flagged risk): if the learner already has an
- * enrollment/instance for an item (e.g. a personal PURCHASE), we link it via
- * programEnrollmentId ONLY — never touching its source, expiry, or progress.
- * A lifetime purchase must never gain an expiresAt from a program.
+ * ADOPT-DON'T-DUPLICATE (top flagged risk): if the learner already has a
+ * usable enrollment for an item (ACTIVE, expiry covers the program window,
+ * not claimed by another program), we link it via programEnrollmentId ONLY —
+ * never touching its source, expiry, or progress. A lifetime purchase must
+ * never gain an expiresAt from a program. Rows that can't serve the window
+ * (expired trials, short subscriptions) are left alone and the program gets
+ * its own PROGRAM-sourced row instead — the Enrollment unique's nullable
+ * cohortId is nulls-distinct, so the two coexist.
  */
 export async function enrollUserInProgramCohort(input: {
   programCohortId: string;
@@ -61,31 +65,56 @@ export async function syncProgramFanout(programEnrollmentId: string) {
 
   const expiresAt =
     pe.licenseSeat?.license.endsAt ?? pe.programCohort.endsAt ?? null;
+  // Tie created rows to the granting license so seat revocation, early
+  // license cancellation, and the expiry cron find exactly these rows.
+  const orgLicenseId = pe.licenseSeat?.licenseId ?? null;
 
   let created = 0;
   for (const item of pe.programCohort.program.items) {
     if (item.itemType === "COURSE" && item.courseId) {
-      // find-then-create: the Enrollment unique has a nullable cohortId
-      // (nulls-distinct), same precedent as commerce fulfillment.
-      const existing = await db.enrollment.findFirst({
-        where: { userId: pe.userId, courseId: item.courseId, cohortId: null },
+      // Already attributed to this program enrollment → done. (Also means a
+      // row the license-expiry cron expired is never resurrected by a resync.)
+      const attributed = await db.enrollment.findFirst({
+        where: {
+          userId: pe.userId,
+          courseId: item.courseId,
+          cohortId: null,
+          programEnrollmentId: pe.id,
+        },
+      });
+      if (attributed) continue;
+
+      // Adopt: attribute a personal enrollment WITHOUT touching its
+      // source/expiry — but only if it can serve the whole program window
+      // and no other program has claimed it.
+      const adoptable = await db.enrollment.findFirst({
+        where: {
+          userId: pe.userId,
+          courseId: item.courseId,
+          cohortId: null,
+          programEnrollmentId: null,
+          status: "ACTIVE",
+          ...(expiresAt
+            ? { OR: [{ expiresAt: null }, { expiresAt: { gte: expiresAt } }] }
+            : { expiresAt: null }),
+        },
         orderBy: { createdAt: "asc" },
       });
-      if (existing) {
-        if (existing.programEnrollmentId !== pe.id) {
-          // Adopt: attribute to the program WITHOUT touching source/expiry.
-          await db.enrollment.update({
-            where: { id: existing.id },
-            data: { programEnrollmentId: pe.id },
-          });
-        }
+      if (adoptable) {
+        await db.enrollment.update({
+          where: { id: adoptable.id },
+          data: { programEnrollmentId: pe.id },
+        });
       } else {
+        // find-then-create: the Enrollment unique has a nullable cohortId
+        // (nulls-distinct), same precedent as commerce fulfillment.
         await db.enrollment.create({
           data: {
             userId: pe.userId,
             courseId: item.courseId,
             source: "PROGRAM",
             programEnrollmentId: pe.id,
+            orgLicenseId,
             expiresAt,
           },
         });

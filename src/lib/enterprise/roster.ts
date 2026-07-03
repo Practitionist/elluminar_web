@@ -41,6 +41,65 @@ export type ImportResult = {
   rejected: Array<{ email: string; reason: string }>;
 };
 
+export type SeatClaimOutcome = "activated" | "invited" | "already-seated";
+
+/**
+ * Seats one email on a license inside an open transaction (the caller holds
+ * the OrgLicense row lock). Reuses a REVOKED seat row when this identity held
+ * one before — `@@unique([licenseId, userId])` and the partial unique on
+ * (licenseId, lower(inviteEmail)) make a blind create crash on re-invites.
+ */
+export async function claimSeatForEmail(
+  tx: Prisma.TransactionClient,
+  licenseId: string,
+  email: string,
+): Promise<SeatClaimOutcome> {
+  const normalized = email.toLowerCase();
+  const user = await tx.user.findUnique({
+    where: { email: normalized },
+    select: { id: true, emailVerified: true },
+  });
+
+  const seat =
+    (user
+      ? await tx.licenseSeat.findUnique({
+          where: { licenseId_userId: { licenseId, userId: user.id } },
+        })
+      : null) ??
+    (await tx.licenseSeat.findFirst({
+      where: {
+        licenseId,
+        userId: null,
+        inviteEmail: { equals: normalized, mode: "insensitive" },
+      },
+    }));
+
+  if (seat && seat.status !== "REVOKED") return "already-seated";
+
+  const data = user?.emailVerified
+    ? {
+        userId: user.id,
+        inviteEmail: normalized,
+        status: "ACTIVATED" as const,
+        activatedAt: new Date(),
+        revokedAt: null,
+      }
+    : {
+        userId: null,
+        inviteEmail: normalized,
+        status: "INVITED" as const,
+        activatedAt: null,
+        revokedAt: null,
+      };
+
+  if (seat) {
+    await tx.licenseSeat.update({ where: { id: seat.id }, data });
+  } else {
+    await tx.licenseSeat.create({ data: { licenseId, ...data } });
+  }
+  return data.status === "ACTIVATED" ? "activated" : "invited";
+}
+
 /**
  * Seat-capacity-safe import: locks the OrgLicense row (FOR UPDATE) so the
  * count-then-insert can't race a concurrent invite past `seats`.
@@ -87,27 +146,13 @@ export async function importRosterRows(
         result.rejected.push({ email: row.email, reason: "Seat capacity reached" });
         continue;
       }
-      // If the user already exists (verified), seat them directly.
-      const existingUser = await tx.user.findUnique({
-        where: { email: row.email },
-        select: { id: true, emailVerified: true },
-      });
-      if (existingUser?.emailVerified) {
-        await tx.licenseSeat.create({
-          data: {
-            licenseId,
-            userId: existingUser.id,
-            inviteEmail: row.email,
-            status: "ACTIVATED",
-            activatedAt: new Date(),
-          },
-        });
-      } else {
-        await tx.licenseSeat.create({
-          data: { licenseId, inviteEmail: row.email, status: "INVITED" },
-        });
-        result.invited.push(row.email);
+      // Seats verified users directly; reuses a REVOKED row for re-invites.
+      const outcome = await claimSeatForEmail(tx, licenseId, row.email);
+      if (outcome === "already-seated") {
+        result.alreadySeated.push(row.email);
+        continue;
       }
+      if (outcome === "invited") result.invited.push(row.email);
       occupiedEmails.add(row.email);
       used += 1;
     }

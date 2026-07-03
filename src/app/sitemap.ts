@@ -3,7 +3,9 @@ import type { MetadataRoute } from "next";
 import { env } from "@/env";
 import { db } from "@/lib/db";
 
-export const revalidate = 3600;
+// Served on demand: the sitemap needs the DB, which isn't available when CI
+// builds the app (placeholder connection strings). Crawler traffic is tiny.
+export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = env.NEXT_PUBLIC_APP_URL;

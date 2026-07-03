@@ -173,12 +173,14 @@ export const registerSsoProviderSchema = z
       .string()
       .min(4)
       .max(255)
-      .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i, "Enter a bare domain like acme.com"),
+      .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i, "Enter a bare domain like acme.com")
+      // Normalize: the duplicate check and IdP domain matching compare exactly.
+      .transform((v) => v.toLowerCase()),
     issuer: z.url(),
     clientId: z.string().min(1).max(500),
     clientSecret: z.string().min(1).max(500),
   })
-  .refine((v) => !FREE_MAIL_DOMAINS.has(v.domain.toLowerCase()), {
+  .refine((v) => !FREE_MAIL_DOMAINS.has(v.domain), {
     message: "Public email domains cannot be used for SSO.",
     path: ["domain"],
   });
