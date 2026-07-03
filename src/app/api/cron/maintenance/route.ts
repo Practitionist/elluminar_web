@@ -84,6 +84,71 @@ export async function POST(request: NextRequest) {
         }
         results.failingWebhooks = failing;
 
+        // 5. Enterprise licenses past their end date → EXPIRED + expire exactly
+        //    the enrollments they granted (orgLicenseId attribution).
+        const expiredLicenses = await db.orgLicense.findMany({
+          where: { status: "ACTIVE", endsAt: { lt: now } },
+          select: { id: true },
+        });
+        if (expiredLicenses.length > 0) {
+          const ids = expiredLicenses.map((l) => l.id);
+          await db.orgLicense.updateMany({
+            where: { id: { in: ids } },
+            data: { status: "EXPIRED" },
+          });
+          const expired = await db.enrollment.updateMany({
+            where: { orgLicenseId: { in: ids }, status: "ACTIVE" },
+            data: { status: "EXPIRED", expiresAt: now },
+          });
+          results.licensesExpired = ids.length;
+          results.licensedEnrollmentsExpired = expired.count;
+        }
+
+        // 6. Generic safety sweep: any ACTIVE enrollment past its expiry.
+        const swept = await db.enrollment.updateMany({
+          where: { status: "ACTIVE", expiresAt: { lt: now } },
+          data: { status: "EXPIRED" },
+        });
+        results.expiredEnrollmentsSwept = swept.count;
+
+        // 7. Stuck report exports (after() cut short) → regenerate. Staleness
+        //    is judged by updatedAt (last activity), not createdAt — an
+        //    actively-running old report must not be re-entered; the claim
+        //    inside generateReport is the second line of defense.
+        const stuckReports = await db.reportExport.findMany({
+          where: {
+            status: { in: ["QUEUED", "RUNNING"] },
+            updatedAt: { lt: new Date(now.getTime() - 15 * 60_000) },
+          },
+          take: 5,
+          select: { id: true },
+        });
+        for (const r of stuckReports) {
+          const { generateReport } = await import("@/lib/enterprise/reports");
+          await generateReport(r.id).catch(() => undefined);
+        }
+        results.reportsRetried = stuckReports.length;
+
+        // 8. License renewal horizon (30 days) → surface for CS follow-up.
+        const renewalsDue = await db.orgLicense.count({
+          where: {
+            status: "ACTIVE",
+            endsAt: { gte: now, lte: new Date(now.getTime() + 30 * 86400_000) },
+          },
+        });
+        if (renewalsDue > 0) {
+          await db.auditLog.create({
+            data: {
+              actorKind: "SYSTEM",
+              action: "cron.licenses.renewals_due",
+              entityType: "OrgLicense",
+              entityId: "aggregate",
+              after: { count: renewalsDue },
+            },
+          });
+        }
+        results.renewalsDue = renewalsDue;
+
         return results;
       },
       {

@@ -6,6 +6,8 @@ import { requireUser } from "@/lib/auth/session";
 const NAV = [
   { href: "/learn", label: "Dashboard" },
   { href: "/learn/projects", label: "My projects" },
+  { href: "/learn/programs", label: "My programs" },
+  { href: "/learn/org", label: "Org benefits" },
   { href: "/learn/orders", label: "Orders" },
   { href: "/billing", label: "Billing" },
 ];

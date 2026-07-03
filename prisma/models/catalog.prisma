@@ -64,9 +64,10 @@ model Course {
   credentials       Credential[]
   discussionThreads DiscussionThread[]
   announcements     Announcement[]
-  liveSessions      LiveSession[]
-  pods              Pod[]
-  aiConversations   AiConversation[]
+  liveSessions        LiveSession[]
+  pods                Pod[]
+  aiConversations     AiConversation[]
+  licenseConsumptions LicenseConsumption[]
 
   @@unique([tenantId, slug])
   @@index([status, visibility])

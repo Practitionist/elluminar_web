@@ -43,13 +43,21 @@ export default async function StudioTenantLayout({
             </Link>
           ))}
         </nav>
-        <div className="p-3">
+        <div className="space-y-2 p-3">
           <Link
             href={`/c/${tenantSlug}`}
             className="block rounded-md border px-3 py-2 text-center text-sm hover:bg-muted"
           >
             View storefront →
           </Link>
+          {tenant.type !== "CREATOR" && (
+            <Link
+              href={`/org/${tenantSlug}`}
+              className="block rounded-md border px-3 py-2 text-center text-sm hover:bg-muted"
+            >
+              Enterprise portal →
+            </Link>
+          )}
         </div>
       </aside>
       <div className="flex-1">

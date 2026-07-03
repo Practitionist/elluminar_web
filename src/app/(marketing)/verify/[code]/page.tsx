@@ -27,6 +27,17 @@ export default async function VerifyCodePage({
           project: { include: { tenant: { select: { displayName: true, slug: true } } } },
         },
       },
+      programEnrollment: {
+        include: {
+          programCohort: {
+            include: {
+              program: {
+                include: { ownerTenant: { select: { displayName: true, slug: true } } },
+              },
+            },
+          },
+        },
+      },
     },
   });
 
@@ -46,10 +57,14 @@ export default async function VerifyCodePage({
   }
 
   const revoked = Boolean(credential.revokedAt);
+  const coBrandPartner = (credential.metadata as { coBrandPartner?: string } | null)
+    ?.coBrandPartner;
   const issuer =
     credential.course?.tenant.displayName ??
     credential.projectInstance?.project.tenant.displayName ??
+    credential.programEnrollment?.programCohort.program.ownerTenant.displayName ??
     "lms-web";
+  const issuerLine = coBrandPartner ? `${issuer} × ${coBrandPartner}` : issuer;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-16">
@@ -77,7 +92,7 @@ export default async function VerifyCodePage({
               Awarded to <span className="font-semibold">{credential.user.name}</span>
             </p>
             <p className="text-sm text-muted-foreground">
-              Issued by {issuer} ·{" "}
+              Issued by {issuerLine} ·{" "}
               {credential.issuedAt.toLocaleDateString("en-IN", { dateStyle: "long" })}
               {credential.grade ? ` · Grade: ${credential.grade}` : ""}
             </p>

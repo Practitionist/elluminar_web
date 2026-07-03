@@ -3,6 +3,7 @@ import "server-only";
 import { customAlphabet } from "nanoid";
 
 import { db } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 
 // Unambiguous, human-readable verification codes (no 0/O/1/I).
 const codeAlphabet = customAlphabet("23456789ABCDEFGHJKMNPQRSTUVWXYZ", 12);
@@ -53,6 +54,70 @@ export async function issueCourseCredentialIfEarned(enrollmentId: string) {
       category: "credential",
       title: "Certificate earned 🎉",
       body: `You completed “${enrollment.course.title}”. Your verifiable certificate is ready.`,
+      actionUrl: `/verify/${credential.verificationCode}`,
+    },
+  });
+  return credential;
+}
+
+/** Issues a co-branded program credential on completion (idempotent). */
+export async function issueProgramCredential(programEnrollmentId: string) {
+  const pe = await db.programEnrollment.findUniqueOrThrow({
+    where: { id: programEnrollmentId },
+    include: {
+      programCohort: {
+        include: { program: { include: { certificateTemplate: true } } },
+      },
+    },
+  });
+
+  const existing = await db.credential.findFirst({
+    where: { kind: "PROGRAM", programEnrollmentId },
+  });
+  if (existing) return existing;
+
+  const program = pe.programCohort.program;
+  const coBrand = (program.certificateTemplate?.coBrand ?? null) as {
+    partnerName?: string;
+  } | null;
+
+  let credential;
+  try {
+    credential = await db.credential.create({
+      data: {
+        userId: pe.userId,
+        kind: "PROGRAM",
+        programEnrollmentId,
+        templateId: program.certificateTemplateId,
+        title: program.title,
+        grade: pe.finalGrade,
+        verificationCode: formatVerificationCode(),
+        metadata: {
+          programSlug: program.slug,
+          cohort: pe.programCohort.name,
+          ...(coBrand?.partnerName ? { coBrandPartner: coBrand.partnerName } : {}),
+        },
+      },
+    });
+  } catch (err) {
+    // Concurrent rollups (course + project completing together) can both pass
+    // the findFirst; the partial unique on (programEnrollmentId) WHERE
+    // kind='PROGRAM' makes the loser land here — return the winner's row.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const winner = await db.credential.findFirst({
+        where: { kind: "PROGRAM", programEnrollmentId },
+      });
+      if (winner) return winner;
+    }
+    throw err;
+  }
+
+  await db.notification.create({
+    data: {
+      userId: pe.userId,
+      category: "credential",
+      title: "Program certificate earned 🎓",
+      body: `You completed “${program.title}”${coBrand?.partnerName ? ` — co-certified with ${coBrand.partnerName}` : ""}.`,
       actionUrl: `/verify/${credential.verificationCode}`,
     },
   });

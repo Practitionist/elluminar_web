@@ -50,13 +50,66 @@ export default async function StorefrontPage({
   if (!tenant || tenant.status === "ARCHIVED" || tenant.status === "SUSPENDED") notFound();
 
   const about = tiptapToPlainText(tenant.about);
+  const isOrg = tenant.type === "ENTERPRISE" || tenant.type === "UNIVERSITY";
+  const programs = isOrg
+    ? await db.program.findMany({
+        where: { ownerTenantId: tenant.id, status: "ACTIVE" },
+        include: {
+          certificateTemplate: { select: { coBrand: true } },
+          _count: { select: { items: true, cohorts: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+      })
+    : [];
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-12">
       <header className="border-b pb-8">
-        <h1 className="text-3xl font-semibold tracking-tight">{tenant.displayName}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-semibold tracking-tight">{tenant.displayName}</h1>
+          {isOrg && (
+            <Badge variant="secondary">
+              {tenant.type === "UNIVERSITY" ? "University partner" : "Enterprise partner"}
+            </Badge>
+          )}
+        </div>
         {about && <p className="mt-3 max-w-2xl text-muted-foreground">{about}</p>}
       </header>
+
+      {isOrg && (
+        <section className="mt-10">
+          <h2 className="text-xl font-semibold">Programs</h2>
+          {programs.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Program details are shared with enrolled cohorts.
+            </p>
+          ) : (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {programs.map((program) => {
+                const coBrand = (program.certificateTemplate?.coBrand ?? null) as {
+                  partnerName?: string;
+                } | null;
+                return (
+                  <Card key={program.id}>
+                    <CardHeader>
+                      <CardTitle className="line-clamp-2 text-base">{program.title}</CardTitle>
+                      <CardDescription>
+                        {program._count.items} items · {program._count.cohorts} cohorts
+                        {coBrand?.partnerName
+                          ? ` · co-certified with ${coBrand.partnerName}`
+                          : ""}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-sm text-muted-foreground">
+                      Cohort-based · co-branded certificate on completion
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="mt-10">
         <h2 className="text-xl font-semibold">Courses</h2>

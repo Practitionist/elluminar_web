@@ -527,6 +527,503 @@ async function seedDemoContent() {
   console.log("✓ Demo content (Demo Academy: course, cohort, capstone project)");
 }
 
+async function seedEnterpriseDemo() {
+  if (process.env.NODE_ENV === "production") return;
+
+  // ── Orgs + tenants ─────────────────────────────────────────────────
+  const mkOrgTenant = async (
+    id: string,
+    slug: string,
+    name: string,
+    type: "ENTERPRISE" | "UNIVERSITY",
+    status: "APPROVED" | "APPLIED",
+  ) => {
+    const org = await db.organization.upsert({
+      where: { slug },
+      update: {},
+      create: { id, name, slug },
+    });
+    const tenant = await db.tenant.upsert({
+      where: { organizationId: org.id },
+      update: { type, status },
+      create: {
+        organizationId: org.id,
+        type,
+        status,
+        slug,
+        displayName: name,
+        ...(status === "APPROVED" ? { approvedAt: new Date() } : {}),
+      },
+    });
+    return { org, tenant };
+  };
+
+  const acme = await mkOrgTenant("org_acme", "acme", "Acme Corp", "ENTERPRISE", "APPROVED");
+  const nalanda = await mkOrgTenant(
+    "org_nalanda",
+    "nalanda",
+    "Nalanda University",
+    "UNIVERSITY",
+    "APPROVED",
+  );
+  await mkOrgTenant("org_vertex", "vertex-labs", "Vertex Labs", "ENTERPRISE", "APPLIED");
+
+  // ── Users + memberships ────────────────────────────────────────────
+  const mkUser = async (email: string, name: string) =>
+    db.user.upsert({
+      where: { email },
+      update: {},
+      create: { email, name, emailVerified: true },
+    });
+  const mkMember = async (organizationId: string, userId: string, role: string) => {
+    await db.member.upsert({
+      where: { organizationId_userId: { organizationId, userId } },
+      update: { role },
+      create: { organizationId, userId, role },
+    });
+  };
+
+  const acmeUsers = {
+    owner: await mkUser("priya@acme.test", "Priya Sharma"),
+    admin: await mkUser("dev@acme.test", "Dev Patel"),
+    m1: await mkUser("arjun@acme.test", "Arjun Rao"),
+    m2: await mkUser("sneha@acme.test", "Sneha Gupta"),
+    m3: await mkUser("kabir@acme.test", "Kabir Khan"),
+  };
+  await mkMember(acme.org.id, acmeUsers.owner.id, "owner");
+  await mkMember(acme.org.id, acmeUsers.admin.id, "admin");
+  for (const u of [acmeUsers.m1, acmeUsers.m2, acmeUsers.m3]) {
+    await mkMember(acme.org.id, u.id, "member");
+  }
+
+  const nalandaUsers = {
+    owner: await mkUser("registrar@nalanda.test", "Prof. Meenakshi Iyer"),
+    admin: await mkUser("office@nalanda.test", "Program Office"),
+    s1: await mkUser("aditi@nalanda.test", "Aditi Verma"),
+    s2: await mkUser("rahul@nalanda.test", "Rahul Nair"),
+    s3: await mkUser("zoya@nalanda.test", "Zoya Ahmed"),
+  };
+  await mkMember(nalanda.org.id, nalandaUsers.owner.id, "owner");
+  await mkMember(nalanda.org.id, nalandaUsers.admin.id, "admin");
+  for (const u of [nalandaUsers.s1, nalandaUsers.s2, nalandaUsers.s3]) {
+    await mkMember(nalanda.org.id, u.id, "member");
+  }
+
+  // ── Co-branded certificate templates ───────────────────────────────
+  const mkTemplate = async (tenantId: string, partnerName: string) => {
+    const existing = await db.certificateTemplate.findFirst({
+      where: { tenantId, kind: "PROGRAM" },
+    });
+    if (existing) return existing;
+    return db.certificateTemplate.create({
+      data: {
+        tenantId,
+        kind: "PROGRAM",
+        name: `${partnerName} Co-branded`,
+        design: { layout: "landscape-a4", heading: "Program Certificate" },
+        coBrand: { partnerName },
+      },
+    });
+  };
+  await mkTemplate(acme.tenant.id, "Acme Corp");
+  const nalandaTemplate = await mkTemplate(nalanda.tenant.id, "Nalanda University");
+
+  // ── Extra tiny course under demo-academy ───────────────────────────
+  const demoTenant = await db.tenant.findUniqueOrThrow({ where: { slug: "demo-academy" } });
+  const apiCourse = await db.course.upsert({
+    where: { tenantId_slug: { tenantId: demoTenant.id, slug: "api-design-essentials" } },
+    update: {},
+    create: {
+      tenantId: demoTenant.id,
+      title: "API Design Essentials",
+      slug: "api-design-essentials",
+      subtitle: "Pragmatic REST and versioning for real teams",
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+    },
+  });
+  if ((await db.courseSection.count({ where: { courseId: apiCourse.id } })) === 0) {
+    const section = await db.courseSection.create({
+      data: { courseId: apiCourse.id, title: "Foundations", position: 0 },
+    });
+    await db.lesson.createMany({
+      data: [
+        { sectionId: section.id, courseId: apiCourse.id, type: "ARTICLE", title: "Resources & verbs", position: 0 },
+        { sectionId: section.id, courseId: apiCourse.id, type: "ARTICLE", title: "Versioning without tears", position: 1 },
+      ],
+    });
+  }
+  const existingApiPrice = await db.price.findFirst({
+    where: { courseId: apiCourse.id, currency: INR, region: null },
+  });
+  if (!existingApiPrice) {
+    await db.price.create({
+      data: { itemType: "COURSE", courseId: apiCourse.id, currency: INR, amountMinor: paise(1999) },
+    });
+  }
+
+  const fullstack = await db.course.findUniqueOrThrow({
+    where: { tenantId_slug: { tenantId: demoTenant.id, slug: "fullstack-nextjs" } },
+  });
+  const capstone = await db.project.findUniqueOrThrow({
+    where: { tenantId_slug: { tenantId: demoTenant.id, slug: "realtime-collab-editor" } },
+  });
+
+  // ── Programs + items + cohorts ─────────────────────────────────────
+  const mkProgram = async (
+    ownerTenantId: string,
+    slug: string,
+    title: string,
+    templateId: string | null,
+    items: Array<{ itemType: "COURSE" | "PROJECT"; courseId?: string; projectId?: string; required: boolean; unlockPrev?: boolean }>,
+  ) => {
+    const program = await db.program.upsert({
+      where: { ownerTenantId_slug: { ownerTenantId, slug } },
+      update: { status: "ACTIVE", certificateTemplateId: templateId },
+      create: { ownerTenantId, slug, title, status: "ACTIVE", certificateTemplateId: templateId },
+    });
+    const existingItems = await db.programItem.findMany({
+      where: { programId: program.id },
+      orderBy: { position: "asc" },
+    });
+    if (existingItems.length === 0) {
+      let prevId: string | null = null;
+      for (const [i, item] of items.entries()) {
+        const created: { id: string } = await db.programItem.create({
+          select: { id: true },
+          data: {
+            programId: program.id,
+            position: i,
+            itemType: item.itemType,
+            courseId: item.courseId ?? null,
+            projectId: item.projectId ?? null,
+            required: item.required,
+            unlockAfterItemId: item.unlockPrev ? prevId : null,
+          },
+        });
+        prevId = created.id;
+      }
+    }
+    const running =
+      (await db.programCohort.findFirst({ where: { programId: program.id, status: "RUNNING" } })) ??
+      (await db.programCohort.create({
+        data: {
+          programId: program.id,
+          name: "2026 Cohort A",
+          status: "RUNNING",
+          startsAt: new Date(Date.now() - 30 * 86400_000),
+          endsAt: new Date(Date.now() + 60 * 86400_000),
+          capacity: 60,
+        },
+      }));
+    if (!(await db.programCohort.findFirst({ where: { programId: program.id, status: "DRAFT" } }))) {
+      await db.programCohort.create({
+        data: {
+          programId: program.id,
+          name: "2027 Cohort B",
+          status: "DRAFT",
+          startsAt: new Date(Date.now() + 120 * 86400_000),
+        },
+      });
+    }
+    return { program, running };
+  };
+
+  await mkProgram(acme.tenant.id, "backend-accelerator", "Backend Engineering Accelerator", null, [
+    { itemType: "COURSE", courseId: apiCourse.id, required: true },
+    { itemType: "COURSE", courseId: fullstack.id, required: true, unlockPrev: true },
+    { itemType: "PROJECT", projectId: capstone.id, required: false, unlockPrev: true },
+  ]);
+  const nalandaProgram = await mkProgram(
+    nalanda.tenant.id,
+    "applied-se-cert",
+    "Applied Software Engineering Certificate",
+    nalandaTemplate.id,
+    [
+      { itemType: "COURSE", courseId: apiCourse.id, required: true },
+      { itemType: "PROJECT", projectId: capstone.id, required: true, unlockPrev: true },
+    ],
+  );
+
+  // ── Licenses ───────────────────────────────────────────────────────
+  const mkLicense = async (
+    key: string,
+    data: Parameters<typeof db.orgLicense.create>[0]["data"],
+  ) => {
+    const existing = await db.orgLicense.findFirst({
+      where: { tenantId: data.tenantId as string, contractRef: key },
+    });
+    return existing ?? db.orgLicense.create({ data: { ...data, contractRef: key } });
+  };
+
+  const now = Date.now();
+  const acmeCatalog = await mkLicense("SEED-ACME-CATALOG", {
+    tenantId: acme.tenant.id,
+    kind: "CATALOG",
+    seats: 25,
+    startsAt: new Date(now - 30 * 86400_000),
+    endsAt: new Date(now + 335 * 86400_000),
+    contractValueMinor: paise(300000),
+    catalogScope: { courseIds: [apiCourse.id, fullstack.id] },
+    status: "ACTIVE",
+  });
+  const acmePool = await mkLicense("SEED-ACME-POOL", {
+    tenantId: acme.tenant.id,
+    kind: "CREDIT_POOL",
+    seats: 0,
+    startsAt: new Date(now - 30 * 86400_000),
+    endsAt: new Date(now + 335 * 86400_000),
+    contractValueMinor: paise(500000),
+    status: "ACTIVE",
+  });
+  const nalandaLicense = await mkLicense("SEED-NALANDA-PROGRAM", {
+    tenantId: nalanda.tenant.id,
+    kind: "PROGRAM",
+    programId: nalandaProgram.program.id,
+    seats: 60,
+    startsAt: new Date(now - 30 * 86400_000),
+    endsAt: new Date(now + 335 * 86400_000),
+    contractValueMinor: paise(1200000),
+    status: "ACTIVE",
+  });
+  await mkLicense("SEED-ACME-STALE", {
+    tenantId: acme.tenant.id,
+    kind: "CATALOG",
+    seats: 5,
+    startsAt: new Date(now - 400 * 86400_000),
+    endsAt: new Date(now - 35 * 86400_000),
+    contractValueMinor: paise(50000),
+    status: "ACTIVE", // deliberately stale — exercised by the cron sweep
+  });
+
+  // MANUAL contract payments
+  const mkManualPayment = async (ref: string, orgLicenseId: string, amountMinor: bigint) => {
+    const existing = await db.payment.findFirst({
+      where: { provider: "MANUAL", providerPaymentRef: ref },
+    });
+    if (!existing) {
+      await db.payment.create({
+        data: {
+          provider: "MANUAL",
+          providerPaymentRef: ref,
+          orgLicenseId,
+          amountMinor,
+          currency: INR,
+          status: "CAPTURED",
+          capturedAt: new Date(),
+        },
+      });
+    }
+  };
+  await mkManualPayment("manual-acme-catalog-2026", acmeCatalog.id, paise(300000));
+  await mkManualPayment("manual-nalanda-program-2026", nalandaLicense.id, paise(1200000));
+
+  // ── Seats ──────────────────────────────────────────────────────────
+  const mkSeat = async (
+    licenseId: string,
+    opts: { userId?: string; inviteEmail?: string; status: "ACTIVATED" | "INVITED" | "REVOKED" },
+  ) => {
+    const existing = opts.userId
+      ? await db.licenseSeat.findFirst({ where: { licenseId, userId: opts.userId } })
+      : await db.licenseSeat.findFirst({
+          where: { licenseId, userId: null, inviteEmail: opts.inviteEmail },
+        });
+    if (existing) return existing;
+    return db.licenseSeat.create({
+      data: {
+        licenseId,
+        userId: opts.userId ?? null,
+        inviteEmail: opts.inviteEmail ?? null,
+        status: opts.status,
+        ...(opts.status === "ACTIVATED" ? { activatedAt: new Date() } : {}),
+        ...(opts.status === "REVOKED" ? { revokedAt: new Date() } : {}),
+      },
+    });
+  };
+
+  await mkSeat(acmeCatalog.id, { userId: acmeUsers.m1.id, status: "ACTIVATED" });
+  await mkSeat(acmeCatalog.id, { userId: acmeUsers.m2.id, status: "ACTIVATED" });
+  await mkSeat(acmeCatalog.id, { inviteEmail: "rohan@acme.test", status: "INVITED" });
+  await mkSeat(acmeCatalog.id, { inviteEmail: "meera@acme.test", status: "INVITED" });
+  await mkSeat(acmeCatalog.id, { userId: acmeUsers.m3.id, status: "REVOKED" });
+  const nalandaSeats = [
+    await mkSeat(nalandaLicense.id, { userId: nalandaUsers.s1.id, status: "ACTIVATED" }),
+    await mkSeat(nalandaLicense.id, { userId: nalandaUsers.s2.id, status: "ACTIVATED" }),
+    await mkSeat(nalandaLicense.id, { userId: nalandaUsers.s3.id, status: "ACTIVATED" }),
+  ];
+
+  // ── Program enrollments with full fan-out (Nalanda RUNNING cohort) ──
+  const items = await db.programItem.findMany({
+    where: { programId: nalandaProgram.program.id },
+    orderBy: { position: "asc" },
+  });
+  const students = [nalandaUsers.s1, nalandaUsers.s2, nalandaUsers.s3];
+  const programEnrollments = [];
+  for (const [i, student] of students.entries()) {
+    const pe = await db.programEnrollment.upsert({
+      where: {
+        programCohortId_userId: {
+          programCohortId: nalandaProgram.running.id,
+          userId: student.id,
+        },
+      },
+      update: {},
+      create: {
+        programCohortId: nalandaProgram.running.id,
+        userId: student.id,
+        licenseSeatId: nalandaSeats[i].id,
+        status: "IN_PROGRESS",
+      },
+    });
+    for (const item of items) {
+      if (item.itemType === "COURSE" && item.courseId) {
+        const existing = await db.enrollment.findFirst({
+          where: { userId: student.id, courseId: item.courseId, cohortId: null },
+        });
+        if (!existing) {
+          await db.enrollment.create({
+            data: {
+              userId: student.id,
+              courseId: item.courseId,
+              source: "PROGRAM",
+              programEnrollmentId: pe.id,
+            },
+          });
+        }
+      }
+      if (item.itemType === "PROJECT" && item.projectId) {
+        const existing = await db.projectInstance.findFirst({
+          where: { userId: student.id, projectId: item.projectId, programEnrollmentId: pe.id },
+        });
+        if (!existing) {
+          await db.projectInstance.create({
+            data: {
+              projectId: item.projectId,
+              userId: student.id,
+              source: "PROGRAM",
+              programEnrollmentId: pe.id,
+            },
+          });
+        }
+      }
+    }
+    programEnrollments.push(pe);
+  }
+
+  // Student 1: 60% through the course; Student 2: everything done + credential.
+  await db.enrollment.updateMany({
+    where: { userId: nalandaUsers.s1.id, programEnrollmentId: programEnrollments[0].id },
+    data: { progressPct: 60 },
+  });
+  await db.enrollment.updateMany({
+    where: { userId: nalandaUsers.s2.id, programEnrollmentId: programEnrollments[1].id },
+    data: { progressPct: 100, status: "COMPLETED", completedAt: new Date() },
+  });
+  await db.projectInstance.updateMany({
+    where: { userId: nalandaUsers.s2.id, programEnrollmentId: programEnrollments[1].id },
+    data: { status: "PASSED", completedAt: new Date(), finalScore: 88 },
+  });
+  await db.programEnrollment.update({
+    where: { id: programEnrollments[1].id },
+    data: { status: "COMPLETED", completedAt: new Date() },
+  });
+  const existingCred = await db.credential.findFirst({
+    where: { kind: "PROGRAM", programEnrollmentId: programEnrollments[1].id },
+  });
+  if (!existingCred) {
+    await db.credential.create({
+      data: {
+        userId: nalandaUsers.s2.id,
+        kind: "PROGRAM",
+        programEnrollmentId: programEnrollments[1].id,
+        templateId: nalandaTemplate.id,
+        title: nalandaProgram.program.title,
+        verificationCode: "NX7K-4MPQ-W2TR",
+        metadata: { coBrandPartner: "Nalanda University", cohort: "2026 Cohort A" },
+      },
+    });
+  }
+
+  // ── Credit-pool consumptions (Acme) ────────────────────────────────
+  const apiPrice = await db.price.findFirstOrThrow({
+    where: { courseId: apiCourse.id, currency: INR, region: null },
+  });
+  const capstonePrice = await db.price.findFirstOrThrow({
+    where: { projectId: capstone.id, currency: INR, region: null, mentorLevel: null },
+  });
+
+  const existingCourseConsumption = await db.licenseConsumption.findFirst({
+    where: { licenseId: acmePool.id, userId: acmeUsers.m1.id, courseId: apiCourse.id },
+  });
+  if (!existingCourseConsumption) {
+    const enrollment = await db.enrollment.create({
+      data: {
+        userId: acmeUsers.m1.id,
+        courseId: apiCourse.id,
+        source: "ORG_LICENSE",
+        orgLicenseId: acmePool.id,
+        expiresAt: acmePool.endsAt,
+      },
+    });
+    await db.licenseConsumption.create({
+      data: {
+        licenseId: acmePool.id,
+        userId: acmeUsers.m1.id,
+        itemType: "COURSE",
+        courseId: apiCourse.id,
+        amountMinor: apiPrice.amountMinor,
+        enrollmentId: enrollment.id,
+      },
+    });
+  }
+  const existingProjectConsumption = await db.licenseConsumption.findFirst({
+    where: { licenseId: acmePool.id, userId: acmeUsers.m2.id, projectId: capstone.id },
+  });
+  if (!existingProjectConsumption) {
+    const instance = await db.projectInstance.create({
+      data: {
+        projectId: capstone.id,
+        userId: acmeUsers.m2.id,
+        source: "ORG_LICENSE",
+      },
+    });
+    await db.licenseConsumption.create({
+      data: {
+        licenseId: acmePool.id,
+        userId: acmeUsers.m2.id,
+        itemType: "PROJECT",
+        projectId: capstone.id,
+        amountMinor: capstonePrice.amountMinor,
+        projectInstanceId: instance.id,
+      },
+    });
+  }
+
+  // ── Report exports ─────────────────────────────────────────────────
+  const mkReport = async (kind: "COMPLETION" | "ENGAGEMENT", status: "READY" | "QUEUED") => {
+    const existing = await db.reportExport.findFirst({
+      where: { tenantId: acme.tenant.id, kind },
+    });
+    if (!existing) {
+      await db.reportExport.create({
+        data: {
+          tenantId: acme.tenant.id,
+          kind,
+          status,
+          params: { note: "seeded" },
+          ...(status === "READY" ? { completedAt: new Date() } : {}),
+        },
+      });
+    }
+  };
+  await mkReport("COMPLETION", "READY");
+  await mkReport("ENGAGEMENT", "QUEUED");
+
+  console.log(
+    "✓ Enterprise demo (Acme + Nalanda + Vertex: programs, cohorts, 4 licenses, seats, fan-out, credential, pool consumptions — ledger entries intentionally omitted in seed)",
+  );
+}
+
 async function main() {
   console.log("Seeding lms_web…");
   await seedPlatformConfig();
@@ -538,6 +1035,7 @@ async function main() {
   await seedCertificateTemplate();
   await seedPlatformTenant();
   await seedDemoContent();
+  await seedEnterpriseDemo();
   console.log("Done.");
 }
 

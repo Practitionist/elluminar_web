@@ -68,13 +68,45 @@ export const auth = betterAuth({
     },
   },
 
+  databaseHooks: {
+    session: {
+      create: {
+        // Seat auto-match on every sign-in (email/password, OAuth, SSO):
+        // claims INVITED enterprise seats for verified emails. Defensively
+        // wrapped — enterprise failures must never block sign-in.
+        after: async (session) => {
+          try {
+            const user = await db.user.findUnique({
+              where: { id: session.userId },
+              select: { id: true, email: true, emailVerified: true },
+            });
+            if (user?.emailVerified) {
+              const { activateSeatsForUser } = await import("@/lib/enterprise/roster");
+              await activateSeatsForUser(user.id, user.email);
+            }
+          } catch (err) {
+            console.error("[seat auto-match]", err);
+          }
+        },
+      },
+    },
+  },
+
   plugins: [
     organization({
       ac,
       roles: orgRoles,
       teams: { enabled: true },
       dynamicAccessControl: { enabled: true },
-      organizationLimit: 3,
+      // May-create check: platform admins create enterprise tenants sales-led
+      // (uncapped); everyone else keeps the 3-org cap.
+      organizationLimit: async (user) => {
+        if ((user as { role?: string | null }).role === "admin") return true;
+        const owned = await db.member.count({
+          where: { userId: user.id, role: "owner" },
+        });
+        return owned < 3;
+      },
       membershipLimit: 10000,
       invitationExpiresIn: 60 * 60 * 72,
       sendInvitationEmail: async (data) => {
@@ -112,6 +144,10 @@ export const auth = betterAuth({
         disabled: false,
         defaultRole: "member",
       },
+      // Sign-ins only match providers with domainVerified = true — the flag
+      // the platform-admin trust toggle flips. Without this, unreviewed
+      // providers would be usable immediately after registration.
+      domainVerification: { enabled: true },
     }),
     twoFactor({
       issuer: "lms-web",

@@ -14,6 +14,8 @@ model Enrollment {
   orderItem           OrderItem?        @relation(fields: [orderItemId], references: [id])
   subscriptionId      String?
   subscription        Subscription?     @relation(fields: [subscriptionId], references: [id])
+  orgLicenseId        String? // load-bearing: seat revocation/license expiry targets exactly these
+  orgLicense          OrgLicense?       @relation(fields: [orgLicenseId], references: [id])
   programEnrollmentId String?
   programEnrollment   ProgramEnrollment? @relation(fields: [programEnrollmentId], references: [id])
   status              EnrollmentStatus  @default(ACTIVE)
@@ -28,11 +30,13 @@ model Enrollment {
   lessonProgress        LessonProgress[]
   quizAttempts          QuizAttempt[]
   assignmentSubmissions AssignmentSubmission[]
+  licenseConsumptions   LicenseConsumption[]
 
   @@unique([userId, courseId, cohortId])
   @@index([courseId, status])
   @@index([userId, status])
   @@index([subscriptionId])
+  @@index([orgLicenseId])
 }
 
 model LessonProgress {

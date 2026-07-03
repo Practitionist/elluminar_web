@@ -54,6 +54,20 @@ function SignInForm() {
     if (error) toast.error(error.message ?? "Google sign-in is not configured yet");
   }
 
+  async function onSso(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const email = String(new FormData(e.currentTarget).get("ssoEmail"));
+    const { error } = await authClient.signIn.sso({
+      email,
+      callbackURL: next,
+    });
+    if (error) {
+      toast.error(
+        error.message ?? "No SSO provider is configured for that email domain.",
+      );
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -96,6 +110,18 @@ function SignInForm() {
         <Button type="button" variant="outline" className="w-full" onClick={onGoogle}>
           Continue with Google
         </Button>
+        <form onSubmit={onSso} className="flex gap-2">
+          <Input
+            name="ssoEmail"
+            type="email"
+            placeholder="Work email (SSO)"
+            required
+            className="flex-1"
+          />
+          <Button type="submit" variant="outline">
+            SSO
+          </Button>
+        </form>
         <p className="text-center text-sm text-muted-foreground">
           New here?{" "}
           <Link href="/sign-up" className="font-medium text-foreground hover:underline">

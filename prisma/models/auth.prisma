@@ -67,8 +67,9 @@ model User {
   ledgerAccounts          LedgerAccount[]
 
   // enterprise relations
-  licenseSeats       LicenseSeat[]
-  programEnrollments ProgramEnrollment[]
+  licenseSeats        LicenseSeat[]
+  programEnrollments  ProgramEnrollment[]
+  licenseConsumptions LicenseConsumption[]
 
   // career relations
   credentials             Credential[]
