@@ -3,33 +3,37 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-import { CreatorApplicationForm } from "./creator-application-form";
+import { OrganizationApplicationForm } from "./organization-application-form";
 
-export const metadata = { title: "Become a creator" };
+export const metadata = { title: "Create your organization" };
 
 export default async function OnboardingPage() {
   const session = await requireUser("/onboarding");
 
-  // Already a member of a tenant? Go to the studio instead.
+  // Already in an org? Route to its home surface instead.
   const membership = await db.member.findFirst({
     where: { userId: session.user.id },
-    select: { organization: { select: { tenant: { select: { slug: true } } } } },
+    select: {
+      organization: { select: { tenant: { select: { slug: true, type: true } } } },
+    },
   });
-  if (membership?.organization.tenant) {
-    redirect(`/studio/${membership.organization.tenant.slug}`);
+  const tenant = membership?.organization.tenant;
+  if (tenant) {
+    redirect(tenant.type === "CREATOR" ? `/studio/${tenant.slug}` : `/org/${tenant.slug}`);
   }
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-16">
       <h1 className="text-3xl font-semibold tracking-tight">
-        Teach on lms-web
+        Bring your organization to lms-web
       </h1>
       <p className="mt-2 text-muted-foreground">
-        Set up your school. You get a branded storefront, course & project
-        authoring, live cohorts, and payouts — without building any of it.
+        Creators get a storefront and authoring studio. Companies and
+        universities get licensing, rosters, programs, and reporting — all on
+        the same account you already have.
       </p>
       <div className="mt-8">
-        <CreatorApplicationForm />
+        <OrganizationApplicationForm />
       </div>
     </div>
   );

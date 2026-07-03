@@ -10,6 +10,7 @@ import {
 import { db } from "@/lib/db";
 import { tiptapToPlainText } from "@/lib/richtext";
 
+import { CreateEnterpriseDialog } from "./create-enterprise-dialog";
 import { TenantReviewButtons } from "./tenant-review-buttons";
 
 export const metadata = { title: "Tenant approvals" };
@@ -32,7 +33,10 @@ export default async function AdminTenantsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Tenant approvals</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">Tenant approvals</h1>
+        <CreateEnterpriseDialog />
+      </div>
       {tenants.length === 0 ? (
         <p className="text-sm text-muted-foreground">No pending applications.</p>
       ) : (
@@ -52,7 +56,10 @@ export default async function AdminTenantsPage() {
               return (
                 <TableRow key={t.id}>
                   <TableCell>
-                    <div className="font-medium">{t.displayName}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{t.displayName}</span>
+                      <Badge variant="outline">{t.type.toLowerCase()}</Badge>
+                    </div>
                     <div className="text-xs text-muted-foreground">/c/{t.slug}</div>
                   </TableCell>
                   <TableCell>
