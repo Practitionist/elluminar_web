@@ -465,6 +465,7 @@ enum ProgramItemType {
 enum LicenseKind {
   CATALOG
   PROGRAM
+  CREDIT_POOL
 }
 
 enum LicenseStatus {

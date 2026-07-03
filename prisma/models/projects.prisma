@@ -45,13 +45,14 @@ model Project {
 
   milestones        Milestone[]
   instances         ProjectInstance[]
-  prices            Price[]
-  cartItems         CartItem[]
-  orderItems        OrderItem[]
-  bundleItems       BundleItem[]
-  programItems      ProgramItem[]
-  reviews           CatalogReview[]
-  discussionThreads DiscussionThread[]
+  prices              Price[]
+  cartItems           CartItem[]
+  orderItems          OrderItem[]
+  bundleItems         BundleItem[]
+  programItems        ProgramItem[]
+  reviews             CatalogReview[]
+  discussionThreads   DiscussionThread[]
+  licenseConsumptions LicenseConsumption[]
 
   @@unique([tenantId, slug])
   @@index([status, visibility, tier])
@@ -91,6 +92,8 @@ model ProjectInstance {
   subscriptionCredit   SubscriptionCredit?   @relation(fields: [subscriptionCreditId], references: [id])
   source               ProjectInstanceSource
   status               ProjectInstanceStatus @default(PENDING_KICKOFF)
+  programEnrollmentId  String? // program fan-out attribution (idempotent resync)
+  programEnrollment    ProgramEnrollment?    @relation(fields: [programEnrollmentId], references: [id])
   requestedMentorLevel MentorLevel? // learner-selected reviewer seniority (PRD §8.5)
   mentorKickoffAt      DateTime? // set at kickoff → refund cutoff
   startedAt            DateTime?
@@ -113,9 +116,11 @@ model ProjectInstance {
   aiConversations      AiConversation[]
   ledgerEntries        LedgerEntry[]
   endorsements         MentorEndorsement[]
+  licenseConsumptions  LicenseConsumption[]
 
   @@index([projectId, status])
   @@index([userId, status])
+  @@index([programEnrollmentId])
 }
 
 /// Paired externships (Crio-style teams of 2) — V1 free funnel; table now.

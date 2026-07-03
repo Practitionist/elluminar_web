@@ -59,8 +59,9 @@ model ProgramCohort {
   @@index([programId, status])
 }
 
-/// Seat-based license bought by an enterprise/university tenant:
-/// catalog-wide access or a specific Program.
+/// License bought by an enterprise/university tenant: seat-based catalog
+/// access, a specific Program, or a monetary CREDIT_POOL (prepaid
+/// contractValueMinor drawn down at catalog prices via LicenseConsumption).
 model OrgLicense {
   id                 String        @id @default(cuid())
   tenantId           String // buyer org
@@ -82,8 +83,37 @@ model OrgLicense {
 
   seatsAssigned LicenseSeat[]
   payments      Payment[]
+  consumptions  LicenseConsumption[]
+  enrollments   Enrollment[]
 
   @@index([tenantId, status])
+}
+
+/// One credit-pool redemption (or catalog-seat attribution record).
+/// Pool balance = OrgLicense.contractValueMinor − Σ amountMinor.
+/// Exactly one of courseId/projectId (CHECK in SQL); the per-user uniques
+/// absorb double-redeem races.
+model LicenseConsumption {
+  id                String           @id @default(cuid())
+  licenseId         String
+  license           OrgLicense       @relation(fields: [licenseId], references: [id])
+  userId            String
+  user              User             @relation(fields: [userId], references: [id])
+  itemType          ProgramItemType
+  courseId          String?
+  course            Course?          @relation(fields: [courseId], references: [id])
+  projectId         String?
+  project           Project?         @relation(fields: [projectId], references: [id])
+  amountMinor       BigInt
+  enrollmentId      String?
+  enrollment        Enrollment?      @relation(fields: [enrollmentId], references: [id])
+  projectInstanceId String?
+  projectInstance   ProjectInstance? @relation(fields: [projectInstanceId], references: [id])
+  createdAt         DateTime         @default(now())
+
+  @@unique([licenseId, userId, courseId])
+  @@unique([licenseId, userId, projectId])
+  @@index([licenseId, createdAt])
 }
 
 model LicenseSeat {
@@ -123,8 +153,9 @@ model ProgramEnrollment {
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
 
-  enrollments Enrollment[]
-  credentials Credential[]
+  enrollments      Enrollment[]
+  projectInstances ProjectInstance[]
+  credentials      Credential[]
 
   @@unique([programCohortId, userId])
   @@index([userId])

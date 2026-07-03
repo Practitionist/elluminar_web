@@ -74,7 +74,15 @@ export const auth = betterAuth({
       roles: orgRoles,
       teams: { enabled: true },
       dynamicAccessControl: { enabled: true },
-      organizationLimit: 3,
+      // May-create check: platform admins create enterprise tenants sales-led
+      // (uncapped); everyone else keeps the 3-org cap.
+      organizationLimit: async (user) => {
+        if ((user as { role?: string | null }).role === "admin") return true;
+        const owned = await db.member.count({
+          where: { userId: user.id, role: "owner" },
+        });
+        return owned < 3;
+      },
       membershipLimit: 10000,
       invitationExpiresIn: 60 * 60 * 72,
       sendInvitationEmail: async (data) => {
