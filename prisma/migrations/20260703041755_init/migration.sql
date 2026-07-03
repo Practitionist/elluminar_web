@@ -594,6 +594,9 @@ CREATE TABLE "twoFactor" (
     "secret" TEXT NOT NULL,
     "backupCodes" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
+    "verified" BOOLEAN DEFAULT true,
+    "failedVerificationCount" INTEGER DEFAULT 0,
+    "lockedUntil" TIMESTAMP(3),
 
     CONSTRAINT "twoFactor_pkey" PRIMARY KEY ("id")
 );
@@ -629,6 +632,7 @@ CREATE TABLE "invitation" (
     "role" TEXT,
     "status" TEXT NOT NULL DEFAULT 'pending',
     "expiresAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "inviterId" TEXT NOT NULL,
     "teamId" TEXT,
 
@@ -675,7 +679,7 @@ CREATE TABLE "ssoProvider" (
     "domain" TEXT NOT NULL,
     "oidcConfig" TEXT,
     "samlConfig" TEXT,
-    "userId" TEXT NOT NULL,
+    "userId" TEXT,
     "providerId" TEXT NOT NULL,
     "organizationId" TEXT,
     "domainVerified" BOOLEAN NOT NULL DEFAULT false,
@@ -2245,6 +2249,9 @@ CREATE INDEX "account_userId_idx" ON "account"("userId");
 
 -- CreateIndex
 CREATE INDEX "verification_identifier_idx" ON "verification"("identifier");
+
+-- CreateIndex
+CREATE INDEX "twoFactor_secret_idx" ON "twoFactor"("secret");
 
 -- CreateIndex
 CREATE INDEX "twoFactor_userId_idx" ON "twoFactor"("userId");

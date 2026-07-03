@@ -1,5 +1,6 @@
-import "server-only";
-
+// NOTE: intentionally not importing "server-only" — this module is loaded by
+// the BetterAuth CLI and the seed runner outside the React server bundle.
+// Never import it from client components.
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { env } from "@/env";

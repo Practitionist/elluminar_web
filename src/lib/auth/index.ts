@@ -1,0 +1,124 @@
+import { betterAuth } from "better-auth";
+import { prismaAdapter } from "better-auth/adapters/prisma";
+import { nextCookies } from "better-auth/next-js";
+import { sso } from "@better-auth/sso";
+import { admin, organization, twoFactor } from "better-auth/plugins";
+
+import { env } from "@/env";
+import { db } from "@/lib/db";
+import { ac, orgRoles } from "@/lib/auth/permissions";
+import { sendEmail } from "@/lib/email";
+
+export const auth = betterAuth({
+  appName: "lms-web",
+  baseURL: env.NEXT_PUBLIC_APP_URL,
+  secret: env.BETTER_AUTH_SECRET,
+  database: prismaAdapter(db, { provider: "postgresql" }),
+
+  user: {
+    additionalFields: {
+      phone: { type: "string", required: false },
+      timezone: { type: "string", required: false, defaultValue: "Asia/Kolkata" },
+      locale: { type: "string", required: false, defaultValue: "en" },
+      marketingOptIn: { type: "boolean", required: false, defaultValue: false },
+      onboardedAt: { type: "date", required: false, input: false },
+      anonymizedAt: { type: "date", required: false, input: false },
+    },
+  },
+
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: true,
+    sendResetPassword: async ({ user, url }) => {
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your password",
+        text: `Hi ${user.name},\n\nReset your password: ${url}\n\nIf you didn't request this, ignore this email.`,
+      });
+    },
+  },
+
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendEmail({
+        to: user.email,
+        subject: "Verify your email",
+        text: `Hi ${user.name},\n\nConfirm your email to activate your account: ${url}`,
+      });
+    },
+  },
+
+  socialProviders: {
+    ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+      ? {
+          google: {
+            clientId: env.GOOGLE_CLIENT_ID,
+            clientSecret: env.GOOGLE_CLIENT_SECRET,
+          },
+        }
+      : {}),
+  },
+
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60,
+    },
+  },
+
+  plugins: [
+    organization({
+      ac,
+      roles: orgRoles,
+      teams: { enabled: true },
+      dynamicAccessControl: { enabled: true },
+      organizationLimit: 3,
+      membershipLimit: 10000,
+      invitationExpiresIn: 60 * 60 * 72,
+      sendInvitationEmail: async (data) => {
+        const inviteUrl = `${env.NEXT_PUBLIC_APP_URL}/accept-invitation/${data.id}`;
+        await sendEmail({
+          to: data.email,
+          subject: `You're invited to join ${data.organization.name}`,
+          text: `${data.inviter.user.name} invited you to join ${data.organization.name}.\n\nAccept: ${inviteUrl}`,
+        });
+      },
+      organizationHooks: {
+        afterCreateOrganization: async ({ organization: org }) => {
+          // Every organization gets a Tenant commerce/branding profile.
+          // New self-serve orgs start as creator applications (admin approves).
+          await db.tenant.upsert({
+            where: { organizationId: org.id },
+            update: {},
+            create: {
+              organizationId: org.id,
+              type: "CREATOR",
+              status: "APPLIED",
+              slug: org.slug,
+              displayName: org.name,
+            },
+          });
+        },
+      },
+    }),
+    admin({
+      defaultRole: "user",
+      adminRoles: ["admin"],
+    }),
+    sso({
+      organizationProvisioning: {
+        disabled: false,
+        defaultRole: "member",
+      },
+    }),
+    twoFactor({
+      issuer: "lms-web",
+    }),
+    // Must be last: applies Set-Cookie handling for Next.js server actions.
+    nextCookies(),
+  ],
+});
+
+export type Auth = typeof auth;
