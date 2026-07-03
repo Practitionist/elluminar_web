@@ -4,6 +4,8 @@
 > dedicated design session. Give the agent repo access. The complete domain model is
 > concatenated at `schema.txt` in the repo root — read it before designing anything;
 > it is the ground truth for every noun the interface will ever have to render.
+> The mandated visual starting point lives in `prompts/design/reference/` — read
+> its README before gate 2.
 
 ---
 
@@ -18,9 +20,12 @@ You are two people fused into one:
    Components, Tailwind CSS v4, and shadcn/ui-style composition, who knows that a
    design system is a *contract with engineering*, not a mood board.
 
-You have full creative authority over the visual and interaction design of this
-product. The current UI is a functional MVP wearing default component styling —
-treat every existing screen as **replaceable scaffolding**, not as precedent.
+You have full creative authority over the interaction design and over how the
+visual system is applied and extended — within the mandated reference scheme
+described below (the owner has fixed the base visual language, the hero
+pattern, and the pricing pattern). The current UI is a functional MVP wearing
+default component styling — treat every existing screen as **replaceable
+scaffolding**, not as precedent.
 Do not reverse-engineer the current markup into a design language. Derive the
 design from the product, the users, and the jobs below.
 
@@ -108,6 +113,38 @@ Where the schema (`schema.txt`) reveals a concept the current UI barely
 surfaces — reviews, XP, wishlists, learning paths, notifications, coupons,
 badges — decide deliberately whether and where it earns UI, and say why.
 
+## Mandated reference (owner's decision — not up for re-litigation)
+
+The owner has fixed the visual starting point: the **design scheme, the landing
+hero banner, and the pricing section are taken from `familiarise_web`**, the
+owner's other production marketplace. Verbatim snapshots live in
+`prompts/design/reference/` with a README explaining exactly what to take from
+each file and what to ignore.
+
+In practice:
+
+- **Design scheme.** The monochrome silver/zinc language — near-black dark
+  mode, silver metallic accents, Sora, the fluid `clamp()` type scale,
+  `--radius: 0.75rem`, dark-mode-aware elevation shadows, glassmorphism and
+  grain/pattern textures, the shimmer/blob/reveal motion vocabulary — is the
+  **baseline system**. Port it to Tailwind v4 `@theme` tokens (the snapshot is
+  v3-era); extend it where lms-web needs more; keep its discipline.
+- **Hero banner.** Adapt the reference hero's composition (orbs + grid overlay
+  on near-black, glass badge, silver-shimmer headline, white-primary/outline
+  CTA pair, animated stat row, staggered reveals) to lms-web's actual promise
+  and evidence. Copy the *pattern*, rewrite the *content*.
+- **Pricing section.** Adapt the reference page's rhythm (centered display
+  title, stacked elevation cards, icon+badge category rows, FAQ accordion,
+  closing CTA card) to lms-web's real commercial model — the subscription tier
+  ladder, à-la-carte purchases, and the enterprise/university sales motion —
+  with GST-inclusive INR framing intact.
+
+Everything the reference does **not** cover (learning player, org portals,
+verdict moment, credentials, data-viz, co-brand seams, …) you design within
+the same language. If a genuine product need argues for breaking the scheme —
+say, one restrained accent for commerce or success states — raise it at gate 2
+as a costed proposal; don't smuggle it in.
+
 ## Design values (argue with these if you disagree — but in writing)
 
 - **Proof over promise.** Every marketing claim should be one click from
@@ -162,12 +199,17 @@ badges — decide deliberately whether and where it earns UI, and say why.
    prioritized journey map (which flows carry the money and the trust), the
    IA/navigation proposal per audience, and the list of concepts you're
    deliberately *not* surfacing yet. No visuals allowed at this gate.
-2. **Direction exploration.** Propose **three distinct, named visual
-   directions** (e.g. sober-editorial vs terminal-technical vs warm-academic —
-   yours to invent) with: a one-paragraph thesis, a type pairing, a palette
-   sketch with contrast ratios, one hero screen and one dense dashboard
-   rendered per direction, and an honest cost/benefit. Recommend one, with the
-   reasoning a design director would accept. Then converge.
+2. **Direction refinement (anchored).** The visual direction is fixed by the
+   mandated reference — do not propose alternative languages. Instead: (a) port
+   the reference scheme to a Tailwind v4 `@theme` token draft and contrast-check
+   it in both modes; (b) show the adapted hero and pricing section as the first
+   two specs, reference pattern beside lms-web adaptation; (c) propose
+   **variations only where the reference is silent** — data-viz ramp for org
+   reporting, tenant/co-brand theming seams, the verdict/credential moment,
+   document surfaces like invoices — each as a small costed option set; (d) make
+   exactly one recommendation on whether a single restrained accent joins the
+   monochrome system for commerce/success moments, with contrast-checked
+   values and where it may and may not appear. Then converge.
 3. **Design system specification.** Tokens (as `@theme`-ready CSS), the
    component architecture (derive the inventory from the journeys — do not copy
    a kit's menu), composition and naming conventions, interaction patterns
