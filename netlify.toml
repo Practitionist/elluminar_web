@@ -6,4 +6,5 @@
 [build.environment]
   NODE_VERSION = "22"
 
-# Scheduled/background functions are added under netlify/functions (M13).
+[functions."scheduled-maintenance"]
+  schedule = "@daily"

@@ -1,7 +1,8 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { applyBps } from "@/lib/money";
+import { sendEmail } from "@/lib/email";
+import { applyBps, formatMoney } from "@/lib/money";
 
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -108,6 +109,42 @@ async function nextInvoiceNumber(tx: Tx, series: string) {
  * issues the tax invoice.
  */
 export async function fulfillPaidOrder(input: {
+  orderId: string;
+  providerPaymentRef: string;
+  provider: "RAZORPAY" | "DODO" | "MANUAL" | "FREE";
+  method?: string;
+  raw?: unknown;
+}) {
+  const result = await fulfillPaidOrderTx(input);
+  if (!result.alreadyFulfilled) {
+    // Receipt email outside the transaction — a mail failure never rolls back money.
+    const order = await db.order.findUnique({
+      where: { id: input.orderId },
+      include: { user: true, items: true },
+    });
+    if (order) {
+      await sendEmail({
+        to: order.user.email,
+        subject: `Receipt — order #${order.orderNo}`,
+        text: [
+          `Hi ${order.user.name},`,
+          "",
+          "Thanks for your purchase! You're in.",
+          "",
+          ...order.items.map((i) => `• ${i.titleSnapshot} — ${formatMoney(i.totalMinor)}`),
+          "",
+          `Total: ${formatMoney(order.totalMinor)} (includes ${formatMoney(order.taxMinor)} GST)`,
+          "",
+          "Start here: " + (process.env.NEXT_PUBLIC_APP_URL ?? "") + "/learn",
+          "14-day refund window on courses; projects refundable until mentor kickoff.",
+        ].join("\n"),
+      }).catch((err) => console.error("[receipt email]", err));
+    }
+  }
+  return result;
+}
+
+async function fulfillPaidOrderTx(input: {
   orderId: string;
   providerPaymentRef: string;
   provider: "RAZORPAY" | "DODO" | "MANUAL" | "FREE";

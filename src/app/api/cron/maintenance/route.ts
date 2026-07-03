@@ -1,0 +1,80 @@
+import { NextResponse, type NextRequest } from "next/server";
+
+import { env } from "@/env";
+import { grantPeriodCredits } from "@/lib/commerce/subscriptions";
+import { db } from "@/lib/db";
+
+/**
+ * Daily maintenance (invoked by the Netlify scheduled function with CRON_SECRET):
+ *  1. expire enrollments whose subscription lapsed past its period end
+ *  2. re-grant period credits for active subscriptions (new period keys)
+ *  3. abandon stale carts; expire stale pending orders
+ *  4. surface (don't retry) repeatedly-failing webhook events
+ */
+export async function POST(request: NextRequest) {
+  const auth = request.headers.get("authorization");
+  if (!env.CRON_SECRET || auth !== `Bearer ${env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const now = new Date();
+  const results: Record<string, number> = {};
+
+  // 1. Lapsed subscriptions past their paid period → expire their enrollments.
+  const lapsed = await db.subscription.findMany({
+    where: {
+      status: { in: ["PAST_DUE", "CANCELLED", "EXPIRED"] },
+      currentPeriodEnd: { lt: now },
+      enrollments: { some: { status: "ACTIVE" } },
+    },
+    select: { id: true },
+  });
+  for (const sub of lapsed) {
+    const updated = await db.enrollment.updateMany({
+      where: { subscriptionId: sub.id, status: "ACTIVE" },
+      data: { status: "EXPIRED", expiresAt: now },
+    });
+    results.enrollmentsExpired = (results.enrollmentsExpired ?? 0) + updated.count;
+  }
+
+  // 2. Fresh period credits for active subscriptions.
+  const active = await db.subscription.findMany({
+    where: { status: { in: ["ACTIVE", "TRIALING"] } },
+    select: { id: true },
+  });
+  for (const sub of active) {
+    await grantPeriodCredits(sub.id);
+  }
+  results.creditsRefreshed = active.length;
+
+  // 3. Stale carts + expired pending orders.
+  const staleCarts = await db.cart.updateMany({
+    where: { status: "ACTIVE", updatedAt: { lt: new Date(now.getTime() - 30 * 86400_000) } },
+    data: { status: "ABANDONED" },
+  });
+  results.cartsAbandoned = staleCarts.count;
+  const expiredOrders = await db.order.updateMany({
+    where: { status: "PENDING_PAYMENT", expiresAt: { lt: now } },
+    data: { status: "EXPIRED" },
+  });
+  results.ordersExpired = expiredOrders.count;
+
+  // 4. Repeatedly-failing webhooks → notify admins via AuditLog (alerting: issue #11).
+  const failing = await db.webhookEvent.count({
+    where: { status: "FAILED", attempts: { gte: 3 } },
+  });
+  if (failing > 0) {
+    await db.auditLog.create({
+      data: {
+        actorKind: "SYSTEM",
+        action: "cron.webhooks.failing",
+        entityType: "WebhookEvent",
+        entityId: "aggregate",
+        after: { count: failing },
+      },
+    });
+  }
+  results.failingWebhooks = failing;
+
+  return NextResponse.json({ ok: true, results });
+}
