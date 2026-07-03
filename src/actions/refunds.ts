@@ -1,5 +1,6 @@
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -87,7 +88,7 @@ export const requestRefund = authActionClient
     });
     if (!payment) throw new ActionError("No captured payment found for this order.");
 
-    await db.refund.create({
+    const refund = await db.refund.create({
       data: {
         paymentId: payment.id,
         orderItemId: item.id,
@@ -99,6 +100,11 @@ export const requestRefund = authActionClient
         status: "REQUESTED",
         requestedById: ctx.session.user.id,
       },
+    });
+    Sentry.logger.info("refund requested", {
+      refundId: refund.id,
+      orderItemId: item.id,
+      orderId: item.orderId,
     });
 
     revalidatePath("/learn/orders");
@@ -137,6 +143,11 @@ export const decideRefund = adminActionClient
           decidedAt: new Date(),
           note: parsedInput.note ?? refund.note,
         },
+      });
+      Sentry.logger.info("refund decided", {
+        refundId: refund.id,
+        orderItemId: refund.orderItemId,
+        status: "REJECTED",
       });
       revalidatePath("/admin/refunds");
       return { ok: true };
@@ -257,6 +268,12 @@ export const decideRefund = adminActionClient
           },
         });
       }
+    });
+
+    Sentry.logger.info("refund processed", {
+      refundId: refund.id,
+      orderItemId: refund.orderItemId,
+      orderId: refund.orderItem?.orderId,
     });
 
     revalidatePath("/admin/refunds");

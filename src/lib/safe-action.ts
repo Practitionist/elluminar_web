@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { createSafeActionClient } from "next-safe-action";
 
 import { getSession, requireTenantMember } from "@/lib/auth/session";
@@ -9,6 +10,7 @@ export const actionClient = createSafeActionClient({
   handleServerError(e) {
     if (e instanceof ActionError) return e.message;
     console.error("[action]", e);
+    Sentry.captureException(e);
     return "Something went wrong. Please try again.";
   },
 });
@@ -17,6 +19,7 @@ export const actionClient = createSafeActionClient({
 export const authActionClient = actionClient.use(async ({ next }) => {
   const session = await getSession();
   if (!session) throw new ActionError("You must be signed in.");
+  Sentry.setUser({ id: session.user.id });
   return next({ ctx: { session } });
 });
 

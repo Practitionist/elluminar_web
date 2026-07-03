@@ -1,5 +1,7 @@
 import "server-only";
 
+import * as Sentry from "@sentry/nextjs";
+
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { applyBps, formatMoney } from "@/lib/money";
@@ -117,6 +119,10 @@ export async function fulfillPaidOrder(input: {
 }) {
   const result = await fulfillPaidOrderTx(input);
   if (!result.alreadyFulfilled) {
+    Sentry.logger.info("order fulfilled", {
+      orderId: result.orderId,
+      paymentId: result.paymentId,
+    });
     // Receipt email outside the transaction — a mail failure never rolls back money.
     const order = await db.order.findUnique({
       where: { id: input.orderId },
@@ -138,7 +144,13 @@ export async function fulfillPaidOrder(input: {
           "Start here: " + (process.env.NEXT_PUBLIC_APP_URL ?? "") + "/learn",
           "14-day refund window on courses; projects refundable until mentor kickoff.",
         ].join("\n"),
-      }).catch((err) => console.error("[receipt email]", err));
+      }).catch((err) => {
+        console.error("[receipt email]", err);
+        Sentry.captureException(err, {
+          tags: { area: "fulfillment" },
+          extra: { orderId: order.id },
+        });
+      });
     }
   }
   return result;

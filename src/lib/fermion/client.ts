@@ -1,5 +1,7 @@
 import "server-only";
 
+import * as Sentry from "@sentry/nextjs";
+
 import { env } from "@/env";
 
 /**
@@ -49,31 +51,38 @@ export async function fermionFetch<T>(
 ): Promise<T> {
   if (!env.FERMION_API_KEY) throw new FermionNotConfiguredError();
 
-  const base = env.FERMION_API_BASE_URL ?? DEFAULT_BASE_URL;
-  const res = await fetch(`${base}/${endpoint}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "FERMION-API-KEY": env.FERMION_API_KEY,
-    },
-    body: JSON.stringify({ data: [{ data: payload }] }),
-    cache: "no-store",
-  });
+  try {
+    const base = env.FERMION_API_BASE_URL ?? DEFAULT_BASE_URL;
+    const res = await fetch(`${base}/${endpoint}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "FERMION-API-KEY": env.FERMION_API_KEY,
+      },
+      body: JSON.stringify({ data: [{ data: payload }] }),
+      cache: "no-store",
+    });
 
-  if (!res.ok) {
-    throw new FermionError(
-      `Fermion ${endpoint} failed with HTTP ${res.status}`,
-      endpoint,
-    );
-  }
+    if (!res.ok) {
+      throw new FermionError(
+        `Fermion ${endpoint} failed with HTTP ${res.status}`,
+        endpoint,
+      );
+    }
 
-  const body = (await res.json()) as FermionOutput<T>[];
-  const output = body?.[0]?.output;
-  if (!output) throw new FermionError(`Fermion ${endpoint}: empty response`, endpoint);
-  if (output.status === "error") {
-    throw new FermionError(`Fermion ${endpoint}: ${output.errorMessage}`, endpoint);
+    const body = (await res.json()) as FermionOutput<T>[];
+    const output = body?.[0]?.output;
+    if (!output) throw new FermionError(`Fermion ${endpoint}: empty response`, endpoint);
+    if (output.status === "error") {
+      throw new FermionError(`Fermion ${endpoint}: ${output.errorMessage}`, endpoint);
+    }
+    return output.data;
+  } catch (err) {
+    if (err instanceof FermionError && !(err instanceof FermionNotConfiguredError)) {
+      Sentry.captureException(err, { tags: { vendor: "fermion", endpoint } });
+    }
+    throw err;
   }
-  return output.data;
 }
 
 /** Connectivity check for admin diagnostics. */

@@ -1,5 +1,6 @@
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -129,6 +130,8 @@ export const createCheckout = authActionClient
       },
     });
 
+    Sentry.logger.info("checkout created", { orderId: order.id, provider: provider.kind });
+
     return { orderId: order.id, checkout: checkout.clientPayload };
   });
 
@@ -160,6 +163,7 @@ export const confirmCheckout = authActionClient
       throw new ActionError("Order not found.");
     }
 
+    Sentry.logger.info("checkout confirmed", { orderId: order.id });
     await fulfillPaidOrder({
       orderId: order.id,
       provider: provider.kind,
