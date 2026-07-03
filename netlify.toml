@@ -1,0 +1,9 @@
+# Netlify auto-detects Next.js and provisions its OpenNext adapter —
+# no publish dir or plugin block needed.
+[build]
+  command = "pnpm build"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Scheduled/background functions are added under netlify/functions (M13).

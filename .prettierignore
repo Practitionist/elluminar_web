@@ -1,0 +1,7 @@
+node_modules
+.next
+.netlify
+src/generated
+pnpm-lock.yaml
+docs/*.docx
+prisma/migrations
