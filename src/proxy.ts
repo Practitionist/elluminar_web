@@ -18,6 +18,15 @@ const PROTECTED_PREFIXES = [
 ];
 
 export default function proxy(request: NextRequest) {
+  // DEV-ONLY: when DEV_DISABLE_AUTH=true (and not production), skip the auth
+  // gate so the whole UI is browsable without signing in. Never active in prod.
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.DEV_DISABLE_AUTH === "true"
+  ) {
+    return NextResponse.next();
+  }
+
   const { pathname } = request.nextUrl;
   const needsAuth = PROTECTED_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),

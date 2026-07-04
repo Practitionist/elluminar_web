@@ -8,8 +8,44 @@ import { auth } from "@/lib/auth";
 import type { PlatformRole } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 
+/**
+ * DEV-ONLY escape hatch: when `DEV_DISABLE_AUTH=true` (and NOT production),
+ * every session resolves to a seeded user with role forced to "admin", so all
+ * guards pass and the entire UI is browsable without signing in. Impersonates
+ * `DEV_AUTH_EMAIL` if set, else the oldest seeded user. Never active in prod.
+ */
+const DEV_AUTH_BYPASS =
+  process.env.NODE_ENV !== "production" &&
+  process.env.DEV_DISABLE_AUTH === "true";
+
+async function devBypassSession() {
+  const email = process.env.DEV_AUTH_EMAIL;
+  const user = email
+    ? await db.user.findFirst({ where: { email } })
+    : await db.user.findFirst({ orderBy: { createdAt: "asc" } });
+  if (!user) return null;
+  const now = new Date();
+  return {
+    session: {
+      id: "dev-bypass",
+      token: "dev-bypass",
+      userId: user.id,
+      expiresAt: new Date(now.getTime() + 86_400_000),
+      createdAt: now,
+      updatedAt: now,
+      ipAddress: null,
+      userAgent: null,
+    },
+    user: { ...user, role: "admin" },
+  } as unknown as Awaited<ReturnType<typeof auth.api.getSession>>;
+}
+
 /** Request-scoped session lookup (deduped across a render pass). */
 export const getSession = cache(async () => {
+  if (DEV_AUTH_BYPASS) {
+    const dev = await devBypassSession();
+    if (dev) return dev;
+  }
   return auth.api.getSession({ headers: await headers() });
 });
 
