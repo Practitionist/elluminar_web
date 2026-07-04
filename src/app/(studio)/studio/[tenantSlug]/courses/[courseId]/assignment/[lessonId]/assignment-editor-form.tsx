@@ -6,7 +6,6 @@ import { toast } from "sonner";
 
 import { upsertAssignment } from "@/actions/course";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,75 +74,73 @@ export function AssignmentEditorForm({
   }
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <form onSubmit={onSubmit} className="space-y-5">
+    <div className="rounded-2xl border border-border bg-card p-6">
+      <form onSubmit={onSubmit} className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="title">Title</Label>
+          <Input id="title" name="title" defaultValue={defaults.title} required />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="instructions">Instructions</Label>
+          <Textarea
+            id="instructions"
+            name="instructions"
+            rows={8}
+            defaultValue={defaults.instructions}
+            required
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input id="title" name="title" defaultValue={defaults.title} required />
+            <Label>Grading</Label>
+            <Select value={gradingType} onValueChange={(v) => setGradingType(v ?? "")}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MANUAL">Instructor-graded</SelectItem>
+                <SelectItem value="PEER">Peer-reviewed</SelectItem>
+                <SelectItem value="AUTO">Auto-graded</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="instructions">Instructions</Label>
-            <Textarea
-              id="instructions"
-              name="instructions"
-              rows={8}
-              defaultValue={defaults.instructions}
-              required
+            <Label htmlFor="maxPoints">Max points</Label>
+            <Input
+              id="maxPoints"
+              name="maxPoints"
+              type="number"
+              min={1}
+              defaultValue={defaults.maxPoints}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Grading</Label>
-              <Select value={gradingType} onValueChange={(v) => setGradingType(v ?? "")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MANUAL">Instructor-graded</SelectItem>
-                  <SelectItem value="PEER">Peer-reviewed</SelectItem>
-                  <SelectItem value="AUTO">Auto-graded</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="maxPoints">Max points</Label>
-              <Input
-                id="maxPoints"
-                name="maxPoints"
-                type="number"
-                min={1}
-                defaultValue={defaults.maxPoints}
-              />
-            </div>
+        </div>
+        <div className="space-y-2">
+          <Label>Submission types</Label>
+          <div className="flex flex-wrap gap-4">
+            {KINDS.map((k) => (
+              <label key={k.value} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={kinds.includes(k.value)}
+                  onCheckedChange={(checked) =>
+                    setKinds((prev) =>
+                      checked ? [...prev, k.value] : prev.filter((v) => v !== k.value),
+                    )
+                  }
+                />
+                {k.label}
+              </label>
+            ))}
           </div>
-          <div className="space-y-2">
-            <Label>Submission types</Label>
-            <div className="flex flex-wrap gap-4">
-              {KINDS.map((k) => (
-                <label key={k.value} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={kinds.includes(k.value)}
-                    onCheckedChange={(checked) =>
-                      setKinds((prev) =>
-                        checked ? [...prev, k.value] : prev.filter((v) => v !== k.value),
-                      )
-                    }
-                  />
-                  {k.label}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch checked={allowResubmission} onCheckedChange={setAllowResubmission} />
-            <Label>Allow resubmission after feedback</Label>
-          </div>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? "Saving…" : "Save assignment"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={allowResubmission} onCheckedChange={setAllowResubmission} />
+          <Label>Allow resubmission after feedback</Label>
+        </div>
+        <Button type="submit" disabled={isPending} className="rounded-full">
+          {isPending ? "Saving…" : "Save assignment"}
+        </Button>
+      </form>
+    </div>
   );
 }

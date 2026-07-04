@@ -1,13 +1,20 @@
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pill, type PillTone } from "@/components/shared";
 import { requireTenantMember } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 import { ScheduleSessionDialog } from "./schedule-session-dialog";
 
 export const metadata = { title: "Cohorts & live sessions" };
+
+const STATUS_TONE: Record<string, PillTone> = {
+  DRAFT: "neutral",
+  OPEN: "success",
+  RUNNING: "info",
+  COMPLETED: "neutral",
+  CANCELLED: "destructive",
+};
 
 export default async function StudioCohortsPage({
   params,
@@ -32,58 +39,64 @@ export default async function StudioCohortsPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Cohorts & live sessions</h1>
+      <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+        Cohorts & live sessions
+      </h1>
       {cohorts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
           No cohorts yet — schedule one from a course&apos;s Cohorts tab.
-        </p>
+        </div>
       ) : (
-        cohorts.map((cohort) => (
-          <Card key={cohort.id}>
-            <CardHeader className="flex-row items-center justify-between space-y-0">
-              <div>
-                <CardTitle className="text-base">
-                  {cohort.course.title} — {cohort.name}
-                </CardTitle>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {cohort.startsAt.toLocaleDateString("en-IN", { dateStyle: "medium" })} ·{" "}
-                  {cohort._count.enrollments} enrolled
-                  {cohort.capacity ? ` / ${cohort.capacity}` : ""}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">{cohort.status.toLowerCase()}</Badge>
-                <ScheduleSessionDialog tenantSlug={tenantSlug} cohortId={cohort.id} />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {cohort.liveSessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No upcoming sessions.</p>
-              ) : (
-                cohort.liveSessions.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-                  >
-                    <span className="font-medium">{s.title}</span>
-                    <span className="flex items-center gap-2 text-muted-foreground">
-                      {s.scheduledStartAt.toLocaleString("en-IN", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                      {s.joinUrl && (
-                        <Link href={s.joinUrl} target="_blank" className="text-foreground underline">
-                          link
-                        </Link>
-                      )}
-                      <Badge variant="outline">{s.provider.toLowerCase()}</Badge>
-                    </span>
+        <div className="space-y-4">
+          {cohorts.map((cohort) => (
+            <div key={cohort.id} className="rounded-2xl border border-border bg-card p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-base font-extrabold">
+                    {cohort.course.title} — {cohort.name}
                   </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        ))
+                  <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                    {cohort.startsAt.toLocaleDateString("en-IN", { dateStyle: "medium" })} ·{" "}
+                    {cohort._count.enrollments} enrolled
+                    {cohort.capacity ? ` / ${cohort.capacity}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Pill tone={STATUS_TONE[cohort.status] ?? "neutral"}>
+                    {cohort.status.toLowerCase()}
+                  </Pill>
+                  <ScheduleSessionDialog tenantSlug={tenantSlug} cohortId={cohort.id} />
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                {cohort.liveSessions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No upcoming sessions.</p>
+                ) : (
+                  cohort.liveSessions.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between rounded-xl border border-border px-3 py-2.5 text-sm"
+                    >
+                      <span className="font-semibold">{s.title}</span>
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        {s.scheduledStartAt.toLocaleString("en-IN", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
+                        {s.joinUrl && (
+                          <Link href={s.joinUrl} target="_blank" className="text-foreground underline">
+                            link
+                          </Link>
+                        )}
+                        <Pill tone="neutral">{s.provider.toLowerCase()}</Pill>
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

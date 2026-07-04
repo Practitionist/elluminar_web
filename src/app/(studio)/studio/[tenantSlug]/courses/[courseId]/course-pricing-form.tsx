@@ -5,7 +5,6 @@ import { toast } from "sonner";
 
 import { setCoursePrice } from "@/actions/course";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -37,46 +36,42 @@ export function CoursePricingForm({
   }
 
   return (
-    <Card className="max-w-lg">
-      <CardHeader>
-        <CardTitle>Self-paced price (INR)</CardTitle>
-        <CardDescription>
-          Tax-inclusive. Live-cohort seats are priced per cohort in the Cohorts
-          tab. Multi-currency and regional pricing arrive post-MVP.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="amountRupees">Price (₹)</Label>
-              <Input
-                id="amountRupees"
-                name="amountRupees"
-                type="number"
-                min={0}
-                step="1"
-                defaultValue={defaults.amountRupees ?? ""}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="compareAtRupees">Compare-at (₹)</Label>
-              <Input
-                id="compareAtRupees"
-                name="compareAtRupees"
-                type="number"
-                min={0}
-                step="1"
-                defaultValue={defaults.compareAtRupees ?? ""}
-              />
-            </div>
+    <div className="max-w-lg rounded-2xl border border-border bg-card p-6">
+      <div className="text-base font-extrabold">Self-paced price (INR)</div>
+      <p className="mt-1 text-xs font-semibold text-muted-foreground">
+        Tax-inclusive. Live-cohort seats are priced per cohort in the Cohorts
+        tab. Multi-currency and regional pricing arrive post-MVP.
+      </p>
+      <form onSubmit={onSubmit} className="mt-5 space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="amountRupees">Price (₹)</Label>
+            <Input
+              id="amountRupees"
+              name="amountRupees"
+              type="number"
+              min={0}
+              step="1"
+              defaultValue={defaults.amountRupees ?? ""}
+              required
+            />
           </div>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? "Saving…" : "Save price"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+          <div className="space-y-2">
+            <Label htmlFor="compareAtRupees">Compare-at (₹)</Label>
+            <Input
+              id="compareAtRupees"
+              name="compareAtRupees"
+              type="number"
+              min={0}
+              step="1"
+              defaultValue={defaults.compareAtRupees ?? ""}
+            />
+          </div>
+        </div>
+        <Button type="submit" disabled={isPending} className="rounded-full">
+          {isPending ? "Saving…" : "Save price"}
+        </Button>
+      </form>
+    </div>
   );
 }

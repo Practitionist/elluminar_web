@@ -1,13 +1,13 @@
 "use client";
 
+import { Check, Circle, Pencil, Plus, X } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { deleteQuizQuestion, upsertQuiz, upsertQuizQuestion } from "@/actions/course";
-import { Badge } from "@/components/ui/badge";
+import { Pill } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -91,19 +91,19 @@ export function QuizEditor({
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <div className="space-y-3">
         {quiz.questions.map((q, i) => (
-          <Card key={q.id}>
-            <CardHeader className="flex-row items-start justify-between space-y-0">
+          <div key={q.id} className="rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <CardTitle className="text-sm font-medium">
+                <div className="text-sm font-bold">
                   Q{i + 1}. {q.prompt}
-                </CardTitle>
-                <div className="mt-1 flex gap-2">
-                  <Badge variant="outline">{q.type.toLowerCase().replace("_", " ")}</Badge>
-                  <Badge variant="secondary">{q.points} pts</Badge>
-                  {q.poolTag && <Badge variant="outline">bank: {q.poolTag}</Badge>}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Pill tone="neutral">{q.type.toLowerCase().replace("_", " ")}</Pill>
+                  <Pill tone="primary">{q.points} pts</Pill>
+                  {q.poolTag && <Pill tone="info">bank: {q.poolTag}</Pill>}
                 </div>
               </div>
-              <div className="flex gap-1">
+              <div className="flex shrink-0 gap-1">
                 <QuestionDialog
                   tenantSlug={tenantSlug}
                   courseId={courseId}
@@ -122,62 +122,70 @@ export function QuizEditor({
                     })
                   }
                 >
-                  ✕
+                  <X />
                 </Button>
               </div>
-            </CardHeader>
+            </div>
             {q.options.length > 0 && (
-              <CardContent className="space-y-1 text-sm">
+              <div className="mt-3 space-y-1 text-sm">
                 {q.options.map((opt, oi) => {
                   const isCorrect =
                     q.correct.index === oi || q.correct.indexes?.includes(oi);
                   return (
-                    <div key={oi} className={isCorrect ? "font-medium text-green-700 dark:text-green-400" : "text-muted-foreground"}>
-                      {isCorrect ? "✓" : "○"} {opt}
+                    <div
+                      key={oi}
+                      className={
+                        isCorrect
+                          ? "flex items-center gap-1.5 font-semibold text-success-subtle-foreground"
+                          : "flex items-center gap-1.5 text-muted-foreground"
+                      }
+                    >
+                      {isCorrect ? (
+                        <Check className="size-3.5 shrink-0" />
+                      ) : (
+                        <Circle className="size-3.5 shrink-0" />
+                      )}
+                      {opt}
                     </div>
                   );
                 })}
-              </CardContent>
+              </div>
             )}
-          </Card>
+          </div>
         ))}
         <QuestionDialog tenantSlug={tenantSlug} courseId={courseId} quizId={quiz.id} />
       </div>
 
-      <Card className="h-fit">
-        <CardHeader>
-          <CardTitle className="text-base">Quiz settings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={saveSettings} className="space-y-4">
+      <div className="h-fit rounded-2xl border border-border bg-card p-5">
+        <div className="text-base font-extrabold">Quiz settings</div>
+        <form onSubmit={saveSettings} className="mt-4 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="title">Title</Label>
+            <Input id="title" name="title" defaultValue={quiz.title} required />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
-              <Input id="title" name="title" defaultValue={quiz.title} required />
+              <Label htmlFor="passPct">Pass %</Label>
+              <Input id="passPct" name="passPct" type="number" min={0} max={100} defaultValue={quiz.passPct} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="passPct">Pass %</Label>
-                <Input id="passPct" name="passPct" type="number" min={0} max={100} defaultValue={quiz.passPct} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="maxAttempts">Max attempts</Label>
-                <Input id="maxAttempts" name="maxAttempts" type="number" min={1} defaultValue={quiz.maxAttempts ?? ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="timeLimitMin">Time limit (min)</Label>
-                <Input id="timeLimitMin" name="timeLimitMin" type="number" min={1} defaultValue={quiz.timeLimitSec ? quiz.timeLimitSec / 60 : ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="drawCount">Draw N random</Label>
-                <Input id="drawCount" name="drawCount" type="number" min={1} defaultValue={quiz.drawCount ?? ""} />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="maxAttempts">Max attempts</Label>
+              <Input id="maxAttempts" name="maxAttempts" type="number" min={1} defaultValue={quiz.maxAttempts ?? ""} />
             </div>
-            <Button type="submit" disabled={settings.isPending} className="w-full">
-              {settings.isPending ? "Saving…" : "Save settings"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            <div className="space-y-2">
+              <Label htmlFor="timeLimitMin">Time limit (min)</Label>
+              <Input id="timeLimitMin" name="timeLimitMin" type="number" min={1} defaultValue={quiz.timeLimitSec ? quiz.timeLimitSec / 60 : ""} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="drawCount">Draw N random</Label>
+              <Input id="drawCount" name="drawCount" type="number" min={1} defaultValue={quiz.drawCount ?? ""} />
+            </div>
+          </div>
+          <Button type="submit" disabled={settings.isPending} className="w-full rounded-full">
+            {settings.isPending ? "Saving…" : "Save settings"}
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }
@@ -246,10 +254,13 @@ function QuestionDialog({
         render={
           question ? (
             <Button variant="ghost" size="icon-sm">
-              ✎
+              <Pencil />
             </Button>
           ) : (
-            <Button variant="outline">+ Add question</Button>
+            <Button variant="outline" className="rounded-full">
+              <Plus className="size-3.5" />
+              Add question
+            </Button>
           )
         }
       />
@@ -320,14 +331,21 @@ function QuestionDialog({
                         setCorrect((prev) => prev.filter((c) => c !== i).map((c) => (c > i ? c - 1 : c)));
                       }}
                     >
-                      ✕
+                      <X />
                     </Button>
                   )}
                 </div>
               ))}
               {options.length < 8 && (
-                <Button type="button" variant="outline" size="sm" onClick={() => setOptions((p) => [...p, ""])}>
-                  + Option
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full"
+                  onClick={() => setOptions((p) => [...p, ""])}
+                >
+                  <Plus className="size-3.5" />
+                  Option
                 </Button>
               )}
             </div>
@@ -354,7 +372,7 @@ function QuestionDialog({
             <Label htmlFor="explanation">Explanation (shown after attempt)</Label>
             <Textarea id="explanation" name="explanation" rows={2} defaultValue={question?.explanation} />
           </div>
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button type="submit" disabled={isPending} className="w-full rounded-full">
             {isPending ? "Saving…" : "Save question"}
           </Button>
         </form>

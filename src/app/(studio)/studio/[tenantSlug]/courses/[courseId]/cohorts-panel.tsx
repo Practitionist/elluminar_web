@@ -1,13 +1,13 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { upsertCohort } from "@/actions/course";
-import { Badge } from "@/components/ui/badge";
+import { Pill, type PillTone } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,14 @@ type CohortRow = {
   seatPriceRupees: number | null;
 };
 
+const STATUS_TONE: Record<string, PillTone> = {
+  DRAFT: "neutral",
+  OPEN: "success",
+  RUNNING: "info",
+  COMPLETED: "neutral",
+  CANCELLED: "destructive",
+};
+
 const slugify = (v: string) =>
   v.toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/[\s_]+/g, "-").replace(/-+/g, "-").slice(0, 48);
 
@@ -44,23 +52,23 @@ export function CohortsPanel({
   return (
     <div className="space-y-4">
       {cohorts.map((c) => (
-        <Card key={c.id}>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">{c.name}</CardTitle>
+        <div key={c.id} className="rounded-2xl border border-border bg-card p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-base font-extrabold">{c.name}</div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline">{c.status.toLowerCase()}</Badge>
+              <Pill tone={STATUS_TONE[c.status] ?? "neutral"}>{c.status.toLowerCase()}</Pill>
               <CohortDialog tenantSlug={tenantSlug} courseId={courseId} cohort={c} />
             </div>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
+          </div>
+          <div className="mt-2 text-sm text-muted-foreground">
             {new Date(c.startsAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}
             {c.endsAt
               ? ` → ${new Date(c.endsAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}`
               : ""}
             {c.capacity ? ` · ${c.capacity} seats` : ""}
             {c.seatPriceRupees != null ? ` · ₹${c.seatPriceRupees.toLocaleString("en-IN")}` : ""}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ))}
       <CohortDialog tenantSlug={tenantSlug} courseId={courseId} />
     </div>
@@ -112,11 +120,14 @@ function CohortDialog({
       <DialogTrigger
         render={
           cohort ? (
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="rounded-full">
               Edit
             </Button>
           ) : (
-            <Button variant="outline">+ Schedule cohort</Button>
+            <Button variant="outline" className="rounded-full">
+              <Plus className="size-3.5" />
+              Schedule cohort
+            </Button>
           )
         }
       />
@@ -172,7 +183,7 @@ function CohortDialog({
               />
             </div>
           </div>
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button type="submit" disabled={isPending} className="w-full rounded-full">
             {isPending ? "Saving…" : "Save cohort"}
           </Button>
         </form>

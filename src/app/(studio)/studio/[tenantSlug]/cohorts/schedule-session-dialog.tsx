@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -36,8 +37,9 @@ export function ScheduleSessionDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button variant="outline" size="sm">
-            + Live session
+          <Button variant="outline" size="sm" className="rounded-full">
+            <Plus className="size-3.5" />
+            Live session
           </Button>
         }
       />
@@ -78,7 +80,7 @@ export function ScheduleSessionDialog({
             <Label htmlFor="joinUrl">External link (optional)</Label>
             <Input id="joinUrl" name="joinUrl" type="url" placeholder="Zoom/Meet link — leave empty to use Fermion" />
           </div>
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button type="submit" disabled={isPending} className="w-full rounded-full">
             {isPending ? "Scheduling…" : "Schedule"}
           </Button>
         </form>

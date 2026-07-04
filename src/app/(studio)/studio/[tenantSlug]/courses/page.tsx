@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
+import { Pill, type PillTone } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -16,10 +16,10 @@ import { formatMoney } from "@/lib/money";
 
 export const metadata = { title: "Courses" };
 
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
-  PUBLISHED: "default",
-  IN_REVIEW: "secondary",
-  DRAFT: "outline",
+const STATUS_TONE: Record<string, PillTone> = {
+  PUBLISHED: "success",
+  IN_REVIEW: "distinction",
+  DRAFT: "neutral",
 };
 
 export default async function StudioCoursesPage({
@@ -42,52 +42,59 @@ export default async function StudioCoursesPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Courses</h1>
-        <Button render={<Link href={`/studio/${tenantSlug}/courses/new`} />}>
+        <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+          Courses
+        </h1>
+        <Button
+          render={<Link href={`/studio/${tenantSlug}/courses/new`} />}
+          className="rounded-full"
+        >
           New course
         </Button>
       </div>
       {courses.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
           No courses yet — create your first one.
-        </p>
+        </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Course</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Lessons</TableHead>
-              <TableHead>Enrollments</TableHead>
-              <TableHead>Price</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {courses.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell>
-                  <Link
-                    href={`/studio/${tenantSlug}/courses/${c.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    {c.title}
-                  </Link>
-                  <div className="text-xs text-muted-foreground">/{c.slug}</div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={STATUS_VARIANT[c.status] ?? "outline"}>
-                    {c.status.toLowerCase().replace("_", " ")}
-                  </Badge>
-                </TableCell>
-                <TableCell>{c._count.lessons}</TableCell>
-                <TableCell>{c._count.enrollments}</TableCell>
-                <TableCell>
-                  {c.prices[0] ? formatMoney(c.prices[0].amountMinor) : "—"}
-                </TableCell>
+        <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Course</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Lessons</TableHead>
+                <TableHead>Enrollments</TableHead>
+                <TableHead>Price</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {courses.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell>
+                    <Link
+                      href={`/studio/${tenantSlug}/courses/${c.id}`}
+                      className="font-bold hover:underline"
+                    >
+                      {c.title}
+                    </Link>
+                    <div className="text-xs text-muted-foreground">/{c.slug}</div>
+                  </TableCell>
+                  <TableCell>
+                    <Pill tone={STATUS_TONE[c.status] ?? "neutral"}>
+                      {c.status.toLowerCase().replace("_", " ")}
+                    </Pill>
+                  </TableCell>
+                  <TableCell>{c._count.lessons}</TableCell>
+                  <TableCell>{c._count.enrollments}</TableCell>
+                  <TableCell>
+                    {c.prices[0] ? formatMoney(c.prices[0].amountMinor) : "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   );

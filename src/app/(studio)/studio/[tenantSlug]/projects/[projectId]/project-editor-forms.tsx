@@ -10,7 +10,6 @@ import {
   updateProjectBasics,
 } from "@/actions/projects";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -59,117 +58,112 @@ export function ProjectEditorForms({
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Basics</CardTitle>
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-base font-extrabold">Basics</div>
           {status === "DRAFT" && (
             <Button
               size="sm"
+              className="rounded-full"
               disabled={submit.isPending}
               onClick={() => submit.execute({ tenantSlug, projectId })}
             >
               {submit.isPending ? "Submitting…" : "Submit for review"}
             </Button>
           )}
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = new FormData(e.currentTarget);
-              basics.execute({
-                tenantSlug,
-                projectId,
-                title: String(form.get("title")),
-                summary: String(form.get("summary")),
-                brief: String(form.get("brief")),
-                techStack: String(form.get("techStack") || "")
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-                visibility: visibility as never,
-              });
-            }}
-            className="space-y-4"
-          >
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const form = new FormData(e.currentTarget);
+            basics.execute({
+              tenantSlug,
+              projectId,
+              title: String(form.get("title")),
+              summary: String(form.get("summary")),
+              brief: String(form.get("brief")),
+              techStack: String(form.get("techStack") || "")
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean),
+              visibility: visibility as never,
+            });
+          }}
+          className="mt-4 space-y-4"
+        >
+          <div className="space-y-2">
+            <Label htmlFor="title">Title</Label>
+            <Input id="title" name="title" defaultValue={defaults.title} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="summary">Summary</Label>
+            <Textarea id="summary" name="summary" rows={2} defaultValue={defaults.summary} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="brief">Brief</Label>
+            <Textarea id="brief" name="brief" rows={8} defaultValue={defaults.brief} required />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
-              <Input id="title" name="title" defaultValue={defaults.title} required />
+              <Label htmlFor="techStack">Tech stack</Label>
+              <Input id="techStack" name="techStack" defaultValue={defaults.techStack} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="summary">Summary</Label>
-              <Textarea id="summary" name="summary" rows={2} defaultValue={defaults.summary} required />
+              <Label>Visibility</Label>
+              <Select value={visibility} onValueChange={(v) => setVisibility(v ?? "MARKETPLACE")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MARKETPLACE">Marketplace + storefront</SelectItem>
+                  <SelectItem value="TENANT_ONLY">Storefront only</SelectItem>
+                  <SelectItem value="PRIVATE">Private</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="brief">Brief</Label>
-              <Textarea id="brief" name="brief" rows={8} defaultValue={defaults.brief} required />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="techStack">Tech stack</Label>
-                <Input id="techStack" name="techStack" defaultValue={defaults.techStack} />
-              </div>
-              <div className="space-y-2">
-                <Label>Visibility</Label>
-                <Select value={visibility} onValueChange={(v) => setVisibility(v ?? "MARKETPLACE")}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="MARKETPLACE">Marketplace + storefront</SelectItem>
-                    <SelectItem value="TENANT_ONLY">Storefront only</SelectItem>
-                    <SelectItem value="PRIVATE">Private</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <Button type="submit" disabled={basics.isPending}>
-              {basics.isPending ? "Saving…" : "Save basics"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+          <Button type="submit" disabled={basics.isPending} className="rounded-full">
+            {basics.isPending ? "Saving…" : "Save basics"}
+          </Button>
+        </form>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Pricing (INR, tax-inclusive)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = new FormData(e.currentTarget);
-              const base = Number(form.get("base") || 0);
-              price.execute({ tenantSlug, projectId, amountRupees: base });
-              const senior = form.get("senior") ? Number(form.get("senior")) : null;
-              const principal = form.get("principal") ? Number(form.get("principal")) : null;
-              if (senior != null)
-                price.execute({ tenantSlug, projectId, amountRupees: senior, mentorLevel: "SENIOR" });
-              if (principal != null)
-                price.execute({ tenantSlug, projectId, amountRupees: principal, mentorLevel: "PRINCIPAL" });
-            }}
-            className="grid gap-4 sm:grid-cols-3"
-          >
-            <div className="space-y-2">
-              <Label htmlFor="base">Base (associate mentor)</Label>
-              <Input id="base" name="base" type="number" min={0} defaultValue={defaults.baseRupees ?? ""} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="senior">Senior mentor</Label>
-              <Input id="senior" name="senior" type="number" min={0} defaultValue={defaults.seniorRupees ?? ""} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="principal">Principal mentor</Label>
-              <Input id="principal" name="principal" type="number" min={0} defaultValue={defaults.principalRupees ?? ""} />
-            </div>
-            <div className="sm:col-span-3">
-              <Button type="submit" disabled={price.isPending}>
-                {price.isPending ? "Saving…" : "Save prices"}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="text-base font-extrabold">Pricing (INR, tax-inclusive)</div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const form = new FormData(e.currentTarget);
+            const base = Number(form.get("base") || 0);
+            price.execute({ tenantSlug, projectId, amountRupees: base });
+            const senior = form.get("senior") ? Number(form.get("senior")) : null;
+            const principal = form.get("principal") ? Number(form.get("principal")) : null;
+            if (senior != null)
+              price.execute({ tenantSlug, projectId, amountRupees: senior, mentorLevel: "SENIOR" });
+            if (principal != null)
+              price.execute({ tenantSlug, projectId, amountRupees: principal, mentorLevel: "PRINCIPAL" });
+          }}
+          className="mt-4 grid gap-4 sm:grid-cols-3"
+        >
+          <div className="space-y-2">
+            <Label htmlFor="base">Base (associate mentor)</Label>
+            <Input id="base" name="base" type="number" min={0} defaultValue={defaults.baseRupees ?? ""} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="senior">Senior mentor</Label>
+            <Input id="senior" name="senior" type="number" min={0} defaultValue={defaults.seniorRupees ?? ""} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="principal">Principal mentor</Label>
+            <Input id="principal" name="principal" type="number" min={0} defaultValue={defaults.principalRupees ?? ""} />
+          </div>
+          <div className="sm:col-span-3">
+            <Button type="submit" disabled={price.isPending} className="rounded-full">
+              {price.isPending ? "Saving…" : "Save prices"}
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

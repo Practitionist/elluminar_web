@@ -7,7 +7,6 @@ import { toast } from "sonner";
 
 import { createCourse } from "@/actions/course";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -55,66 +54,64 @@ export function NewCourseForm({
   }
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <form onSubmit={onSubmit} className="space-y-5">
+    <div className="rounded-2xl border border-border bg-card p-6">
+      <form onSubmit={onSubmit} className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="title">Title</Label>
+          <Input
+            id="title"
+            name="title"
+            required
+            onChange={(e) => setSlug(slugify(e.target.value))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="slug">Slug</Label>
+          <Input
+            id="slug"
+            value={slug}
+            onChange={(e) => setSlug(slugify(e.target.value))}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="subtitle">Subtitle</Label>
+          <Input id="subtitle" name="subtitle" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              name="title"
-              required
-              onChange={(e) => setSlug(slugify(e.target.value))}
-            />
+            <Label>Level</Label>
+            <Select value={level} onValueChange={(v) => setLevel(v ?? "")}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="BEGINNER">Beginner</SelectItem>
+                <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
+                <SelectItem value="ADVANCED">Advanced</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="slug">Slug</Label>
-            <Input
-              id="slug"
-              value={slug}
-              onChange={(e) => setSlug(slugify(e.target.value))}
-              required
-            />
+            <Label>Category</Label>
+            <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "")}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pick one" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="subtitle">Subtitle</Label>
-            <Input id="subtitle" name="subtitle" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Level</Label>
-              <Select value={level} onValueChange={(v) => setLevel(v ?? "")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BEGINNER">Beginner</SelectItem>
-                  <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
-                  <SelectItem value="ADVANCED">Advanced</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Category</Label>
-              <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "")}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pick one" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <Button type="submit" disabled={isPending} className="w-full">
-            {isPending ? "Creating…" : "Create course"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+        <Button type="submit" disabled={isPending} className="w-full rounded-full">
+          {isPending ? "Creating…" : "Create course"}
+        </Button>
+      </form>
+    </div>
   );
 }

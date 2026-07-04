@@ -30,11 +30,11 @@ export default async function AssignmentEditorPage({
       <div>
         <Link
           href={`/studio/${tenantSlug}/courses/${courseId}`}
-          className="text-sm text-muted-foreground hover:text-foreground"
+          className="text-sm font-semibold text-muted-foreground hover:text-foreground"
         >
           ← Back to course
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+        <h1 className="mt-1 font-display text-2xl font-medium tracking-tight sm:text-3xl">
           Assignment: {lesson.title}
         </h1>
       </div>

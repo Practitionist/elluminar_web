@@ -16,7 +16,9 @@ export default async function NewCoursePage({
 
   return (
     <div className="max-w-xl space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">New course</h1>
+      <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+        New course
+      </h1>
       <NewCourseForm
         tenantSlug={tenantSlug}
         categories={categories.map((c) => ({ id: c.id, name: c.name }))}

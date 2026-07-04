@@ -4,6 +4,7 @@ import { useAction } from "next-safe-action/hooks";
 import { toast } from "sonner";
 
 import { submitCourseForReview } from "@/actions/course";
+import { Pill } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 
 export function PublishControls({
@@ -21,13 +22,17 @@ export function PublishControls({
   });
 
   if (status === "PUBLISHED") {
-    return <span className="text-sm text-muted-foreground">Live in the catalog</span>;
+    return <Pill tone="success">Live in the catalog</Pill>;
   }
   if (status === "IN_REVIEW") {
-    return <span className="text-sm text-muted-foreground">Awaiting moderation</span>;
+    return <Pill tone="distinction">Awaiting moderation</Pill>;
   }
   return (
-    <Button onClick={() => execute({ tenantSlug, courseId })} disabled={isPending}>
+    <Button
+      onClick={() => execute({ tenantSlug, courseId })}
+      disabled={isPending}
+      className="rounded-full"
+    >
       {isPending ? "Submitting…" : "Submit for review"}
     </Button>
   );

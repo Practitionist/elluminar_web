@@ -6,7 +6,6 @@ import { toast } from "sonner";
 
 import { updateCourseSettings } from "@/actions/course";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -85,107 +84,105 @@ export function CourseSettingsForm({
   }
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <form onSubmit={onSubmit} className="grid gap-5 md:grid-cols-2">
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="title">Title</Label>
-            <Input id="title" name="title" defaultValue={defaults.title} required />
+    <div className="rounded-2xl border border-border bg-card p-6">
+      <form onSubmit={onSubmit} className="grid gap-5 md:grid-cols-2">
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="title">Title</Label>
+          <Input id="title" name="title" defaultValue={defaults.title} required />
+        </div>
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="subtitle">Subtitle</Label>
+          <Input id="subtitle" name="subtitle" defaultValue={defaults.subtitle} />
+        </div>
+        <div className="space-y-2">
+          <Label>Level</Label>
+          <Select value={level} onValueChange={(v) => setLevel(v ?? "")}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="BEGINNER">Beginner</SelectItem>
+              <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
+              <SelectItem value="ADVANCED">Advanced</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Category</Label>
+          <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "")}>
+            <SelectTrigger>
+              <SelectValue placeholder="Pick one" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="tags">Tags (comma-separated)</Label>
+          <Input id="tags" name="tags" defaultValue={defaults.tags} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="estimatedHours">Estimated hours</Label>
+          <Input
+            id="estimatedHours"
+            name="estimatedHours"
+            type="number"
+            min={0}
+            step="0.5"
+            defaultValue={defaults.estimatedHours ?? ""}
+          />
+        </div>
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="outcomes">Outcomes (one per line)</Label>
+          <Textarea id="outcomes" name="outcomes" rows={4} defaultValue={defaults.outcomes} />
+        </div>
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="prerequisites">Prerequisites (one per line)</Label>
+          <Textarea
+            id="prerequisites"
+            name="prerequisites"
+            rows={3}
+            defaultValue={defaults.prerequisites}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Visibility</Label>
+          <Select value={visibility} onValueChange={(v) => setVisibility(v ?? "")}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="MARKETPLACE">Marketplace + storefront</SelectItem>
+              <SelectItem value="TENANT_ONLY">Storefront only</SelectItem>
+              <SelectItem value="PRIVATE">Private (link/roster only)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col justify-end gap-3">
+          <div className="flex items-center gap-2">
+            <Switch checked={selfPaced} onCheckedChange={setSelfPaced} />
+            <Label>Self-paced enabled</Label>
           </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="subtitle">Subtitle</Label>
-            <Input id="subtitle" name="subtitle" defaultValue={defaults.subtitle} />
+          <div className="flex items-center gap-2">
+            <Switch checked={live} onCheckedChange={setLive} />
+            <Label>Live cohorts enabled</Label>
           </div>
-          <div className="space-y-2">
-            <Label>Level</Label>
-            <Select value={level} onValueChange={(v) => setLevel(v ?? "")}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="BEGINNER">Beginner</SelectItem>
-                <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
-                <SelectItem value="ADVANCED">Advanced</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-2">
+            <Switch checked={certificate} onCheckedChange={setCertificate} />
+            <Label>Completion certificate</Label>
           </div>
-          <div className="space-y-2">
-            <Label>Category</Label>
-            <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "")}>
-              <SelectTrigger>
-                <SelectValue placeholder="Pick one" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="tags">Tags (comma-separated)</Label>
-            <Input id="tags" name="tags" defaultValue={defaults.tags} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="estimatedHours">Estimated hours</Label>
-            <Input
-              id="estimatedHours"
-              name="estimatedHours"
-              type="number"
-              min={0}
-              step="0.5"
-              defaultValue={defaults.estimatedHours ?? ""}
-            />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="outcomes">Outcomes (one per line)</Label>
-            <Textarea id="outcomes" name="outcomes" rows={4} defaultValue={defaults.outcomes} />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="prerequisites">Prerequisites (one per line)</Label>
-            <Textarea
-              id="prerequisites"
-              name="prerequisites"
-              rows={3}
-              defaultValue={defaults.prerequisites}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Visibility</Label>
-            <Select value={visibility} onValueChange={(v) => setVisibility(v ?? "")}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="MARKETPLACE">Marketplace + storefront</SelectItem>
-                <SelectItem value="TENANT_ONLY">Storefront only</SelectItem>
-                <SelectItem value="PRIVATE">Private (link/roster only)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col justify-end gap-3">
-            <div className="flex items-center gap-2">
-              <Switch checked={selfPaced} onCheckedChange={setSelfPaced} />
-              <Label>Self-paced enabled</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={live} onCheckedChange={setLive} />
-              <Label>Live cohorts enabled</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={certificate} onCheckedChange={setCertificate} />
-              <Label>Completion certificate</Label>
-            </div>
-          </div>
-          <div className="md:col-span-2">
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving…" : "Save settings"}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+        <div className="md:col-span-2">
+          <Button type="submit" disabled={isPending} className="rounded-full">
+            {isPending ? "Saving…" : "Save settings"}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }

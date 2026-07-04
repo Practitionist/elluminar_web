@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pill, type PillTone } from "@/components/shared";
 import { requireTenantMember } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { tiptapToPlainText } from "@/lib/richtext";
@@ -9,6 +8,14 @@ import { tiptapToPlainText } from "@/lib/richtext";
 import { ProjectEditorForms } from "./project-editor-forms";
 
 export const metadata = { title: "Edit project" };
+
+const STATUS_TONE: Record<string, PillTone> = {
+  PUBLISHED: "success",
+  IN_REVIEW: "distinction",
+  DRAFT: "neutral",
+  UNLISTED: "neutral",
+  ARCHIVED: "neutral",
+};
 
 export default async function ProjectEditorPage({
   params,
@@ -34,10 +41,14 @@ export default async function ProjectEditorPage({
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">{project.title}</h1>
-        <Badge>{project.tier.toLowerCase()}</Badge>
-        <Badge variant="outline">{project.status.toLowerCase().replace("_", " ")}</Badge>
+      <div className="flex flex-wrap items-center gap-2.5">
+        <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+          {project.title}
+        </h1>
+        <Pill tone="distinction">{project.tier.toLowerCase()}</Pill>
+        <Pill tone={STATUS_TONE[project.status] ?? "neutral"}>
+          {project.status.toLowerCase().replace("_", " ")}
+        </Pill>
       </div>
 
       <ProjectEditorForms
@@ -56,32 +67,33 @@ export default async function ProjectEditorPage({
         }}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Milestones & rubric</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="text-base font-extrabold">Milestones & rubric</div>
+        <div className="mt-4 space-y-2 text-sm">
           {project.milestones.map((m, i) => (
-            <div key={m.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-              <span>
+            <div
+              key={m.id}
+              className="flex items-center justify-between rounded-xl border border-border px-3 py-2.5"
+            >
+              <span className="font-semibold">
                 {i + 1}. {m.title}
               </span>
               <span className="flex gap-2">
-                {m.expectedWeek && <Badge variant="outline">week {m.expectedWeek}</Badge>}
-                {m.isReviewCheckpoint && <Badge variant="secondary">checkpoint</Badge>}
+                {m.expectedWeek && <Pill tone="neutral">week {m.expectedWeek}</Pill>}
+                {m.isReviewCheckpoint && <Pill tone="primary">checkpoint</Pill>}
               </span>
             </div>
           ))}
-          <div className="grid gap-2 pt-2 sm:grid-cols-3">
-            {project.rubric.criteria.map((c) => (
-              <div key={c.id} className="rounded-md border px-3 py-2">
-                <div className="font-medium">{c.name}</div>
-                <div className="text-xs text-muted-foreground">{c.weightPct}% weight</div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          {project.rubric.criteria.map((c) => (
+            <div key={c.id} className="rounded-xl border border-border px-3 py-2.5">
+              <div className="text-sm font-bold">{c.name}</div>
+              <div className="text-xs text-muted-foreground">{c.weightPct}% weight</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

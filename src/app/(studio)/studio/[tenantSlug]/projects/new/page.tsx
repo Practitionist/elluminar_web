@@ -15,7 +15,9 @@ export default async function NewProjectPage({
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">New mentor-guided project</h1>
+        <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+          New mentor-guided project
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Write an ambiguous, real-world brief — the kind of take-home a serious
           company would send. A default rubric and three mentor checkpoints are

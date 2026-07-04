@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { Pill } from "@/components/shared";
 import { requireTenantMember } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -23,8 +23,10 @@ export default async function StudioCouponsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Coupons</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+          Coupons
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Apply to your catalog only. Quantified discounts convert better than
           vague ones — “₹500 off” beats “special offer”.
         </p>
@@ -34,22 +36,22 @@ export default async function StudioCouponsPage({
         {coupons.map((c) => (
           <div
             key={c.id}
-            className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4"
           >
-            <div>
-              <span className="font-mono font-medium">{c.code}</span>
+            <div className="text-sm">
+              <span className="font-mono font-bold">{c.code}</span>
               <span className="text-muted-foreground"> · {c.name}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span>
+              <span className="text-sm font-semibold">
                 {c.discountType === "PERCENT"
                   ? `${(c.percentBps ?? 0) / 100}% off`
                   : `₹${Number(c.amountMinor ?? 0n) / 100} off`}
               </span>
-              <Badge variant="outline">
+              <Pill tone="neutral">
                 {c._count.redemptions}
                 {c.maxRedemptions ? `/${c.maxRedemptions}` : ""} used
-              </Badge>
+              </Pill>
             </div>
           </div>
         ))}

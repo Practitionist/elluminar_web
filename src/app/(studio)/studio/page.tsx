@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
+import { Pill } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -30,28 +29,36 @@ export default async function StudioIndexPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight">Your schools</h1>
+      <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+        Your schools
+      </h1>
       <div className="mt-6 grid gap-4">
         {tenants.map(({ role, tenant }) => (
-          <Link key={tenant.slug} href={`/studio/${tenant.slug}`}>
-            <Card className="transition-colors hover:bg-muted/50">
-              <CardHeader className="flex-row items-center justify-between">
-                <CardTitle className="text-lg">{tenant.displayName}</CardTitle>
-                <div className="flex gap-2">
-                  <Badge variant="outline">{role}</Badge>
-                  <Badge variant={tenant.status === "APPROVED" ? "default" : "secondary"}>
-                    {tenant.status.toLowerCase()}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
+          <Link
+            key={tenant.slug}
+            href={`/studio/${tenant.slug}`}
+            className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 transition-colors hover:bg-muted/50"
+          >
+            <div>
+              <div className="text-base font-extrabold">{tenant.displayName}</div>
+              <div className="mt-1 text-xs font-semibold text-muted-foreground">
                 /c/{tenant.slug}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Pill tone="neutral">{role}</Pill>
+              <Pill tone={tenant.status === "APPROVED" ? "success" : "distinction"}>
+                {tenant.status.toLowerCase()}
+              </Pill>
+            </div>
           </Link>
         ))}
       </div>
-      <Button render={<Link href="/onboarding" />} variant="outline" className="mt-6">
+      <Button
+        render={<Link href="/onboarding" />}
+        variant="outline"
+        className="mt-6 rounded-full"
+      >
         Create another school
       </Button>
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown, ChevronUp, Pencil, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
@@ -11,9 +12,8 @@ import {
   upsertLesson,
   upsertSection,
 } from "@/actions/course";
-import { Badge } from "@/components/ui/badge";
+import { Pill, type PillTone } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +56,15 @@ const LESSON_TYPES = [
   { value: "EMBED", label: "Embed" },
 ];
 
+const VIDEO_STATUS_TONE: Record<string, PillTone> = {
+  READY: "success",
+  FAILED: "destructive",
+  DELETED: "destructive",
+  PROCESSING: "distinction",
+  UPLOADING: "distinction",
+  UPLOAD_PENDING: "distinction",
+};
+
 export function CurriculumBuilder({
   tenantSlug,
   courseId,
@@ -85,9 +94,12 @@ export function CurriculumBuilder({
   return (
     <div className="space-y-4">
       {sections.map((section) => (
-        <Card key={section.id}>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">{section.title}</CardTitle>
+        <div
+          key={section.id}
+          className="rounded-2xl border border-border bg-card p-5"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-base font-extrabold">{section.title}</div>
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
@@ -97,7 +109,7 @@ export function CurriculumBuilder({
                   reorder.execute({ tenantSlug, courseId, kind: "SECTION", id: section.id, direction: "UP" })
                 }
               >
-                ↑
+                <ChevronUp />
               </Button>
               <Button
                 variant="ghost"
@@ -107,7 +119,7 @@ export function CurriculumBuilder({
                   reorder.execute({ tenantSlug, courseId, kind: "SECTION", id: section.id, direction: "DOWN" })
                 }
               >
-                ↓
+                <ChevronDown />
               </Button>
               <Button
                 variant="ghost"
@@ -119,7 +131,7 @@ export function CurriculumBuilder({
                     sectionAction.execute({ tenantSlug, courseId, sectionId: section.id, title });
                 }}
               >
-                ✎
+                <Pencil />
               </Button>
               <Button
                 variant="ghost"
@@ -130,30 +142,33 @@ export function CurriculumBuilder({
                     remove.execute({ tenantSlug, courseId, kind: "SECTION", id: section.id });
                 }}
               >
-                ✕
+                <X />
               </Button>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
+          </div>
+          <div className="mt-4 space-y-2">
             {section.lessons.map((lesson) => (
               <div
                 key={lesson.id}
-                className="flex items-center justify-between rounded-md border px-3 py-2"
+                className="flex items-center justify-between rounded-xl border border-border px-3 py-2.5"
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <Badge variant="outline" className="shrink-0">
+                  <Pill tone="neutral" className="shrink-0">
                     {lesson.type.toLowerCase().replace("_", " ")}
-                  </Badge>
-                  <span className="truncate text-sm">{lesson.title}</span>
+                  </Pill>
+                  <span className="truncate text-sm font-semibold">{lesson.title}</span>
                   {lesson.isFreePreview && (
-                    <Badge variant="secondary" className="shrink-0">
+                    <Pill tone="primary" className="shrink-0">
                       preview
-                    </Badge>
+                    </Pill>
                   )}
                   {lesson.type === "VIDEO" && lesson.videoStatus && (
-                    <Badge variant="outline" className="shrink-0">
-                      {lesson.videoStatus.toLowerCase()}
-                    </Badge>
+                    <Pill
+                      tone={VIDEO_STATUS_TONE[lesson.videoStatus] ?? "neutral"}
+                      className="shrink-0"
+                    >
+                      {lesson.videoStatus.toLowerCase().replace("_", " ")}
+                    </Pill>
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -161,6 +176,7 @@ export function CurriculumBuilder({
                     <Button
                       variant="outline"
                       size="sm"
+                      className="rounded-full"
                       render={
                         <Link
                           href={`/studio/${tenantSlug}/courses/${courseId}/quiz/${lesson.id}`}
@@ -174,6 +190,7 @@ export function CurriculumBuilder({
                     <Button
                       variant="outline"
                       size="sm"
+                      className="rounded-full"
                       render={
                         <Link
                           href={`/studio/${tenantSlug}/courses/${courseId}/assignment/${lesson.id}`}
@@ -196,7 +213,7 @@ export function CurriculumBuilder({
                       reorder.execute({ tenantSlug, courseId, kind: "LESSON", id: lesson.id, direction: "UP" })
                     }
                   >
-                    ↑
+                    <ChevronUp />
                   </Button>
                   <Button
                     variant="ghost"
@@ -205,7 +222,7 @@ export function CurriculumBuilder({
                       reorder.execute({ tenantSlug, courseId, kind: "LESSON", id: lesson.id, direction: "DOWN" })
                     }
                   >
-                    ↓
+                    <ChevronDown />
                   </Button>
                   <Button
                     variant="ghost"
@@ -215,7 +232,7 @@ export function CurriculumBuilder({
                         remove.execute({ tenantSlug, courseId, kind: "LESSON", id: lesson.id });
                     }}
                   >
-                    ✕
+                    <X />
                   </Button>
                 </div>
               </div>
@@ -225,11 +242,12 @@ export function CurriculumBuilder({
               courseId={courseId}
               sectionId={section.id}
             />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ))}
-      <Button variant="outline" onClick={addSection}>
-        + Add section
+      <Button variant="outline" onClick={addSection} className="rounded-full">
+        <Plus className="size-3.5" />
+        Add section
       </Button>
     </div>
   );
@@ -304,11 +322,12 @@ function LessonDialog({
         render={
           lesson ? (
             <Button variant="ghost" size="icon-sm" title="Edit lesson">
-              ✎
+              <Pencil />
             </Button>
           ) : (
-            <Button variant="outline" size="sm" className="mt-1">
-              + Add lesson
+            <Button variant="outline" size="sm" className="mt-1 rounded-full">
+              <Plus className="size-3.5" />
+              Add lesson
             </Button>
           )
         }
@@ -398,7 +417,7 @@ function LessonDialog({
               <Label>Free preview</Label>
             </div>
           </div>
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button type="submit" disabled={isPending} className="w-full rounded-full">
             {isPending ? "Saving…" : "Save lesson"}
           </Button>
         </form>

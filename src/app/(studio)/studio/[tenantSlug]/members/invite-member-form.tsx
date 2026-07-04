@@ -52,7 +52,7 @@ export function InviteMemberForm({ organizationId }: { organizationId: string })
           <SelectItem value="member">Member</SelectItem>
         </SelectContent>
       </Select>
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending} className="rounded-full">
         {pending ? "Sending…" : "Invite"}
       </Button>
     </form>

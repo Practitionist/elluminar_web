@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
+import { Pill, type PillTone } from "@/components/shared";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requireTenantMember } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -13,6 +13,12 @@ import { CurriculumBuilder } from "./curriculum-builder";
 import { PublishControls } from "./publish-controls";
 
 export const metadata = { title: "Edit course" };
+
+const STATUS_TONE: Record<string, PillTone> = {
+  PUBLISHED: "success",
+  IN_REVIEW: "distinction",
+  DRAFT: "neutral",
+};
 
 export default async function CourseEditorPage({
   params,
@@ -54,11 +60,15 @@ export default async function CourseEditorPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{course.title}</h1>
-            <Badge variant="outline">{course.status.toLowerCase().replace("_", " ")}</Badge>
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+              {course.title}
+            </h1>
+            <Pill tone={STATUS_TONE[course.status] ?? "neutral"}>
+              {course.status.toLowerCase().replace("_", " ")}
+            </Pill>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             <Link href={`/c/${tenantSlug}`} className="hover:underline">
               /c/{tenantSlug}
             </Link>
