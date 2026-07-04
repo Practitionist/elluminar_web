@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 const slugify = (v: string) =>
   v.toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/[\s_]+/g, "-").replace(/-+/g, "-").slice(0, 48);
@@ -50,8 +51,8 @@ export function OrganizationApplicationForm() {
   });
 
   return (
-    <Card>
-      <CardContent className="pt-6">
+    <Card className="rounded-3xl border border-border ring-0 [--card-spacing:--spacing(6)]">
+      <CardContent>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -74,11 +75,23 @@ export function OrganizationApplicationForm() {
                   key={t.value}
                   type="button"
                   onClick={() => setType(t.value)}
-                  className={`rounded-lg border p-3 text-left text-sm transition-colors ${
-                    type === t.value ? "border-primary bg-muted" : "hover:bg-muted/50"
-                  }`}
+                  className={cn(
+                    "rounded-2xl border p-3 text-left text-sm transition-colors",
+                    type === t.value
+                      ? "border-primary bg-primary-subtle"
+                      : "border-border hover:bg-muted/50",
+                  )}
                 >
-                  <div className="font-medium">{t.title}</div>
+                  <div
+                    className={cn(
+                      "font-bold",
+                      type === t.value
+                        ? "text-primary-subtle-foreground"
+                        : "text-foreground",
+                    )}
+                  >
+                    {t.title}
+                  </div>
                   <div className="mt-1 text-xs text-muted-foreground">{t.blurb}</div>
                 </button>
               ))}
@@ -100,7 +113,9 @@ export function OrganizationApplicationForm() {
           <div className="space-y-2">
             <Label htmlFor="slug">Handle</Label>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">lms-web.com/c/</span>
+              <span className="text-sm font-medium text-muted-foreground">
+                lms-web.com/c/
+              </span>
               <Input
                 id="slug"
                 value={slug}
@@ -109,7 +124,7 @@ export function OrganizationApplicationForm() {
                   setSlug(slugify(e.target.value));
                 }}
                 required
-                className="flex-1"
+                className="flex-1 font-mono"
               />
             </div>
           </div>
@@ -127,7 +142,7 @@ export function OrganizationApplicationForm() {
             <Label htmlFor="supportEmail">Contact email (optional)</Label>
             <Input id="supportEmail" name="supportEmail" type="email" />
           </div>
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button type="submit" disabled={isPending} className="w-full rounded-full">
             {isPending ? "Submitting…" : "Submit application"}
           </Button>
           <p className="text-xs text-muted-foreground">

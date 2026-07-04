@@ -69,9 +69,11 @@ function SignInForm() {
   }
 
   return (
-    <Card>
+    <Card className="rounded-3xl border border-border ring-0 [--card-spacing:--spacing(6)]">
       <CardHeader>
-        <CardTitle>Welcome back</CardTitle>
+        <CardTitle className="font-display text-2xl font-medium tracking-tight">
+          Welcome back
+        </CardTitle>
         <CardDescription>Sign in to continue learning</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -85,7 +87,7 @@ function SignInForm() {
               <Label htmlFor="password">Password</Label>
               <Link
                 href="/forgot-password"
-                className="text-xs text-muted-foreground hover:text-foreground"
+                className="text-xs text-muted-foreground hover:text-primary"
               >
                 Forgot password?
               </Link>
@@ -98,7 +100,7 @@ function SignInForm() {
               autoComplete="current-password"
             />
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full rounded-full" disabled={loading}>
             {loading ? "Signing in…" : "Sign in"}
           </Button>
         </form>
@@ -107,7 +109,12 @@ function SignInForm() {
           <span className="text-xs text-muted-foreground">or</span>
           <Separator className="flex-1" />
         </div>
-        <Button type="button" variant="outline" className="w-full" onClick={onGoogle}>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full rounded-full"
+          onClick={onGoogle}
+        >
           Continue with Google
         </Button>
         <form onSubmit={onSso} className="flex gap-2">
@@ -118,13 +125,13 @@ function SignInForm() {
             required
             className="flex-1"
           />
-          <Button type="submit" variant="outline">
+          <Button type="submit" variant="outline" className="rounded-full">
             SSO
           </Button>
         </form>
         <p className="text-center text-sm text-muted-foreground">
           New here?{" "}
-          <Link href="/sign-up" className="font-medium text-foreground hover:underline">
+          <Link href="/sign-up" className="font-semibold text-primary hover:underline">
             Create an account
           </Link>
         </p>

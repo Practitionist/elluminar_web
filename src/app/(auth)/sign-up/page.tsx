@@ -52,9 +52,11 @@ export default function SignUpPage() {
   }
 
   return (
-    <Card>
+    <Card className="rounded-3xl border border-border ring-0 [--card-spacing:--spacing(6)]">
       <CardHeader>
-        <CardTitle>Create your account</CardTitle>
+        <CardTitle className="font-display text-2xl font-medium tracking-tight">
+          Create your account
+        </CardTitle>
         <CardDescription>
           Learn from independent creators. Prove it with mentor-reviewed work.
         </CardDescription>
@@ -80,13 +82,13 @@ export default function SignUpPage() {
               minLength={8}
             />
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full rounded-full" disabled={loading}>
             {loading ? "Creating account…" : "Create account"}
           </Button>
         </form>
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/sign-in" className="font-medium text-foreground hover:underline">
+          <Link href="/sign-in" className="font-semibold text-primary hover:underline">
             Sign in
           </Link>
         </p>

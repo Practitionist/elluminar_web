@@ -33,9 +33,11 @@ export default function VerifyEmailPage() {
   }
 
   return (
-    <Card>
+    <Card className="rounded-3xl border border-border ring-0 [--card-spacing:--spacing(6)]">
       <CardHeader>
-        <CardTitle>Check your inbox</CardTitle>
+        <CardTitle className="font-display text-2xl font-medium tracking-tight">
+          Check your inbox
+        </CardTitle>
         <CardDescription>
           We sent you a verification link. Click it to activate your account.
         </CardDescription>
@@ -46,12 +48,17 @@ export default function VerifyEmailPage() {
             <Label htmlFor="email">Didn&apos;t get it? Resend to</Label>
             <Input id="email" name="email" type="email" required autoComplete="email" />
           </div>
-          <Button type="submit" variant="outline" className="w-full" disabled={loading}>
+          <Button
+            type="submit"
+            variant="outline"
+            className="w-full rounded-full"
+            disabled={loading}
+          >
             {loading ? "Sending…" : "Resend verification email"}
           </Button>
         </form>
         <p className="text-center text-sm text-muted-foreground">
-          <Link href="/sign-in" className="font-medium text-foreground hover:underline">
+          <Link href="/sign-in" className="font-semibold text-primary hover:underline">
             Back to sign in
           </Link>
         </p>

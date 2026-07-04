@@ -40,18 +40,28 @@ export default function AcceptInvitationPage() {
   }
 
   return (
-    <Card>
+    <Card className="rounded-3xl border border-border ring-0 [--card-spacing:--spacing(6)]">
       <CardHeader>
-        <CardTitle>Join organization</CardTitle>
+        <CardTitle className="font-display text-2xl font-medium tracking-tight">
+          Join organization
+        </CardTitle>
         <CardDescription>
           You&apos;ve been invited to collaborate. Accept to join the team.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex gap-3">
-        <Button onClick={onAccept} disabled={loading || isPending} className="flex-1">
+        <Button
+          onClick={onAccept}
+          disabled={loading || isPending}
+          className="flex-1 rounded-full"
+        >
           {loading ? "Joining…" : "Accept invitation"}
         </Button>
-        <Button variant="outline" onClick={() => router.push("/")} className="flex-1">
+        <Button
+          variant="outline"
+          onClick={() => router.push("/")}
+          className="flex-1 rounded-full"
+        >
           Decline
         </Button>
       </CardContent>

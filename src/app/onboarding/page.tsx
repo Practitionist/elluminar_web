@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 
+import { SectionEyebrow } from "@/components/shared";
+import { BRAND } from "@/lib/brand";
 import { requireUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -24,10 +26,11 @@ export default async function OnboardingPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-16">
-      <h1 className="text-3xl font-semibold tracking-tight">
-        Bring your organization to lms-web
+      <SectionEyebrow tone="primary">Get started</SectionEyebrow>
+      <h1 className="mt-4 font-display text-3xl font-medium tracking-tight sm:text-4xl">
+        Bring your organization to {BRAND.name}
       </h1>
-      <p className="mt-2 text-muted-foreground">
+      <p className="mt-3 text-muted-foreground">
         Creators get a storefront and authoring studio. Companies and
         universities get licensing, rosters, programs, and reporting — all on
         the same account you already have.

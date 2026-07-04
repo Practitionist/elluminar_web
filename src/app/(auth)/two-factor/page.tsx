@@ -38,9 +38,11 @@ export default function TwoFactorPage() {
   }
 
   return (
-    <Card>
+    <Card className="rounded-3xl border border-border ring-0 [--card-spacing:--spacing(6)]">
       <CardHeader>
-        <CardTitle>Two-factor authentication</CardTitle>
+        <CardTitle className="font-display text-2xl font-medium tracking-tight">
+          Two-factor authentication
+        </CardTitle>
         <CardDescription>
           {useBackup
             ? "Enter one of your backup codes."
@@ -57,15 +59,16 @@ export default function TwoFactorPage() {
               inputMode={useBackup ? "text" : "numeric"}
               autoComplete="one-time-code"
               required
+              className="text-center font-mono tracking-[0.3em]"
             />
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full rounded-full" disabled={loading}>
             {loading ? "Verifying…" : "Verify"}
           </Button>
         </form>
         <button
           type="button"
-          className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+          className="w-full text-center text-sm text-muted-foreground hover:text-primary"
           onClick={() => setUseBackup((v) => !v)}
         >
           {useBackup ? "Use authenticator code instead" : "Use a backup code instead"}

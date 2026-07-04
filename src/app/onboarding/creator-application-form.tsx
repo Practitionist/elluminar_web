@@ -48,8 +48,8 @@ export function CreatorApplicationForm() {
   }
 
   return (
-    <Card>
-      <CardContent className="pt-6">
+    <Card className="rounded-3xl border border-border ring-0 [--card-spacing:--spacing(6)]">
+      <CardContent>
         <form onSubmit={onSubmit} className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="name">School / brand name</Label>
@@ -66,7 +66,9 @@ export function CreatorApplicationForm() {
           <div className="space-y-2">
             <Label htmlFor="slug">Storefront handle</Label>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">lms-web.com/c/</span>
+              <span className="text-sm font-medium text-muted-foreground">
+                lms-web.com/c/
+              </span>
               <Input
                 id="slug"
                 name="slug"
@@ -76,7 +78,7 @@ export function CreatorApplicationForm() {
                   setSlugTouched(true);
                   setSlug(slugify(e.target.value));
                 }}
-                className="flex-1"
+                className="flex-1 font-mono"
               />
             </div>
           </div>
@@ -93,7 +95,7 @@ export function CreatorApplicationForm() {
             <Label htmlFor="supportEmail">Support email (optional)</Label>
             <Input id="supportEmail" name="supportEmail" type="email" />
           </div>
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button type="submit" disabled={isPending} className="w-full rounded-full">
             {isPending ? "Submitting…" : "Submit application"}
           </Button>
           <p className="text-xs text-muted-foreground">

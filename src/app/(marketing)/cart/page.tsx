@@ -1,9 +1,9 @@
+import { ShoppingBag } from "lucide-react";
 import Link from "next/link";
 
 import { getActiveCart } from "@/actions/cart";
-import { Badge } from "@/components/ui/badge";
+import { Pill } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { getSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { resolveCartPricing } from "@/lib/commerce/pricing";
@@ -23,16 +23,30 @@ export default async function CartPage() {
 
   if (!pricing || pricing.lines.length === 0) {
     return (
-      <div className="mx-auto w-full max-w-3xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">Your cart is empty</h1>
-        <p className="mt-2 text-muted-foreground">
-          Courses and projects are independent line items — add exactly what you need.
-        </p>
-        <div className="mt-6 flex justify-center gap-3">
-          <Button render={<Link href="/courses" />}>Browse courses</Button>
-          <Button render={<Link href="/projects" />} variant="outline">
-            Explore projects
-          </Button>
+      <div className="mx-auto flex min-h-[50vh] w-full max-w-lg flex-col justify-center px-4 py-16 text-center">
+        <div className="rounded-3xl border border-border bg-card p-8">
+          <span className="mx-auto mb-5 inline-flex size-14 items-center justify-center rounded-2xl bg-primary-subtle text-primary-subtle-foreground">
+            <ShoppingBag className="size-7" />
+          </span>
+          <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+            Your cart is empty
+          </h1>
+          <p className="mx-auto mt-2 max-w-sm text-muted-foreground">
+            Courses and projects are independent line items — add exactly what
+            you need.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Button render={<Link href="/courses" />} className="rounded-full">
+              Browse courses
+            </Button>
+            <Button
+              render={<Link href="/projects" />}
+              variant="outline"
+              className="rounded-full"
+            >
+              Explore projects
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -43,9 +57,11 @@ export default async function CartPage() {
     : null;
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Cart</h1>
-      <div className="mt-6 grid gap-6 md:grid-cols-[1fr_280px]">
+    <div className="mx-auto w-full max-w-6xl px-4 py-12">
+      <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+        Cart
+      </h1>
+      <div className="mt-8 grid gap-10 md:grid-cols-[1fr_320px]">
         <CartLines
           lines={pricing.lines.map((l) => ({
             cartItemId: l.cartItemId,
@@ -57,41 +73,60 @@ export default async function CartPage() {
               l.discountMinor > 0n ? formatMoney(l.unitAmountMinor - l.discountMinor) : null,
           }))}
         />
-        <Card className="h-fit">
-          <CardContent className="space-y-3 pt-6 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span>{formatMoney(pricing.subtotalMinor)}</span>
+        <aside>
+          <div className="sticky top-20 rounded-2xl border border-border bg-card p-6">
+            <div className="text-xs font-extrabold tracking-wider text-muted-foreground uppercase">
+              Order summary
             </div>
-            {pricing.discountMinor > 0n && (
+            <div className="mt-4 space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">
-                  Discounts{" "}
-                  {pricing.appliedEntitlement && <Badge variant="outline">member</Badge>}
-                </span>
-                <span>−{formatMoney(pricing.discountMinor)}</span>
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="font-semibold">{formatMoney(pricing.subtotalMinor)}</span>
               </div>
-            )}
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Includes GST</span>
-              <span>{formatMoney(pricing.taxMinor)}</span>
+              {pricing.discountMinor > 0n && (
+                <div className="flex justify-between">
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    Discount
+                    {pricing.appliedEntitlement && (
+                      <Pill tone="success" className="px-2 py-0.5 text-[10px]">
+                        Member
+                      </Pill>
+                    )}
+                  </span>
+                  <span className="font-semibold text-success-subtle-foreground">
+                    −{formatMoney(pricing.discountMinor)}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Includes GST</span>
+                <span>{formatMoney(pricing.taxMinor)}</span>
+              </div>
+              <div className="flex items-baseline justify-between border-t border-border pt-3">
+                <span className="font-display text-lg font-medium">Total</span>
+                <span className="font-display text-lg font-medium">
+                  {formatMoney(pricing.totalMinor)}
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between border-t pt-3 text-base font-semibold">
-              <span>Total</span>
-              <span>{formatMoney(pricing.totalMinor)}</span>
+            <div className="mt-5">
+              {session ? (
+                <CheckoutButton email={buyerEmail ?? ""} />
+              ) : (
+                <Button
+                  render={<Link href="/sign-in?next=/cart" />}
+                  className="w-full rounded-full"
+                >
+                  Sign in to checkout
+                </Button>
+              )}
             </div>
-            {session ? (
-              <CheckoutButton email={buyerEmail ?? ""} />
-            ) : (
-              <Button render={<Link href="/sign-in?next=/cart" />} className="w-full">
-                Sign in to checkout
-              </Button>
-            )}
-            <p className="text-xs text-muted-foreground">
-              14-day refund window on courses. Projects refundable until mentor kickoff.
+            <p className="mt-4 text-xs text-muted-foreground">
+              14-day refund window on courses. Projects refundable until
+              mentor kickoff.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </aside>
       </div>
     </div>
   );

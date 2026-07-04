@@ -41,9 +41,11 @@ function ResetPasswordForm() {
   }
 
   return (
-    <Card>
+    <Card className="rounded-3xl border border-border ring-0 [--card-spacing:--spacing(6)]">
       <CardHeader>
-        <CardTitle>Choose a new password</CardTitle>
+        <CardTitle className="font-display text-2xl font-medium tracking-tight">
+          Choose a new password
+        </CardTitle>
         <CardDescription>Minimum 8 characters.</CardDescription>
       </CardHeader>
       <CardContent>
@@ -59,7 +61,7 @@ function ResetPasswordForm() {
               autoComplete="new-password"
             />
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full rounded-full" disabled={loading}>
             {loading ? "Updating…" : "Update password"}
           </Button>
         </form>

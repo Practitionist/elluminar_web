@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CourseCard, GradientThumb, Pill, ProjectCard } from "@/components/shared";
 import { db } from "@/lib/db";
-import { formatMoney } from "@/lib/money";
+import { toCourseCardData, toProjectCardData } from "@/lib/ui/catalog-card";
 import { tiptapToPlainText } from "@/lib/richtext";
+
+function initialsOf(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("") || "•"
+  );
+}
 
 export async function generateMetadata({
   params,
@@ -63,47 +71,60 @@ export default async function StorefrontPage({
     : [];
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-12">
-      <header className="border-b pb-8">
-        <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">{tenant.displayName}</h1>
-          {isOrg && (
-            <Badge variant="secondary">
-              {tenant.type === "UNIVERSITY" ? "University partner" : "Enterprise partner"}
-            </Badge>
-          )}
+    <div className="mx-auto w-full max-w-6xl px-4 py-12">
+      <header className="flex flex-col items-center gap-5 border-b border-border pb-10 text-center sm:flex-row sm:items-start sm:text-left">
+        <span className="inline-flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary-subtle text-xl font-extrabold text-primary-subtle-foreground">
+          {initialsOf(tenant.displayName)}
+        </span>
+        <div>
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+            <h1 className="font-display text-3xl font-medium tracking-tight sm:text-4xl">
+              {tenant.displayName}
+            </h1>
+            {isOrg && (
+              <Pill tone="info">
+                {tenant.type === "UNIVERSITY" ? "University partner" : "Enterprise partner"}
+              </Pill>
+            )}
+          </div>
+          {about && <p className="mt-3 max-w-2xl text-muted-foreground">{about}</p>}
         </div>
-        {about && <p className="mt-3 max-w-2xl text-muted-foreground">{about}</p>}
       </header>
 
       {isOrg && (
-        <section className="mt-10">
-          <h2 className="text-xl font-semibold">Programs</h2>
+        <section className="mt-12">
+          <h2 className="font-display text-2xl font-medium tracking-tight">Programs</h2>
           {programs.length === 0 ? (
             <p className="mt-3 text-sm text-muted-foreground">
               Program details are shared with enrolled cohorts.
             </p>
           ) : (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="mt-5 grid gap-5 sm:grid-cols-2">
               {programs.map((program) => {
                 const coBrand = (program.certificateTemplate?.coBrand ?? null) as {
                   partnerName?: string;
                 } | null;
                 return (
-                  <Card key={program.id}>
-                    <CardHeader>
-                      <CardTitle className="line-clamp-2 text-base">{program.title}</CardTitle>
-                      <CardDescription>
+                  <div
+                    key={program.id}
+                    className="overflow-hidden rounded-2xl border border-border bg-card"
+                  >
+                    <GradientThumb keyer={program.id} className="h-20" />
+                    <div className="p-5">
+                      <h3 className="line-clamp-2 text-[0.95rem] leading-snug font-extrabold text-foreground">
+                        {program.title}
+                      </h3>
+                      <p className="mt-1.5 text-sm text-muted-foreground">
                         {program._count.items} items · {program._count.cohorts} cohorts
                         {coBrand?.partnerName
                           ? ` · co-certified with ${coBrand.partnerName}`
                           : ""}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground">
-                      Cohort-based · co-branded certificate on completion
-                    </CardContent>
-                  </Card>
+                      </p>
+                      <p className="mt-3 text-xs font-semibold text-muted-foreground">
+                        Cohort-based · co-branded certificate on completion
+                      </p>
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -111,66 +132,33 @@ export default async function StorefrontPage({
         </section>
       )}
 
-      <section className="mt-10">
-        <h2 className="text-xl font-semibold">Courses</h2>
+      <section className="mt-12">
+        <h2 className="font-display text-2xl font-medium tracking-tight">Courses</h2>
         {tenant.courses.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">No published courses yet.</p>
         ) : (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {tenant.courses.map((course) => {
-              const price = course.prices[0];
-              return (
-                <Link key={course.id} href={`/courses/${tenant.slug}/${course.slug}`}>
-                  <Card className="h-full transition-colors hover:bg-muted/50">
-                    <CardHeader>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{course.level.toLowerCase()}</Badge>
-                        {course.liveEnabled && <Badge variant="secondary">live cohorts</Badge>}
-                      </div>
-                      <CardTitle className="mt-2 line-clamp-2 text-base">{course.title}</CardTitle>
-                      {course.subtitle && (
-                        <CardDescription className="line-clamp-2">{course.subtitle}</CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent className="text-sm font-medium">
-                      {price ? formatMoney(price.amountMinor, price.currency) : "Free"}
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
+          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {tenant.courses.map((course) => (
+              <CourseCard key={course.id} course={toCourseCardData({ ...course, tenant })} />
+            ))}
           </div>
         )}
       </section>
 
-      <section className="mt-10">
-        <h2 className="text-xl font-semibold">Mentor-guided projects</h2>
+      <section className="mt-12">
+        <h2 className="font-display text-2xl font-medium tracking-tight">
+          Mentor-guided projects
+        </h2>
         {tenant.projects.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">No published projects yet.</p>
         ) : (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {tenant.projects.map((project) => {
-              const price = project.prices[0];
-              return (
-                <Link key={project.id} href={`/projects/${tenant.slug}/${project.slug}`}>
-                  <Card className="h-full transition-colors hover:bg-muted/50">
-                    <CardHeader>
-                      <div className="flex items-center gap-2">
-                        <Badge>{project.tier.toLowerCase()}</Badge>
-                        <Badge variant="outline">
-                          {project.durationWeeksMin}–{project.durationWeeksMax} weeks
-                        </Badge>
-                      </div>
-                      <CardTitle className="mt-2 line-clamp-2 text-base">{project.title}</CardTitle>
-                      <CardDescription className="line-clamp-3">{project.summary}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="text-sm font-medium">
-                      {price ? formatMoney(price.amountMinor, price.currency) : "—"}
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
+          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {tenant.projects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={toProjectCardData({ ...project, tenant })}
+              />
+            ))}
           </div>
         )}
       </section>

@@ -87,7 +87,7 @@ export function CheckoutButton({ email }: { email: string }) {
 
   return (
     <Button
-      className="w-full"
+      className="w-full rounded-full"
       disabled={busy || create.isPending || confirm.isPending}
       onClick={() => {
         setBusy(true);

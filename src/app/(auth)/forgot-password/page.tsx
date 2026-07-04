@@ -37,9 +37,11 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <Card>
+    <Card className="rounded-3xl border border-border ring-0 [--card-spacing:--spacing(6)]">
       <CardHeader>
-        <CardTitle>Reset your password</CardTitle>
+        <CardTitle className="font-display text-2xl font-medium tracking-tight">
+          Reset your password
+        </CardTitle>
         <CardDescription>
           {sent
             ? "If that email exists, a reset link is on its way."
@@ -53,13 +55,13 @@ export default function ForgotPasswordPage() {
               <Label htmlFor="email">Email</Label>
               <Input id="email" name="email" type="email" required autoComplete="email" />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full rounded-full" disabled={loading}>
               {loading ? "Sending…" : "Send reset link"}
             </Button>
           </form>
         )}
         <p className="text-center text-sm text-muted-foreground">
-          <Link href="/sign-in" className="font-medium text-foreground hover:underline">
+          <Link href="/sign-in" className="font-semibold text-primary hover:underline">
             Back to sign in
           </Link>
         </p>
