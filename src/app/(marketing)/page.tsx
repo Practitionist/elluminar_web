@@ -1,56 +1,58 @@
 import {
   HeroSection,
+  CredentialCenterpieceSection,
   StatsBar,
-  EmpowerSection,
   HowItWorksSection,
-  FeaturesSection,
-  CoursesSection,
-  ProjectsSection,
-  PremiumFeaturesSection,
-  SocialProofSection,
+  ProjectsShowcaseSection,
+  CoursesShowcaseSection,
   TestimonialsSection,
-  FAQSection,
+  FeaturesSection,
+  MentorWallSection,
+  SuccessStoriesSection,
   PricingSection,
+  FAQSection,
 } from "@/components/marketing";
 
 export default function HomePage() {
   return (
     <>
-      {/* Hero Section with Showcase Cards */}
+      {/* Hero — the banner you love, kept */}
       <HeroSection />
 
-      {/* Vibrant Stats Bar */}
+      {/* The differentiator: a verifiable credential, up front */}
+      <CredentialCenterpieceSection />
+
+      {/* Proof-you-can-audit stats band */}
       <StatsBar />
 
-      {/* Empower Learning Section with Icon Grid */}
-      <EmpowerSection />
-
-      {/* How It Works Section */}
+      {/* Three steps between you and proof */}
       <HowItWorksSection />
 
-      {/* Features Section with Dark Background */}
-      <FeaturesSection />
+      {/* Projects that read like real tickets */}
+      <ProjectsShowcaseSection />
 
-      {/* Courses Section - Zigzag Layout */}
-      <CoursesSection />
+      {/* Courses that go deep */}
+      <CoursesShowcaseSection />
 
-      {/* Projects Section - Zigzag Layout (Image Left, Text Right) */}
-      <ProjectsSection />
-
-      {/* Premium Features Section */}
-      <PremiumFeaturesSection />
-
-      {/* Social Proof Section - Creative Bento Layout */}
-      <SocialProofSection />
-
-      {/* Testimonials Section */}
+      {/* Loved by people who ship */}
       <TestimonialsSection />
 
-      {/* FAQ Section */}
+      {/* Why it's different — the single ink dark break */}
+      <FeaturesSection />
+
+      {/* Reviewed by people you'd want on your PR */}
+      <MentorWallSection />
+
+      {/* Real people. Real switches. */}
+      <SuccessStoriesSection />
+
+      {/* Pricing — kept, lightly refreshed */}
+      <PricingSection />
+
+      {/* FAQ */}
       <FAQSection />
 
-      {/* Pricing Section */}
-      <PricingSection />
+      {/* Closing "Ready to prove it?" CTA lives in the gradient footer */}
     </>
   );
 }

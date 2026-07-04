@@ -1,86 +1,97 @@
 "use client";
 
+import { Check, Leaf, Rocket, Sparkles, Zap } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { CheckCircle, Crown, Rocket, Sparkles } from "lucide-react";
-import { FadeIn } from "@/components/ui/fade-in";
 
-const plans = [
+import { SectionEyebrow, SectionHeading } from "@/components/shared";
+import { Button } from "@/components/ui/button";
+import { FadeIn } from "@/components/ui/fade-in";
+import { cn } from "@/lib/utils";
+
+type Plan = {
+  code: string;
+  name: string;
+  icon: typeof Zap;
+  tagline: string;
+  price: string;
+  suffix?: string;
+  note: string;
+  cta: string;
+  href: string;
+  includesLabel: string;
+  features: string[];
+  popular?: boolean;
+  dark?: boolean;
+};
+
+const PLANS: Plan[] = [
   {
+    code: "FREE",
     name: "Free",
-    description: "Explore the marketplace",
+    icon: Leaf,
+    tagline: "Explore & learn the basics",
     price: "₹0",
-    priceNote: "Free forever",
+    note: "Free forever",
+    cta: "Start free",
+    href: "/sign-up",
+    includesLabel: "Includes",
     features: [
-      "Browse the full marketplace",
-      "Buy any course or project à la carte",
-      "Free preview lessons",
+      "All free courses & previews",
+      "Community & discussions",
+      "Course completion certificate",
       "14-day refund window",
     ],
-    cta: "Sign Up Free",
-    ctaLink: "/sign-up",
-    variant: "outline" as const,
-    highlighted: false,
-    elite: false,
   },
   {
+    code: "LEARN",
     name: "Learn",
-    description: "The full self-paced library",
+    icon: Zap,
+    tagline: "The full self-paced library",
     price: "₹999",
-    priceSuffix: "/mo",
-    priceNote: "or ₹9,999/year",
+    suffix: "/mo",
+    note: "or ₹9,999/year",
+    cta: "Get Learn",
+    href: "/pricing",
+    includesLabel: "Everything in Free, plus",
     features: [
-      "Everything in Free",
       "Full self-paced library",
       "Cohort replay access",
       "5% off à la carte",
       "50 AI credits/day",
     ],
-    cta: "Get Learn",
-    ctaLink: "/pricing",
-    variant: "default" as const,
-    highlighted: false,
-    elite: false,
-    icon: Rocket,
   },
   {
+    code: "MENTOR",
     name: "Mentor",
-    description: "Guided practice with real mentors",
+    icon: Sparkles,
+    tagline: "Guided practice with real mentors",
     price: "₹2,499",
-    priceSuffix: "/mo",
-    priceNote: "or ₹24,999/year",
+    suffix: "/mo",
+    note: "or ₹24,999/year",
+    cta: "Get Mentor",
+    href: "/pricing",
+    includesLabel: "Everything in Learn, plus",
     features: [
-      "Everything in Learn",
       "Live cohorts included",
       "1 Sprint project credit/mo",
       "20% off Capstone projects",
       "Verified proof-of-work portfolio",
       "150 AI credits/day",
     ],
-    cta: "Get Mentor",
-    ctaLink: "/pricing",
-    variant: "default" as const,
-    highlighted: true,
-    elite: false,
-    icon: Sparkles,
-    badge: "Popular",
+    popular: true,
   },
   {
+    code: "CAREER",
     name: "Career",
-    description: "A mentor-backed career outcome",
+    icon: Rocket,
+    tagline: "A mentor-backed career outcome",
     price: "₹4,999",
-    priceSuffix: "/mo",
-    priceNote: "or ₹49,999/year",
+    suffix: "/mo",
+    note: "or ₹49,999/year",
+    cta: "Get Career",
+    href: "/pricing",
+    includesLabel: "Everything in Mentor, plus",
     features: [
-      "Everything in Mentor",
       "Priority cohort seats",
       "2 Sprint project credits/mo",
       "Priority mentor matching",
@@ -88,116 +99,155 @@ const plans = [
       "Placement support intake",
       "300 AI credits/day",
     ],
-    cta: "Get Career",
-    ctaLink: "/pricing",
-    variant: "default" as const,
-    highlighted: false,
-    elite: true,
-    icon: Crown,
+    dark: true,
   },
 ];
 
 export function PricingSection() {
   return (
-    <section className="w-full py-16 md:py-28 lg:py-36 relative overflow-hidden bg-muted/20">
-      <div className="container px-4 md:px-6 relative">
-        <FadeIn direction="up" delay={0.2}>
-          <div className="flex flex-col items-center justify-center space-y-4 text-center mb-16">
-            <div className="space-y-5">
-              <div className="inline-block">
-                <span className="inline-flex items-center text-sm font-semibold text-primary uppercase tracking-wider bg-primary/10 px-4 py-1.5 rounded-full">
-                  Pricing
-                </span>
-              </div>
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
-                Simple, <span className="text-gradient">Transparent</span>{" "}
-                Pricing
-              </h2>
-              <p className="max-w-[700px] text-muted-foreground text-lg md:text-xl mx-auto">
-                Every tier keeps à la carte open — memberships add breadth and
-                guided support, they never gate a single purchase
-              </p>
-            </div>
-          </div>
-
-          <div className="mx-auto max-w-7xl grid gap-6 lg:grid-cols-4 md:grid-cols-2">
-            {plans.map((plan, index) => (
-              <Card
-                key={index}
-                className={`flex flex-col rounded-3xl transition-all duration-500 ${
-                  plan.highlighted
-                    ? "border-2 border-primary/40 bg-gradient-to-br from-primary/10 via-purple-500/5 to-card shadow-2xl scale-105 relative glow-primary"
-                    : plan.elite
-                      ? "border border-yellow-500/30 bg-gradient-to-br from-yellow-500/5 to-card backdrop-blur-sm hover:border-yellow-500/50 hover:shadow-xl hover:-translate-y-2"
-                      : "border border-border/50 bg-card/80 backdrop-blur-sm hover:border-primary/30 hover:shadow-xl hover:-translate-y-2"
-                }`}
-              >
-                {plan.badge && (
-                  <div className="absolute -top-4 left-0 right-0 flex justify-center">
-                    <span className="rounded-full bg-gradient-to-r from-primary to-purple-600 px-5 py-1.5 text-xs font-bold text-white shadow-lg">
-                      {plan.badge}
-                    </span>
-                  </div>
-                )}
-                <CardHeader className={plan.badge ? "pt-8" : ""}>
-                  <CardTitle className="flex items-center gap-2">
-                    {plan.icon && (
-                      <plan.icon
-                        className={`h-5 w-5 ${
-                          plan.elite
-                            ? "text-yellow-600 dark:text-yellow-500"
-                            : "text-primary"
-                        }`}
-                      />
-                    )}
-                    {plan.name}
-                  </CardTitle>
-                  <CardDescription>{plan.description}</CardDescription>
-                  <div className="mt-4">
-                    <div className="flex items-baseline gap-2">
-                      <span
-                        className={`text-4xl font-bold ${plan.highlighted ? "text-gradient" : ""}`}
-                      >
-                        {plan.price}
-                      </span>
-                      {plan.priceSuffix && (
-                        <span className="text-sm text-muted-foreground">
-                          {plan.priceSuffix}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {plan.priceNote}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-1">
-                  <ul className="space-y-3">
-                    {plan.features.map((feature, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle className="mt-0.5 h-4 w-4 text-primary shrink-0" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-                <CardFooter>
-                  <Button
-                    render={<Link href={plan.ctaLink} />}
-                    variant={plan.variant}
-                    className={`w-full rounded-full ${
-                      plan.variant === "default"
-                        ? "shadow-lg hover:shadow-xl"
-                        : "border-border/50 hover:border-primary/30"
-                    } transition-all duration-300`}
-                  >
-                    {plan.cta}
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
+    <section className="w-full py-16 md:py-24 lg:py-28">
+      <div className="container px-4 md:px-6">
+        <FadeIn direction="up">
+          <div className="mx-auto mb-14 flex max-w-2xl flex-col items-center space-y-4 text-center">
+            <SectionEyebrow>Pricing</SectionEyebrow>
+            <SectionHeading>
+              Pay for the <span className="text-primary italic">proof</span>,
+              not the promise
+            </SectionHeading>
+            <p className="text-muted-foreground">
+              Every tier keeps à la carte open — memberships add breadth and
+              guided support, they never gate a single purchase.
+            </p>
           </div>
         </FadeIn>
+
+        <div className="mx-auto grid max-w-6xl items-stretch gap-5 md:grid-cols-2 lg:grid-cols-4">
+          {PLANS.map((plan, i) => (
+            <FadeIn key={plan.code} direction="up" delay={0.06 * i}>
+              <div
+                className={cn(
+                  "relative flex h-full flex-col rounded-3xl border p-6",
+                  plan.dark
+                    ? "border-transparent bg-ink text-ink-foreground"
+                    : plan.popular
+                      ? "border-2 border-primary bg-card shadow-xl shadow-primary/10 lg:-translate-y-2"
+                      : "border-border bg-card",
+                )}
+              >
+                {plan.popular ? (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3.5 py-1 text-[11px] font-extrabold whitespace-nowrap text-primary-foreground shadow-lg shadow-primary/30">
+                    MOST POPULAR
+                  </span>
+                ) : null}
+
+                <span
+                  className={cn(
+                    "inline-flex size-11 items-center justify-center rounded-xl",
+                    plan.dark
+                      ? "bg-white/10 text-primary"
+                      : plan.popular
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-primary-subtle text-primary-subtle-foreground",
+                  )}
+                >
+                  <plan.icon className="size-5" />
+                </span>
+
+                <div
+                  className={cn(
+                    "mt-4 text-[0.95rem] font-extrabold",
+                    plan.dark ? "text-primary" : "",
+                  )}
+                >
+                  {plan.name}
+                </div>
+                <p
+                  className={cn(
+                    "mt-0.5 text-xs font-semibold",
+                    plan.dark ? "text-ink-muted" : "text-muted-foreground",
+                  )}
+                >
+                  {plan.tagline}
+                </p>
+
+                <div className="mt-4 flex items-baseline gap-1">
+                  <span className="text-3xl font-extrabold tracking-tight">
+                    {plan.price}
+                  </span>
+                  {plan.suffix ? (
+                    <span
+                      className={cn(
+                        "text-sm font-semibold",
+                        plan.dark ? "text-ink-muted" : "text-muted-foreground",
+                      )}
+                    >
+                      {plan.suffix}
+                    </span>
+                  ) : null}
+                </div>
+                <div
+                  className={cn(
+                    "mt-1 text-xs font-semibold",
+                    plan.dark
+                      ? "text-emerald-400"
+                      : "text-success-subtle-foreground",
+                  )}
+                >
+                  {plan.note}
+                </div>
+
+                <Button
+                  render={<Link href={plan.href} />}
+                  className={cn(
+                    "mt-5 w-full rounded-full font-bold",
+                    plan.dark
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                      : plan.popular
+                        ? ""
+                        : "bg-transparent text-foreground ring-1 ring-border ring-inset hover:bg-muted",
+                  )}
+                >
+                  {plan.cta}
+                </Button>
+
+                <div
+                  className={cn(
+                    "mt-6 mb-3 text-[11px] font-extrabold tracking-wider uppercase",
+                    plan.dark ? "text-ink-muted" : "text-muted-foreground",
+                  )}
+                >
+                  {plan.includesLabel}
+                </div>
+                <ul className="space-y-2.5">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2.5 text-sm">
+                      <Check
+                        className={cn(
+                          "mt-0.5 size-4 shrink-0",
+                          plan.dark ? "text-emerald-400" : "text-success",
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          plan.dark
+                            ? "text-ink-foreground/85"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {f}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+
+        <p className="mt-10 text-center text-xs font-semibold text-muted-foreground">
+          All prices inclusive of 18% GST · UPI, cards, netbanking &amp; no-cost
+          EMI · cancel anytime
+        </p>
       </div>
     </section>
   );

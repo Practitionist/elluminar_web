@@ -45,10 +45,12 @@ export function FAQSection() {
                     FAQ
                   </span>
                 </div>
-                <h2 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
-                  Got Questions?
+                <h2 className="font-display text-3xl font-medium tracking-tight sm:text-4xl md:text-5xl">
+                  Questions?
                   <br />
-                  We&apos;ve <span className="text-gradient">Got Answers!</span>
+                  We&apos;ve <span className="text-primary italic">
+                    got answers
+                  </span>
                 </h2>
                 <p className="text-muted-foreground text-lg">
                   Wondering how lms-web works? Our FAQ section has all the

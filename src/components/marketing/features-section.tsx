@@ -56,17 +56,18 @@ const features = [
 export function FeaturesSection() {
   return (
     <section className="w-full py-16 md:py-28 lg:py-36 relative overflow-hidden">
-      {/* Rich gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-slate-900/98 to-black" />
+      {/* Ink band — the page's single dark break */}
+      <div className="absolute inset-0 bg-gradient-to-b from-ink to-ink-deep" />
+      <div className="absolute inset-0 bg-ink-grid" />
       {/* Gradient orbs */}
-      <div className="absolute top-20 left-20 w-80 h-80 bg-primary/10 rounded-full blur-3xl" />
+      <div className="absolute top-20 left-20 w-80 h-80 bg-primary/15 rounded-full blur-3xl" />
       <div className="absolute bottom-20 right-20 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl" />
 
       <div className="container px-4 md:px-6 relative text-white">
         <FadeIn direction="up" delay={0.2}>
           <div className="flex flex-col items-center justify-center space-y-4 text-center mb-16">
             <div className="space-y-5">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
+              <h2 className="font-display text-3xl font-medium tracking-tight sm:text-4xl md:text-5xl">
                 Superpowers
                 <br />
                 for Your <span className="text-gradient">Portfolio</span>

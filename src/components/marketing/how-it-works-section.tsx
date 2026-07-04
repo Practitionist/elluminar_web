@@ -1,70 +1,89 @@
 "use client";
 
-import { BookOpen, Code2, Users } from "lucide-react";
+import { GraduationCap, Hammer, ShieldCheck } from "lucide-react";
+
+import { SectionEyebrow, SectionHeading } from "@/components/shared";
 import { FadeIn } from "@/components/ui/fade-in";
+import { cn } from "@/lib/utils";
+
+const steps = [
+  {
+    n: "1",
+    icon: GraduationCap,
+    tone: "primary" as const,
+    gradient: "linear-gradient(135deg, #DCD2FB, #EFEBFF)",
+    title: "Learn from people who ship",
+    description:
+      "Video, in-browser labs, quizzes and live cohort sessions — built by working engineers, not career instructors.",
+  },
+  {
+    n: "2",
+    icon: Hammer,
+    tone: "distinction" as const,
+    gradient: "linear-gradient(135deg, #FFE7C4, #FFF4E3)",
+    title: "Build a project that's judged",
+    description:
+      "An ambiguous, real-world brief with milestones — reviewed line-by-line by a senior mentor against a public rubric.",
+  },
+  {
+    n: "3",
+    icon: ShieldCheck,
+    tone: "success" as const,
+    gradient: "linear-gradient(135deg, #BFE8D2, #E9F8EF)",
+    title: "Defend it, get verified",
+    description:
+      "Clear a live defense call and earn a credential with public rubric scores any recruiter can check — forever.",
+  },
+];
+
+const NUMBER_TONE = {
+  primary: "text-primary",
+  distinction: "text-distinction-subtle-foreground",
+  success: "text-success-subtle-foreground",
+};
 
 export function HowItWorksSection() {
-  const steps = [
-    {
-      icon: BookOpen,
-      title: "1. Pick Your Learning",
-      description:
-        "Browse courses and live cohorts from independent technical creators — with embedded code labs, quizzes, and real assignments.",
-    },
-    {
-      icon: Code2,
-      title: "2. Build a Project",
-      description:
-        "Buy a single mentor-reviewed project at take-home-assessment scale. Work through rubric-graded checkpoints at your own pace.",
-    },
-    {
-      icon: Users,
-      title: "3. Get Mentor Review",
-      description:
-        "Real mentors review your work, run revision loops with you, and sign off on a verifiable credential for your portfolio.",
-    },
-  ];
-
   return (
-    <section className="w-full py-16 md:py-28 lg:py-36 relative overflow-hidden bg-muted/30">
-      <div className="container px-4 md:px-6 relative">
-        <FadeIn direction="up" delay={0.2}>
-          <div className="flex flex-col items-center justify-center space-y-4 text-center mb-16">
-            <div className="space-y-5">
-              <div className="inline-block">
-                <span className="inline-flex items-center text-sm font-semibold text-primary uppercase tracking-wider bg-primary/10 px-4 py-1.5 rounded-full">
-                  How It Works
-                </span>
-              </div>
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
-                Easy Steps to
-                <br />
-                Your <span className="text-gradient">Proof of Work</span>
-              </h2>
-              <p className="max-w-[700px] text-muted-foreground text-lg md:text-xl mx-auto">
-                No forced bundles, no bootcamp-scale commitment. One cart for
-                exactly what you need — with a clear 14-day refund window.
-              </p>
-            </div>
-          </div>
-
-          <div className="mx-auto grid max-w-6xl gap-8 md:gap-10 lg:grid-cols-3">
-            {steps.map((item, index) => (
-              <div
-                key={index}
-                className="group flex flex-col items-center space-y-5 text-center p-8 rounded-3xl bg-card/80 backdrop-blur-sm border border-border/50 shadow-sm hover:shadow-xl hover:border-primary/20 transition-all duration-500 hover:-translate-y-2"
-              >
-                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-purple-500/10 border border-primary/20 group-hover:scale-110 group-hover:shadow-lg transition-all duration-300">
-                  <item.icon className="h-10 w-10 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold">{item.title}</h3>
-                <p className="text-muted-foreground leading-relaxed">
-                  {item.description}
-                </p>
-              </div>
-            ))}
+    <section className="w-full py-16 md:py-24 lg:py-28">
+      <div className="container px-4 md:px-6">
+        <FadeIn direction="up">
+          <div className="mb-14 flex flex-col items-center space-y-4 text-center">
+            <SectionEyebrow tone="distinction">How it works</SectionEyebrow>
+            <SectionHeading>
+              Three steps between you and{" "}
+              <span className="text-primary italic">proof</span>
+            </SectionHeading>
           </div>
         </FadeIn>
+
+        <div className="mx-auto grid max-w-6xl gap-6 md:grid-cols-3">
+          {steps.map((step, i) => (
+            <FadeIn key={step.n} direction="up" delay={0.1 * (i + 1)}>
+              <div className="h-full rounded-3xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-foreground/5">
+                <div
+                  className="relative mb-5 flex h-32 items-start justify-start overflow-hidden rounded-2xl p-5"
+                  style={{ backgroundImage: step.gradient }}
+                >
+                  <span
+                    className={cn(
+                      "inline-flex size-11 items-center justify-center rounded-xl bg-white text-xl font-extrabold shadow-sm",
+                      NUMBER_TONE[step.tone],
+                    )}
+                  >
+                    {step.n}
+                  </span>
+                  <step.icon className="absolute right-4 bottom-4 size-8 text-foreground/30" />
+                </div>
+                <h3 className="mb-2 text-lg font-extrabold text-foreground">
+                  {step.title}
+                </h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {step.description}
+                </p>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
       </div>
     </section>
   );
