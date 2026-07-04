@@ -1,43 +1,52 @@
-import Link from "next/link";
-
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import type { NavSection } from "@/components/dashboard/types";
 import { requirePlatformAdmin } from "@/lib/auth/session";
+import { BRAND } from "@/lib/brand";
+import { getAccessibleSurfaces, toShellUser } from "@/lib/nav/surfaces";
 
-const NAV = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/tenants", label: "Tenant approvals" },
-  { href: "/admin/licenses", label: "Enterprise licenses" },
-  { href: "/admin/sso", label: "SSO providers" },
-  { href: "/admin/mentors", label: "Mentor vetting" },
-  { href: "/admin/moderation", label: "Catalog moderation" },
-  { href: "/admin/orders", label: "Orders" },
-  { href: "/admin/refunds", label: "Refunds" },
-  { href: "/admin/payouts", label: "Payouts" },
-  { href: "/admin/coupons", label: "Coupons" },
-  { href: "/admin/flags", label: "Feature flags" },
+const NAV: NavSection[] = [
+  {
+    items: [
+      { href: "/admin", label: "Dashboard", icon: "gauge", exact: true },
+      { href: "/admin/tenants", label: "Tenant approvals", icon: "tenants" },
+      { href: "/admin/mentors", label: "Mentor vetting", icon: "mentor" },
+      { href: "/admin/moderation", label: "Moderation", icon: "moderation" },
+    ],
+  },
+  {
+    label: "Commerce",
+    items: [
+      { href: "/admin/orders", label: "Orders", icon: "orders" },
+      { href: "/admin/refunds", label: "Refunds", icon: "refunds" },
+      { href: "/admin/payouts", label: "Payouts", icon: "payouts" },
+      { href: "/admin/coupons", label: "Coupons", icon: "coupons" },
+    ],
+  },
+  {
+    label: "Enterprise",
+    items: [
+      { href: "/admin/licenses", label: "Licenses", icon: "licenses" },
+      { href: "/admin/sso", label: "SSO providers", icon: "sso" },
+      { href: "/admin/flags", label: "Feature flags", icon: "flags" },
+    ],
+  },
 ];
 
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  await requirePlatformAdmin();
-
+export default async function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await requirePlatformAdmin();
+  const surfaces = await getAccessibleSurfaces(session);
   return (
-    <div className="flex min-h-screen">
-      <aside className="hidden w-56 shrink-0 border-r bg-muted/30 md:block">
-        <div className="flex h-14 items-center border-b px-4 font-semibold">
-          Platform admin
-        </div>
-        <nav className="space-y-1 p-3">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="block rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </aside>
-      <main className="flex-1 p-6">{children}</main>
-    </div>
+    <DashboardShell
+      brand={{ label: "Platform admin", sublabel: BRAND.name, href: "/admin" }}
+      nav={NAV}
+      surfaces={surfaces}
+      user={toShellUser(session.user)}
+    >
+      {children}
+    </DashboardShell>
   );
 }

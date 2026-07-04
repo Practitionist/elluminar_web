@@ -1,18 +1,8 @@
-import Link from "next/link";
-
-import { Badge } from "@/components/ui/badge";
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import type { NavSection } from "@/components/dashboard/types";
+import { Pill } from "@/components/shared";
 import { requireTenantMember } from "@/lib/auth/session";
-
-const NAV = [
-  { href: "", label: "Overview" },
-  { href: "/courses", label: "Courses" },
-  { href: "/projects", label: "Projects" },
-  { href: "/cohorts", label: "Cohorts" },
-  { href: "/coupons", label: "Coupons" },
-  { href: "/earnings", label: "Earnings" },
-  { href: "/members", label: "Team" },
-  { href: "/settings", label: "Settings" },
-];
+import { getAccessibleSurfaces, toShellUser } from "@/lib/nav/surfaces";
 
 export default async function StudioTenantLayout({
   children,
@@ -22,56 +12,56 @@ export default async function StudioTenantLayout({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug);
+  const { session, tenant } = await requireTenantMember(tenantSlug);
+  const surfaces = await getAccessibleSurfaces(session);
+  const base = `/studio/${tenantSlug}`;
+
+  const nav: NavSection[] = [
+    {
+      items: [
+        { href: base, label: "Overview", icon: "overview", exact: true },
+        { href: `${base}/courses`, label: "Courses", icon: "courses" },
+        { href: `${base}/projects`, label: "Projects", icon: "projects" },
+        { href: `${base}/cohorts`, label: "Cohorts", icon: "cohorts" },
+        { href: `${base}/coupons`, label: "Coupons", icon: "coupons" },
+        { href: `${base}/earnings`, label: "Earnings", icon: "earnings" },
+        { href: `${base}/members`, label: "Team", icon: "members" },
+        { href: `${base}/settings`, label: "Settings", icon: "settings" },
+      ],
+    },
+    {
+      label: "Public",
+      items: [
+        {
+          href: `/c/${tenantSlug}`,
+          label: "View storefront",
+          icon: "storefront",
+        },
+      ],
+    },
+  ];
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="hidden w-56 shrink-0 border-r bg-muted/30 md:block">
-        <div className="flex h-14 items-center gap-2 border-b px-4">
-          <Link href="/studio" className="truncate font-semibold">
-            {tenant.displayName}
-          </Link>
+    <DashboardShell
+      brand={{
+        label: tenant.displayName,
+        sublabel: "Creator studio",
+        href: base,
+      }}
+      nav={nav}
+      surfaces={surfaces}
+      user={toShellUser(session.user)}
+    >
+      {tenant.status !== "APPROVED" ? (
+        <div className="mb-5 flex items-center gap-2 rounded-xl border border-distinction/20 bg-distinction-subtle px-4 py-2.5 text-sm text-distinction-subtle-foreground">
+          <Pill tone="distinction" className="px-2 py-0.5 text-[10px]">
+            {tenant.status.toLowerCase()}
+          </Pill>
+          Your school is under review — you can author content now; publishing
+          unlocks on approval.
         </div>
-        <nav className="space-y-1 p-3">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={`/studio/${tenantSlug}${item.href}`}
-              className="block rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="space-y-2 p-3">
-          <Link
-            href={`/c/${tenantSlug}`}
-            className="block rounded-md border px-3 py-2 text-center text-sm hover:bg-muted"
-          >
-            View storefront →
-          </Link>
-          {tenant.type !== "CREATOR" && (
-            <Link
-              href={`/org/${tenantSlug}`}
-              className="block rounded-md border px-3 py-2 text-center text-sm hover:bg-muted"
-            >
-              Enterprise portal →
-            </Link>
-          )}
-        </div>
-      </aside>
-      <div className="flex-1">
-        {tenant.status !== "APPROVED" && (
-          <div className="border-b bg-amber-50 px-6 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
-            <Badge variant="outline" className="mr-2">
-              {tenant.status.toLowerCase()}
-            </Badge>
-            Your school is under review — you can author content now; publishing
-            unlocks on approval.
-          </div>
-        )}
-        <main className="p-6">{children}</main>
-      </div>
-    </div>
+      ) : null}
+      {children}
+    </DashboardShell>
   );
 }

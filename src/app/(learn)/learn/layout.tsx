@@ -1,47 +1,48 @@
-import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import type { NavSection } from "@/components/dashboard/types";
 import { requireUser } from "@/lib/auth/session";
+import { BRAND } from "@/lib/brand";
+import { getAccessibleSurfaces, toShellUser } from "@/lib/nav/surfaces";
 
-const NAV = [
-  { href: "/learn", label: "Dashboard" },
-  { href: "/learn/projects", label: "My projects" },
-  { href: "/learn/programs", label: "My programs" },
-  { href: "/learn/org", label: "Org benefits" },
-  { href: "/learn/orders", label: "Orders" },
-  { href: "/billing", label: "Billing" },
+const NAV: NavSection[] = [
+  {
+    items: [
+      { href: "/learn", label: "Home", icon: "home", exact: true },
+      { href: "/learn/projects", label: "My projects", icon: "projects" },
+      { href: "/learn/programs", label: "My programs", icon: "programs" },
+      { href: "/learn/org", label: "Org benefits", icon: "community" },
+      { href: "/learn/orders", label: "Orders", icon: "orders" },
+      {
+        href: "/learn/notifications",
+        label: "Notifications",
+        icon: "notifications",
+      },
+    ],
+  },
+  {
+    label: "Account",
+    items: [
+      { href: "/billing", label: "Billing", icon: "billing" },
+      { href: "/courses", label: "Browse catalog", icon: "library" },
+    ],
+  },
 ];
 
-export default async function LearnLayout({ children }: { children: React.ReactNode }) {
-  await requireUser("/learn");
-
+export default async function LearnLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await requireUser("/learn");
+  const surfaces = await getAccessibleSurfaces(session);
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="font-semibold tracking-tight">
-              lms-web
-            </Link>
-            <nav className="flex items-center gap-4 text-sm text-muted-foreground">
-              {NAV.map((item) => (
-                <Link key={item.href} href={item.href} className="hover:text-foreground">
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button render={<Link href="/courses" />} variant="ghost" size="sm">
-              Browse
-            </Button>
-            <Button render={<Link href="/cart" />} variant="outline" size="sm">
-              Cart
-            </Button>
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto w-full max-w-6xl px-4 py-8">{children}</main>
-    </div>
+    <DashboardShell
+      brand={{ label: BRAND.name, sublabel: "Learning", href: "/learn" }}
+      nav={NAV}
+      surfaces={surfaces}
+      user={toShellUser(session.user)}
+    >
+      {children}
+    </DashboardShell>
   );
 }
