@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { Pill } from "@/components/shared";
 import {
   Table,
   TableBody,
@@ -41,55 +41,69 @@ export default async function AdminProjectsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Mentor matching</h1>
+      <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+        Mentor matching
+      </h1>
       {pending.length === 0 ? (
         <p className="text-sm text-muted-foreground">No instances waiting for a mentor.</p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Project</TableHead>
-              <TableHead>Learner</TableHead>
-              <TableHead>Requested level</TableHead>
-              <TableHead>Waiting since</TableHead>
-              <TableHead className="text-right">Assign</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pending.map((pi) => (
-              <TableRow key={pi.id}>
-                <TableCell>
-                  <div className="font-medium">{pi.project.title}</div>
-                  <div className="flex gap-1">
-                    <Badge>{pi.project.tier.toLowerCase()}</Badge>
-                    {pi.project.techStack.slice(0, 3).map((t) => (
-                      <Badge key={t} variant="outline">
-                        {t}
-                      </Badge>
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div>{pi.user.name}</div>
-                  <div className="text-xs text-muted-foreground">{pi.user.email}</div>
-                </TableCell>
-                <TableCell>
-                  {pi.requestedMentorLevel ? (
-                    <Badge variant="secondary">{pi.requestedMentorLevel.toLowerCase()}</Badge>
-                  ) : (
-                    "—"
-                  )}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {pi.createdAt.toLocaleDateString("en-IN", { dateStyle: "medium" })}
-                </TableCell>
-                <TableCell className="text-right">
-                  <AssignMentorDialog projectInstanceId={pi.id} mentors={mentorOptions} />
-                </TableCell>
+        <div className="overflow-x-auto rounded-2xl border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                  Project
+                </TableHead>
+                <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                  Learner
+                </TableHead>
+                <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                  Requested level
+                </TableHead>
+                <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                  Waiting since
+                </TableHead>
+                <TableHead className="text-right text-xs font-bold uppercase text-muted-foreground">
+                  Assign
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {pending.map((pi) => (
+                <TableRow key={pi.id} className="border-t border-border">
+                  <TableCell>
+                    <div className="font-medium">{pi.project.title}</div>
+                    <div className="flex gap-1">
+                      <Pill tone="distinction">{pi.project.tier.toLowerCase()}</Pill>
+                      {pi.project.techStack.slice(0, 3).map((t) => (
+                        <Pill key={t} tone="neutral">
+                          {t}
+                        </Pill>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div>{pi.user.name}</div>
+                    <div className="text-xs text-muted-foreground">{pi.user.email}</div>
+                  </TableCell>
+                  <TableCell>
+                    {pi.requestedMentorLevel ? (
+                      <Pill tone="info">{pi.requestedMentorLevel.toLowerCase()}</Pill>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {pi.createdAt.toLocaleDateString("en-IN", { dateStyle: "medium" })}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <AssignMentorDialog projectInstanceId={pi.id} mentors={mentorOptions} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   );

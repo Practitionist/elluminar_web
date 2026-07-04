@@ -10,8 +10,10 @@ export default async function AdminFlagsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Feature flags</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+          Feature flags
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Launch gates for tiers and post-MVP features — no deploy needed.
         </p>
       </div>
@@ -19,7 +21,7 @@ export default async function AdminFlagsPage() {
         {flags.map((f) => (
           <div
             key={f.id}
-            className="flex items-center justify-between rounded-md border px-4 py-3"
+            className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3"
           >
             <div>
               <p className="font-mono text-sm font-medium">{f.key}</p>

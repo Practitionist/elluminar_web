@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { Pill, type PillTone } from "@/components/shared";
 import {
   Table,
   TableBody,
@@ -11,6 +11,17 @@ import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 
 export const metadata = { title: "Orders" };
+
+const ORDER_STATUS_TONE: Record<string, PillTone> = {
+  DRAFT: "neutral",
+  PENDING_PAYMENT: "distinction",
+  PAID: "success",
+  PARTIALLY_REFUNDED: "destructive",
+  REFUNDED: "destructive",
+  FAILED: "destructive",
+  CANCELLED: "destructive",
+  EXPIRED: "neutral",
+};
 
 export default async function AdminOrdersPage() {
   const orders = await db.order.findMany({
@@ -25,52 +36,60 @@ export default async function AdminOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Orders</h1>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>#</TableHead>
-            <TableHead>Buyer</TableHead>
-            <TableHead>Items</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Total</TableHead>
-            <TableHead>Date</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {orders.map((o) => (
-            <TableRow key={o.id}>
-              <TableCell className="font-medium">#{o.orderNo}</TableCell>
-              <TableCell>
-                <div>{o.user.name}</div>
-                <div className="text-xs text-muted-foreground">{o.user.email}</div>
-              </TableCell>
-              <TableCell className="max-w-xs">
-                <p className="line-clamp-2 text-sm">
-                  {o.items.map((i) => i.titleSnapshot).join(", ")}
-                </p>
-              </TableCell>
-              <TableCell>
-                <Badge
-                  variant={
-                    o.status === "PAID"
-                      ? "default"
-                      : o.status === "PENDING_PAYMENT"
-                        ? "outline"
-                        : "secondary"
-                  }
-                >
-                  {o.status.toLowerCase().replace(/_/g, " ")}
-                </Badge>
-              </TableCell>
-              <TableCell className="font-medium">{formatMoney(o.totalMinor)}</TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {o.createdAt.toLocaleDateString("en-IN", { dateStyle: "medium" })}
-              </TableCell>
+      <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+        Orders
+      </h1>
+      <div className="overflow-x-auto rounded-2xl border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                #
+              </TableHead>
+              <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                Buyer
+              </TableHead>
+              <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                Items
+              </TableHead>
+              <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                Status
+              </TableHead>
+              <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                Total
+              </TableHead>
+              <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                Date
+              </TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {orders.map((o) => (
+              <TableRow key={o.id} className="border-t border-border">
+                <TableCell className="font-medium">#{o.orderNo}</TableCell>
+                <TableCell>
+                  <div>{o.user.name}</div>
+                  <div className="text-xs text-muted-foreground">{o.user.email}</div>
+                </TableCell>
+                <TableCell className="max-w-xs">
+                  <p className="line-clamp-2 text-sm">
+                    {o.items.map((i) => i.titleSnapshot).join(", ")}
+                  </p>
+                </TableCell>
+                <TableCell>
+                  <Pill tone={ORDER_STATUS_TONE[o.status] ?? "neutral"}>
+                    {o.status.toLowerCase().replace(/_/g, " ")}
+                  </Pill>
+                </TableCell>
+                <TableCell className="font-medium">{formatMoney(o.totalMinor)}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {o.createdAt.toLocaleDateString("en-IN", { dateStyle: "medium" })}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

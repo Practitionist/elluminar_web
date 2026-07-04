@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { Pill, type PillTone } from "@/components/shared";
 import {
   Table,
   TableBody,
@@ -13,6 +13,15 @@ import { formatMoney } from "@/lib/money";
 import { RecordPayoutDialog } from "./record-payout-dialog";
 
 export const metadata = { title: "Payouts" };
+
+const PAYOUT_STATUS_TONE: Record<string, PillTone> = {
+  DRAFT: "neutral",
+  PENDING_APPROVAL: "distinction",
+  PROCESSING: "info",
+  PAID: "success",
+  FAILED: "destructive",
+  CANCELLED: "destructive",
+};
 
 export default async function AdminPayoutsPage() {
   const [accounts, recentPayouts] = await Promise.all([
@@ -47,69 +56,86 @@ export default async function AdminPayoutsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Payouts</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+          Payouts
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Balances owed to creators and mentors. Manual payouts at MVP —
           RazorpayX automation is issue #14.
         </p>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Owner</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Balance</TableHead>
-            <TableHead className="text-right">Action</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {accounts.length === 0 ? (
+      <div className="overflow-x-auto rounded-2xl border border-border">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={4} className="text-center text-muted-foreground">
-                No outstanding balances.
-              </TableCell>
+              <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                Owner
+              </TableHead>
+              <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                Type
+              </TableHead>
+              <TableHead className="text-xs font-bold uppercase text-muted-foreground">
+                Balance
+              </TableHead>
+              <TableHead className="text-right text-xs font-bold uppercase text-muted-foreground">
+                Action
+              </TableHead>
             </TableRow>
-          ) : (
-            accounts.map((a) => (
-              <TableRow key={a.id}>
-                <TableCell className="font-medium">{ownerName(a)}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{a.ownerType.toLowerCase()}</Badge>
-                </TableCell>
-                <TableCell className="font-medium">
-                  {formatMoney(a.balanceCachedMinor, a.currency)}
-                </TableCell>
-                <TableCell className="text-right">
-                  <RecordPayoutDialog
-                    ledgerAccountId={a.id}
-                    ownerName={ownerName(a)}
-                    balanceRupees={Number(a.balanceCachedMinor) / 100}
-                  />
+          </TableHeader>
+          <TableBody>
+            {accounts.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                  No outstanding balances.
                 </TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+            ) : (
+              accounts.map((a) => (
+                <TableRow key={a.id} className="border-t border-border">
+                  <TableCell className="font-medium">{ownerName(a)}</TableCell>
+                  <TableCell>
+                    <Pill tone="neutral">{a.ownerType.toLowerCase()}</Pill>
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    {formatMoney(a.balanceCachedMinor, a.currency)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <RecordPayoutDialog
+                      ledgerAccountId={a.id}
+                      ownerName={ownerName(a)}
+                      balanceRupees={Number(a.balanceCachedMinor) / 100}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-      <div>
-        <h2 className="text-lg font-semibold">Recent payouts</h2>
-        <div className="mt-3 space-y-2 text-sm">
+      <section>
+        <h2 className="mb-3 text-base font-extrabold">Recent payouts</h2>
+        <div className="space-y-2 text-sm">
           {recentPayouts.map((p) => (
-            <div key={p.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+            <div
+              key={p.id}
+              className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3"
+            >
               <span>
                 {p.account.tenant?.displayName ?? p.account.mentorProfile?.user.name}
                 {p.providerRef ? ` · ${p.providerRef}` : ""}
               </span>
               <span className="flex items-center gap-2">
                 <span className="font-medium">{formatMoney(p.amountMinor, p.currency)}</span>
-                <Badge variant="outline">{p.status.toLowerCase()}</Badge>
+                <Pill tone={PAYOUT_STATUS_TONE[p.status] ?? "neutral"}>
+                  {p.status.toLowerCase()}
+                </Pill>
               </span>
             </div>
           ))}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { Pill } from "@/components/shared";
 import { db } from "@/lib/db";
 
 import { DomainVerifyToggle } from "./domain-verify-toggle";
@@ -13,8 +13,10 @@ export default async function AdminSsoPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">SSO providers</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+          SSO providers
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Verify domain ownership before enabling domain-based sign-in — an
           unverified domain must never auto-provision members.
         </p>
@@ -26,7 +28,7 @@ export default async function AdminSsoPage() {
           providers.map((p) => (
             <div
               key={p.providerId}
-              className="flex items-center justify-between rounded-md border px-4 py-3 text-sm"
+              className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm"
             >
               <div>
                 <span className="font-mono font-medium">{p.providerId}</span>
@@ -35,9 +37,9 @@ export default async function AdminSsoPage() {
                   · {p.domain} · {p.organization?.name ?? "no org"}
                 </span>
                 <div className="mt-1">
-                  <Badge variant={p.domainVerified ? "default" : "secondary"}>
+                  <Pill tone={p.domainVerified ? "success" : "distinction"}>
                     {p.domainVerified ? "verified" : "unverified"}
-                  </Badge>
+                  </Pill>
                 </div>
               </div>
               <DomainVerifyToggle providerId={p.providerId} verified={p.domainVerified} />

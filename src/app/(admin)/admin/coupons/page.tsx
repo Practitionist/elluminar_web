@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { Pill } from "@/components/shared";
 import { db } from "@/lib/db";
 
 import { AdminCouponCreate } from "./admin-coupon-create";
@@ -17,13 +17,15 @@ export default async function AdminCouponsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Coupons</h1>
+      <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+        Coupons
+      </h1>
       <AdminCouponCreate />
       <div className="space-y-2">
         {coupons.map((c) => (
           <div
             key={c.id}
-            className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+            className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm"
           >
             <div>
               <span className="font-mono font-medium">{c.code}</span>
@@ -38,13 +40,13 @@ export default async function AdminCouponsPage() {
                   ? `${(c.percentBps ?? 0) / 100}% off`
                   : `₹${Number(c.amountMinor ?? 0n) / 100} off`}
               </span>
-              <Badge variant="outline">
+              <Pill tone="neutral">
                 {c._count.redemptions}
                 {c.maxRedemptions ? `/${c.maxRedemptions}` : ""} used
-              </Badge>
-              <Badge variant={c.active ? "default" : "secondary"}>
+              </Pill>
+              <Pill tone={c.active ? "success" : "neutral"}>
                 {c.active ? "active" : "off"}
-              </Badge>
+              </Pill>
             </div>
           </div>
         ))}
