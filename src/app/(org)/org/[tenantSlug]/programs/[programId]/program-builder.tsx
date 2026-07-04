@@ -5,7 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { addProgramItem, removeProgramItem, setUnlockRule } from "@/actions/program";
-import { Badge } from "@/components/ui/badge";
+import { Pill } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -71,13 +71,22 @@ export function ProgramBuilder({
           {items.map((item, i) => (
             <div
               key={item.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"
             >
               <div className="flex min-w-0 items-center gap-2">
                 <span className="text-sm font-semibold text-muted-foreground">{i + 1}.</span>
-                <Badge variant="outline">{item.itemType.toLowerCase()}</Badge>
-                <span className="truncate text-sm font-medium">{item.title}</span>
-                {!item.required && <Badge variant="secondary">optional</Badge>}
+                <Pill
+                  tone={item.itemType === "COURSE" ? "primary" : "distinction"}
+                  className="px-2 py-0.5 text-[10px]"
+                >
+                  {item.itemType.toLowerCase()}
+                </Pill>
+                <span className="truncate text-sm font-bold">{item.title}</span>
+                {!item.required && (
+                  <Pill tone="neutral" className="px-2 py-0.5 text-[10px]">
+                    optional
+                  </Pill>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <span className="text-xs text-muted-foreground">unlocks after</span>
@@ -109,6 +118,7 @@ export function ProgramBuilder({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  className="rounded-full"
                   onClick={() => {
                     if (window.confirm("Remove this item from the program?"))
                       remove.execute({ tenantSlug, programId, itemId: item.id });
@@ -122,7 +132,7 @@ export function ProgramBuilder({
         </div>
       )}
 
-      <div className="flex flex-wrap items-end gap-3 rounded-md border border-dashed p-3">
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-border p-3">
         <div className="space-y-1">
           <Label className="text-xs">Type</Label>
           <Select
@@ -165,6 +175,7 @@ export function ProgramBuilder({
         </label>
         <Button
           disabled={!addId || add.isPending}
+          className="rounded-full"
           onClick={() =>
             add.execute({
               tenantSlug,

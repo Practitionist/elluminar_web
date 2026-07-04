@@ -1,6 +1,5 @@
-import { Badge } from "@/components/ui/badge";
+import { Pill, type PillTone } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireTenantMember } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getSignedReadUrl, isStorageConfigured } from "@/lib/storage";
@@ -8,6 +7,20 @@ import { getSignedReadUrl, isStorageConfigured } from "@/lib/storage";
 import { RequestReportButtons } from "./request-report-buttons";
 
 export const metadata = { title: "Reports" };
+
+const ENROLLMENT_STATUS_TONE: Record<string, PillTone> = {
+  ENROLLED: "neutral",
+  IN_PROGRESS: "info",
+  COMPLETED: "success",
+  DROPPED: "destructive",
+};
+
+const EXPORT_STATUS_TONE: Record<string, PillTone> = {
+  QUEUED: "neutral",
+  RUNNING: "info",
+  READY: "success",
+  FAILED: "destructive",
+};
 
 export default async function OrgReportsPage({
   params,
@@ -66,21 +79,21 @@ export default async function OrgReportsPage({
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
+        <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+          Reports
+        </h1>
         <RequestReportButtons tenantSlug={tenantSlug} />
       </div>
 
       {cohorts.map((cohort) => (
-        <Card key={cohort.id}>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {cohort.program.title} — {cohort.name}
-            </CardTitle>
-            <CardDescription>
-              {cohort.enrollments.length} learners · per-item completion
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <div key={cohort.id} className="rounded-2xl border border-border bg-card p-5">
+          <div className="text-base font-extrabold">
+            {cohort.program.title} — {cohort.name}
+          </div>
+          <div className="mt-0.5 text-xs font-semibold text-muted-foreground">
+            {cohort.enrollments.length} learners · per-item completion
+          </div>
+          <div className="mt-4">
             {cohort.enrollments.length === 0 ? (
               <p className="text-sm text-muted-foreground">No learners enrolled yet.</p>
             ) : (
@@ -90,7 +103,11 @@ export default async function OrgReportsPage({
                     <tr className="text-left text-xs text-muted-foreground">
                       <th className="py-1 pr-4">Learner</th>
                       {cohort.program.items.map((item, i) => (
-                        <th key={item.id} className="px-2 py-1 text-center" title={item.course?.title ?? item.project?.title ?? ""}>
+                        <th
+                          key={item.id}
+                          className="px-2 py-1 text-center"
+                          title={item.course?.title ?? item.project?.title ?? ""}
+                        >
                           {i + 1}
                         </th>
                       ))}
@@ -124,9 +141,9 @@ export default async function OrgReportsPage({
                               <span
                                 className={
                                   done
-                                    ? "text-green-600"
+                                    ? "text-success"
                                     : inProgress
-                                      ? "text-amber-500"
+                                      ? "text-distinction"
                                       : "text-muted-foreground/40"
                                 }
                               >
@@ -136,11 +153,9 @@ export default async function OrgReportsPage({
                           );
                         })}
                         <td className="px-2 py-1.5">
-                          <Badge
-                            variant={pe.status === "COMPLETED" ? "default" : "outline"}
-                          >
+                          <Pill tone={ENROLLMENT_STATUS_TONE[pe.status] ?? "neutral"}>
                             {pe.status.toLowerCase().replace("_", " ")}
-                          </Badge>
+                          </Pill>
                         </td>
                       </tr>
                     ))}
@@ -148,37 +163,38 @@ export default async function OrgReportsPage({
                 </table>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ))}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Exports</CardTitle>
-          <CardDescription>CSV downloads (async — refresh after requesting).</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="text-base font-extrabold">Exports</div>
+        <div className="mt-0.5 text-xs font-semibold text-muted-foreground">
+          CSV downloads (async — refresh after requesting).
+        </div>
+        <div className="mt-4 space-y-2 text-sm">
           {exportLinks.length === 0 ? (
             <p className="text-muted-foreground">No exports yet.</p>
           ) : (
             exportLinks.map((r) => (
               <div
                 key={r.id}
-                className="flex items-center justify-between rounded-md border px-3 py-2"
+                className="flex items-center justify-between rounded-xl border border-border px-3 py-2"
               >
                 <span>
                   {r.kind.toLowerCase()} ·{" "}
                   {r.createdAt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
                 </span>
                 <span className="flex items-center gap-2">
-                  <Badge variant={r.status === "READY" ? "default" : "secondary"}>
+                  <Pill tone={EXPORT_STATUS_TONE[r.status] ?? "neutral"}>
                     {r.status.toLowerCase()}
-                  </Badge>
+                  </Pill>
                   {r.downloadUrl && (
                     <Button
                       render={<a href={r.downloadUrl} download />}
                       size="sm"
                       variant="outline"
+                      className="rounded-full"
                     >
                       Download
                     </Button>
@@ -187,8 +203,8 @@ export default async function OrgReportsPage({
               </div>
             ))
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

@@ -43,7 +43,7 @@ export function RosterImportForm({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="rounded-full">
             Import CSV
           </Button>
         }
@@ -73,7 +73,7 @@ export function RosterImportForm({
             />
           </div>
           {rejected.length > 0 && (
-            <div className="max-h-32 overflow-y-auto rounded-md border border-destructive/40 p-2 text-xs">
+            <div className="max-h-32 space-y-1 overflow-y-auto rounded-xl border border-destructive/20 bg-destructive-subtle p-3 text-xs text-destructive-subtle-foreground">
               {rejected.map((r, i) => (
                 <p key={i}>
                   <span className="font-mono">{r.email}</span> — {r.reason}
@@ -81,7 +81,7 @@ export function RosterImportForm({
               ))}
             </div>
           )}
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button type="submit" disabled={isPending} className="w-full rounded-full">
             {isPending ? "Importing…" : "Import"}
           </Button>
           <p className="text-xs text-muted-foreground">

@@ -53,11 +53,11 @@ export function ProgramFormDialog({
       <DialogTrigger
         render={
           program ? (
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="rounded-full">
               Edit
             </Button>
           ) : (
-            <Button>+ New program</Button>
+            <Button className="rounded-full">+ New program</Button>
           )
         }
       />
@@ -114,7 +114,7 @@ export function ProgramFormDialog({
               placeholder="Shown on program certificates alongside lms-web"
             />
           </div>
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button type="submit" disabled={isPending} className="w-full rounded-full">
             {isPending ? "Saving…" : "Save program"}
           </Button>
         </form>

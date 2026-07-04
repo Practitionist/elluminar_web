@@ -25,6 +25,7 @@ export function ProgramStatusButton({
       <Button
         variant="outline"
         size="sm"
+        className="rounded-full"
         disabled={isPending}
         onClick={() => execute({ tenantSlug, programId, status: "ARCHIVED" })}
       >
@@ -35,6 +36,7 @@ export function ProgramStatusButton({
   return (
     <Button
       size="sm"
+      className="rounded-full"
       disabled={isPending}
       onClick={() => execute({ tenantSlug, programId, status: "ACTIVE" })}
     >

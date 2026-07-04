@@ -1,5 +1,4 @@
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pill } from "@/components/shared";
 import { requireTenantMember } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -20,39 +19,39 @@ export default async function OrgSettingsPage({
   });
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+          Settings
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Single sign-on for your workforce — members land in your organization
           automatically and roster seats activate on first SSO sign-in.
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">SSO providers (OIDC)</CardTitle>
-          <CardDescription>
-            Register your identity provider. Domain-based sign-in activates once
-            the platform team verifies domain ownership.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="text-base font-extrabold">SSO providers (OIDC)</div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Register your identity provider. Domain-based sign-in activates once
+          the platform team verifies domain ownership.
+        </p>
+        <div className="mt-4 space-y-4">
           {providers.length > 0 && (
             <div className="space-y-2">
               {providers.map((p) => (
                 <div
                   key={p.providerId}
-                  className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                  className="flex items-center justify-between rounded-xl border border-border px-3 py-2 text-sm"
                 >
                   <div>
-                    <span className="font-mono font-medium">{p.providerId}</span>
+                    <span className="font-mono font-bold">{p.providerId}</span>
                     <span className="text-muted-foreground"> · {p.domain}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={p.domainVerified ? "default" : "secondary"}>
+                    <Pill tone={p.domainVerified ? "success" : "distinction"}>
                       {p.domainVerified ? "domain verified" : "pending verification"}
-                    </Badge>
+                    </Pill>
                     <SsoRemoveButton tenantSlug={tenantSlug} providerId={p.providerId} />
                   </div>
                 </div>
@@ -60,8 +59,8 @@ export default async function OrgSettingsPage({
             </div>
           )}
           <SsoProviderForm tenantSlug={tenantSlug} />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

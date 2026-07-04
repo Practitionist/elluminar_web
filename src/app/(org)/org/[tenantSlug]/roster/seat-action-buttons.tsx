@@ -27,6 +27,7 @@ export function SeatActionButtons({
       <Button
         size="sm"
         variant="outline"
+        className="rounded-full"
         disabled={transfer.isPending}
         onClick={() => {
           const newEmail = window.prompt("Transfer this seat to (email):");
@@ -38,6 +39,7 @@ export function SeatActionButtons({
       <Button
         size="sm"
         variant="ghost"
+        className="rounded-full"
         disabled={revoke.isPending}
         onClick={() => {
           if (window.confirm("Revoke this seat? Licensed access ends immediately."))

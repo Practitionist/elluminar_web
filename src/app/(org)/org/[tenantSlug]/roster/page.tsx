@@ -1,5 +1,4 @@
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pill, type PillTone } from "@/components/shared";
 import {
   Table,
   TableBody,
@@ -16,6 +15,12 @@ import { RosterImportForm } from "./roster-import-form";
 import { SeatActionButtons } from "./seat-action-buttons";
 
 export const metadata = { title: "Roster" };
+
+const SEAT_STATUS_TONE: Record<string, PillTone> = {
+  INVITED: "distinction",
+  ACTIVATED: "success",
+  REVOKED: "destructive",
+};
 
 export default async function RosterPage({
   params,
@@ -41,8 +46,10 @@ export default async function RosterPage({
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{labels.members} roster</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+          {labels.members} roster
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Import a CSV (email,name) per license. Seats activate automatically
           when the invitee signs in with a verified matching email — including
           via SSO.
@@ -50,31 +57,29 @@ export default async function RosterPage({
       </div>
 
       {licenses.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-border bg-card px-6 py-8 text-center text-sm text-muted-foreground">
           Create a seat-based license first — rosters attach to licenses.
-        </p>
+        </div>
       ) : (
         licenses.map((license) => {
           const active = license.seatsAssigned.filter((s) => s.status !== "REVOKED");
           return (
-            <Card key={license.id}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base">
-                      {license.kind === "PROGRAM"
-                        ? `Program: ${license.program?.title ?? "—"}`
-                        : "Catalog seats"}
-                    </CardTitle>
-                    <CardDescription>
-                      {active.length} / {license.seats} seats ·{" "}
-                      {license.status.toLowerCase()}
-                    </CardDescription>
+            <div key={license.id} className="rounded-2xl border border-border bg-card p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-base font-extrabold">
+                    {license.kind === "PROGRAM"
+                      ? `Program: ${license.program?.title ?? "—"}`
+                      : "Catalog seats"}
                   </div>
-                  <RosterImportForm tenantSlug={tenantSlug} licenseId={license.id} />
+                  <div className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                    {active.length} / {license.seats} seats ·{" "}
+                    {license.status.toLowerCase()}
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent>
+                <RosterImportForm tenantSlug={tenantSlug} licenseId={license.id} />
+              </div>
+              <div className="mt-4">
                 {license.seatsAssigned.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No seats yet — import a roster.</p>
                 ) : (
@@ -99,17 +104,9 @@ export default async function RosterPage({
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge
-                              variant={
-                                seat.status === "ACTIVATED"
-                                  ? "default"
-                                  : seat.status === "INVITED"
-                                    ? "outline"
-                                    : "secondary"
-                              }
-                            >
+                            <Pill tone={SEAT_STATUS_TONE[seat.status] ?? "neutral"}>
                               {seat.status.toLowerCase()}
-                            </Badge>
+                            </Pill>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {(seat.activatedAt ?? seat.assignedAt).toLocaleDateString("en-IN", {
@@ -126,8 +123,8 @@ export default async function RosterPage({
                     </TableBody>
                   </Table>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })
       )}

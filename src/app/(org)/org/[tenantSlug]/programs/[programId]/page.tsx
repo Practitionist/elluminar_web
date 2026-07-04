@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pill, type PillTone } from "@/components/shared";
 import { requireTenantMember } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { tiptapToPlainText } from "@/lib/richtext";
@@ -13,6 +12,12 @@ import { ProgramFormDialog } from "../program-form-dialog";
 import { ProgramStatusButton } from "./program-status-button";
 
 export const metadata = { title: "Program builder" };
+
+const PROGRAM_STATUS_TONE: Record<string, PillTone> = {
+  DRAFT: "neutral",
+  ACTIVE: "success",
+  ARCHIVED: "neutral",
+};
 
 export default async function ProgramBuilderPage({
   params,
@@ -84,13 +89,15 @@ export default async function ProgramBuilderPage({
             ← Programs
           </Link>
           <div className="mt-1 flex items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{program.title}</h1>
-            <Badge variant={program.status === "ACTIVE" ? "default" : "outline"}>
+            <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+              {program.title}
+            </h1>
+            <Pill tone={PROGRAM_STATUS_TONE[program.status] ?? "neutral"}>
               {program.status.toLowerCase()}
-            </Badge>
+            </Pill>
           </div>
           {coBrand.partnerName && (
-            <p className="text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground">
               Certificate co-branded with {coBrand.partnerName}
             </p>
           )}
@@ -114,11 +121,9 @@ export default async function ProgramBuilderPage({
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Sequence</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="text-base font-extrabold">Sequence</div>
+        <div className="mt-4">
           <ProgramBuilder
             tenantSlug={tenantSlug}
             programId={program.id}
@@ -138,8 +143,8 @@ export default async function ProgramBuilderPage({
               title: `${p.title} (${p.tier.toLowerCase()})`,
             }))}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <ProgramCohortsPanel
         tenantSlug={tenantSlug}

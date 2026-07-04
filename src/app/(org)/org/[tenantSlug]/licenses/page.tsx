@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
+import { Pill, type PillTone } from "@/components/shared";
 import {
   Table,
   TableBody,
@@ -17,6 +17,13 @@ import { formatMoney } from "@/lib/money";
 import { CreateLicenseDialog } from "./create-license-dialog";
 
 export const metadata = { title: "Licenses" };
+
+const LICENSE_STATUS_TONE: Record<string, PillTone> = {
+  DRAFT: "neutral",
+  ACTIVE: "success",
+  EXPIRED: "distinction",
+  CANCELLED: "destructive",
+};
 
 export default async function OrgLicensesPage({
   params,
@@ -51,7 +58,9 @@ export default async function OrgLicensesPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Licenses</h1>
+        <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+          Licenses
+        </h1>
         <CreateLicenseDialog
           tenantSlug={tenantSlug}
           programs={programs}
@@ -59,59 +68,61 @@ export default async function OrgLicensesPage({
         />
       </div>
       {licenses.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-border bg-card px-6 py-8 text-center text-sm text-muted-foreground">
           No licenses yet. Create one — it activates once the platform records
           your contract payment.
-        </p>
+        </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Kind</TableHead>
-              <TableHead>Window</TableHead>
-              <TableHead>Capacity / balance</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {licenses.map((l) => {
-              const consumed = l.consumptions.reduce((s, c) => s + c.amountMinor, 0n);
-              return (
-                <TableRow key={l.id}>
-                  <TableCell>
-                    <Link
-                      href={`/org/${tenantSlug}/licenses/${l.id}`}
-                      className="font-medium hover:underline"
-                    >
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Kind</TableHead>
+                <TableHead>Window</TableHead>
+                <TableHead>Capacity / balance</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {licenses.map((l) => {
+                const consumed = l.consumptions.reduce((s, c) => s + c.amountMinor, 0n);
+                return (
+                  <TableRow key={l.id}>
+                    <TableCell>
+                      <Link
+                        href={`/org/${tenantSlug}/licenses/${l.id}`}
+                        className="font-semibold hover:underline"
+                      >
+                        {l.kind === "CREDIT_POOL"
+                          ? "Credit pool"
+                          : l.kind === "PROGRAM"
+                            ? `Program: ${l.program?.title ?? "—"}`
+                            : "Catalog seats"}
+                      </Link>
+                      {l.contractRef && (
+                        <div className="text-xs text-muted-foreground">{l.contractRef}</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {l.startsAt.toLocaleDateString("en-IN", { dateStyle: "medium" })} →{" "}
+                      {l.endsAt.toLocaleDateString("en-IN", { dateStyle: "medium" })}
+                    </TableCell>
+                    <TableCell className="text-sm">
                       {l.kind === "CREDIT_POOL"
-                        ? "Credit pool"
-                        : l.kind === "PROGRAM"
-                          ? `Program: ${l.program?.title ?? "—"}`
-                          : "Catalog seats"}
-                    </Link>
-                    {l.contractRef && (
-                      <div className="text-xs text-muted-foreground">{l.contractRef}</div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {l.startsAt.toLocaleDateString("en-IN", { dateStyle: "medium" })} →{" "}
-                    {l.endsAt.toLocaleDateString("en-IN", { dateStyle: "medium" })}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {l.kind === "CREDIT_POOL"
-                      ? `${formatMoney(poolBalanceMinor(l.contractValueMinor ?? 0n, consumed))} left of ${formatMoney(l.contractValueMinor ?? 0n)}`
-                      : `${l.seatsAssigned.length} / ${l.seats} seats`}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={l.status === "ACTIVE" ? "default" : "secondary"}>
-                      {l.status.toLowerCase()}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                        ? `${formatMoney(poolBalanceMinor(l.contractValueMinor ?? 0n, consumed))} left of ${formatMoney(l.contractValueMinor ?? 0n)}`
+                        : `${l.seatsAssigned.length} / ${l.seats} seats`}
+                    </TableCell>
+                    <TableCell>
+                      <Pill tone={LICENSE_STATUS_TONE[l.status] ?? "neutral"}>
+                        {l.status.toLowerCase()}
+                      </Pill>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   );

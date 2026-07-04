@@ -1,14 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/dashboard/stat-card";
+import { Pill, type PillTone } from "@/components/shared";
 import { requireTenantMember } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { poolBalanceMinor } from "@/lib/enterprise/credit-math";
 import { formatMoney } from "@/lib/money";
 
 export const metadata = { title: "License" };
+
+const LICENSE_STATUS_TONE: Record<string, PillTone> = {
+  DRAFT: "neutral",
+  ACTIVE: "success",
+  EXPIRED: "distinction",
+  CANCELLED: "destructive",
+};
 
 export default async function LicenseDetailPage({
   params,
@@ -52,16 +59,16 @@ export default async function LicenseDetailPage({
           ← Licenses
         </Link>
         <div className="mt-1 flex items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
             {license.kind === "CREDIT_POOL"
               ? "Credit pool"
               : license.kind === "PROGRAM"
                 ? `Program license — ${license.program?.title}`
                 : "Catalog seat license"}
           </h1>
-          <Badge variant={license.status === "ACTIVE" ? "default" : "secondary"}>
+          <Pill tone={LICENSE_STATUS_TONE[license.status] ?? "neutral"}>
             {license.status.toLowerCase()}
-          </Badge>
+          </Pill>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
           {license.startsAt.toLocaleDateString("en-IN", { dateStyle: "medium" })} →{" "}
@@ -73,75 +80,65 @@ export default async function LicenseDetailPage({
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {license.kind === "CREDIT_POOL" ? (
           <>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Pool</CardDescription>
-                <CardTitle className="text-2xl tabular-nums">
-                  {formatMoney(license.contractValueMinor ?? 0n)}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Consumed</CardDescription>
-                <CardTitle className="text-2xl tabular-nums">{formatMoney(consumed)}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Balance</CardDescription>
-                <CardTitle className="text-2xl tabular-nums">
-                  {formatMoney(poolBalanceMinor(license.contractValueMinor ?? 0n, consumed))}
-                </CardTitle>
-              </CardHeader>
-            </Card>
+            <StatCard
+              icon="earnings"
+              label="Pool"
+              value={formatMoney(license.contractValueMinor ?? 0n)}
+              tone="primary"
+            />
+            <StatCard
+              icon="earnings"
+              label="Consumed"
+              value={formatMoney(consumed)}
+              tone="distinction"
+            />
+            <StatCard
+              icon="earnings"
+              label="Balance"
+              value={formatMoney(poolBalanceMinor(license.contractValueMinor ?? 0n, consumed))}
+              tone="success"
+            />
           </>
         ) : (
           <>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Seats</CardDescription>
-                <CardTitle className="text-2xl tabular-nums">
-                  {license.seatsAssigned.filter((s) => s.status !== "REVOKED").length} /{" "}
-                  {license.seats}
-                </CardTitle>
-              </CardHeader>
-            </Card>
+            <StatCard
+              icon="roster"
+              label="Seats"
+              value={`${license.seatsAssigned.filter((s) => s.status !== "REVOKED").length} / ${license.seats}`}
+              tone="info"
+            />
             {license.kind === "CATALOG" && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Catalog scope</CardDescription>
-                  <CardTitle className="text-2xl tabular-nums">
-                    {scope.courseIds?.length ? `${scope.courseIds.length} courses` : "Full catalog"}
-                  </CardTitle>
-                </CardHeader>
-              </Card>
+              <StatCard
+                icon="licenses"
+                label="Catalog scope"
+                value={scope.courseIds?.length ? `${scope.courseIds.length} courses` : "Full catalog"}
+                tone="neutral"
+              />
             )}
           </>
         )}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Contract value</CardDescription>
-            <CardTitle className="text-2xl tabular-nums">
-              {license.contractValueMinor ? formatMoney(license.contractValueMinor) : "—"}
-            </CardTitle>
-          </CardHeader>
-        </Card>
+        <StatCard
+          icon="earnings"
+          label="Contract value"
+          value={license.contractValueMinor ? formatMoney(license.contractValueMinor) : "—"}
+          tone="primary"
+        />
       </div>
 
       {license.kind === "CREDIT_POOL" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Consumption ledger</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <div className="text-base font-extrabold">Consumption ledger</div>
+          <div className="mt-4 space-y-2 text-sm">
             {license.consumptions.length === 0 ? (
               <p className="text-muted-foreground">No redemptions yet.</p>
             ) : (
               license.consumptions.map((c) => (
-                <div key={c.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between rounded-xl border border-border px-3 py-2"
+                >
                   <div>
-                    <span className="font-medium">
+                    <span className="font-bold">
                       {c.course?.title ?? c.project?.title}
                     </span>
                     <span className="text-muted-foreground">
@@ -150,19 +147,17 @@ export default async function LicenseDetailPage({
                       {c.createdAt.toLocaleDateString("en-IN", { dateStyle: "medium" })}
                     </span>
                   </div>
-                  <span className="font-medium">−{formatMoney(c.amountMinor)}</span>
+                  <span className="font-bold">−{formatMoney(c.amountMinor)}</span>
                 </div>
               ))
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Payments</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="text-base font-extrabold">Payments</div>
+        <div className="mt-4 space-y-2 text-sm">
           {license.payments.length === 0 ? (
             <p className="text-muted-foreground">
               No payments recorded — the platform records contract payments,
@@ -170,17 +165,20 @@ export default async function LicenseDetailPage({
             </p>
           ) : (
             license.payments.map((p) => (
-              <div key={p.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+              <div
+                key={p.id}
+                className="flex items-center justify-between rounded-xl border border-border px-3 py-2"
+              >
                 <span className="text-muted-foreground">
                   {p.providerPaymentRef} ·{" "}
                   {p.capturedAt?.toLocaleDateString("en-IN", { dateStyle: "medium" })}
                 </span>
-                <span className="font-medium">{formatMoney(p.amountMinor)}</span>
+                <span className="font-bold">{formatMoney(p.amountMinor)}</span>
               </div>
             ))
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

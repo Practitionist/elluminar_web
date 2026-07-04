@@ -25,7 +25,7 @@ export function SsoProviderForm({ tenantSlug }: { tenantSlug: string }) {
 
   if (!open) {
     return (
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      <Button variant="outline" className="rounded-full" onClick={() => setOpen(true)}>
         + Register OIDC provider
       </Button>
     );
@@ -45,7 +45,7 @@ export function SsoProviderForm({ tenantSlug }: { tenantSlug: string }) {
           clientSecret: String(form.get("clientSecret")),
         });
       }}
-      className="space-y-4 rounded-md border p-4"
+      className="space-y-4 rounded-xl border border-border p-4"
     >
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -78,10 +78,15 @@ export function SsoProviderForm({ tenantSlug }: { tenantSlug: string }) {
         </div>
       </div>
       <div className="flex gap-2">
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending} className="rounded-full">
           {isPending ? "Registering…" : "Register provider"}
         </Button>
-        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+        <Button
+          type="button"
+          variant="ghost"
+          className="rounded-full"
+          onClick={() => setOpen(false)}
+        >
           Cancel
         </Button>
       </div>
@@ -109,6 +114,7 @@ export function SsoRemoveButton({
     <Button
       variant="ghost"
       size="icon-sm"
+      className="rounded-full"
       disabled={isPending}
       onClick={() => {
         if (window.confirm("Remove this SSO provider? Members can still sign in with email."))

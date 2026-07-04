@@ -5,9 +5,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { bulkEnrollSeats, upsertProgramCohort } from "@/actions/program";
-import { Badge } from "@/components/ui/badge";
+import { Pill, type PillTone } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -29,6 +28,14 @@ type CohortRow = {
   enrolled: number;
 };
 
+const COHORT_STATUS_TONE: Record<string, PillTone> = {
+  DRAFT: "neutral",
+  OPEN: "info",
+  RUNNING: "info",
+  COMPLETED: "success",
+  CANCELLED: "destructive",
+};
+
 export function ProgramCohortsPanel({
   tenantSlug,
   programId,
@@ -41,12 +48,12 @@ export function ProgramCohortsPanel({
   activatedSeats: Array<{ id: string; label: string }>;
 }) {
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">Cohorts</CardTitle>
+    <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="flex items-center justify-between">
+        <div className="text-base font-extrabold">Cohorts</div>
         <CohortDialog tenantSlug={tenantSlug} programId={programId} />
-      </CardHeader>
-      <CardContent className="space-y-2">
+      </div>
+      <div className="mt-4 space-y-2">
         {cohorts.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No cohorts yet — a cohort is a scheduled run of this program.
@@ -55,10 +62,10 @@ export function ProgramCohortsPanel({
           cohorts.map((c) => (
             <div
               key={c.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2 text-sm"
             >
               <div>
-                <span className="font-medium">{c.name}</span>
+                <span className="font-bold">{c.name}</span>
                 <span className="text-muted-foreground">
                   {" "}
                   · {c.enrolled}
@@ -69,7 +76,9 @@ export function ProgramCohortsPanel({
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="outline">{c.status.toLowerCase()}</Badge>
+                <Pill tone={COHORT_STATUS_TONE[c.status] ?? "neutral"}>
+                  {c.status.toLowerCase()}
+                </Pill>
                 <EnrollSeatsDialog
                   tenantSlug={tenantSlug}
                   programCohortId={c.id}
@@ -79,8 +88,8 @@ export function ProgramCohortsPanel({
             </div>
           ))
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -104,7 +113,7 @@ function CohortDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="rounded-full">
             + Cohort
           </Button>
         }
@@ -146,7 +155,7 @@ function CohortDialog({
             <Label htmlFor="capacity">Capacity</Label>
             <Input id="capacity" name="capacity" type="number" min={1} />
           </div>
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button type="submit" disabled={isPending} className="w-full rounded-full">
             {isPending ? "Saving…" : "Save cohort"}
           </Button>
         </form>
@@ -179,7 +188,7 @@ function EnrollSeatsDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button size="sm" disabled={seats.length === 0}>
+          <Button size="sm" className="rounded-full" disabled={seats.length === 0}>
             Enroll seats
           </Button>
         }
@@ -188,7 +197,7 @@ function EnrollSeatsDialog({
         <DialogHeader>
           <DialogTitle>Enroll activated seats</DialogTitle>
         </DialogHeader>
-        <div className="max-h-64 space-y-1 overflow-y-auto rounded-md border p-2">
+        <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
           {seats.map((s) => (
             <label key={s.id} className="flex items-center gap-2 text-sm">
               <Checkbox
@@ -215,6 +224,7 @@ function EnrollSeatsDialog({
           </button>
           <Button
             disabled={selected.length === 0 || isPending}
+            className="rounded-full"
             onClick={() => execute({ tenantSlug, programCohortId, seatIds: selected })}
           >
             {isPending ? "Enrolling…" : `Enroll ${selected.length}`}

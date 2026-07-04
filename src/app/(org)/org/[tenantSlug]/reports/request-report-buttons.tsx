@@ -22,6 +22,7 @@ export function RequestReportButtons({ tenantSlug }: { tenantSlug: string }) {
       <Button
         variant="outline"
         size="sm"
+        className="rounded-full"
         disabled={isPending}
         onClick={() => execute({ tenantSlug, kind: "COMPLETION" })}
       >
@@ -30,6 +31,7 @@ export function RequestReportButtons({ tenantSlug }: { tenantSlug: string }) {
       <Button
         variant="outline"
         size="sm"
+        className="rounded-full"
         disabled={isPending}
         onClick={() => execute({ tenantSlug, kind: "ENGAGEMENT" })}
       >

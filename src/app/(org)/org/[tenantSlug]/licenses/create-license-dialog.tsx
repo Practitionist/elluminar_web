@@ -93,7 +93,7 @@ export function CreateLicenseDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button>+ New license</Button>} />
+      <DialogTrigger render={<Button className="rounded-full">+ New license</Button>} />
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Create a license</DialogTitle>
@@ -152,7 +152,7 @@ export function CreateLicenseDialog({
           {kind === "CATALOG" && (
             <div className="space-y-2">
               <Label>Catalog scope (leave empty = full marketplace catalog)</Label>
-              <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+              <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
                 {courses.map((c) => (
                   <label key={c.id} className="flex items-center gap-2 text-sm">
                     <Checkbox
@@ -189,7 +189,7 @@ export function CreateLicenseDialog({
             </div>
           </div>
 
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button type="submit" disabled={isPending} className="w-full rounded-full">
             {isPending ? "Creating…" : "Create license (draft)"}
           </Button>
         </form>
