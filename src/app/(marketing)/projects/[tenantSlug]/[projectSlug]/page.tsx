@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
+import { CircleDot } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AddToCartButton } from "@/components/catalog/add-to-cart-button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { GradientThumb, Pill } from "@/components/shared";
 import { db } from "@/lib/db";
-import { formatMoney } from "@/lib/money";
+import { priceDisplay } from "@/lib/ui/price";
+import { cn } from "@/lib/utils";
 import { tiptapToPlainText } from "@/lib/richtext";
 
 async function loadProject(tenantSlug: string, projectSlug: string) {
@@ -57,118 +58,163 @@ export default async function ProjectDetailPage({
   const project = await loadProject(tenantSlug, projectSlug);
   if (!project) notFound();
 
-  const basePrice = project.prices.find((p) => p.mentorLevel === null);
+  const basePrice = priceDisplay(
+    project.prices.find((p) => p.mentorLevel === null) ?? null,
+  );
   const levelPrices = project.prices.filter((p) => p.mentorLevel !== null);
   const brief = tiptapToPlainText(project.brief);
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-10">
-      <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
+    <div className="mx-auto w-full max-w-6xl px-4 py-12">
+      <div className="grid gap-10 lg:grid-cols-[1fr_340px]">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge>{project.tier.toLowerCase()}</Badge>
-            <Badge variant="outline">
+            <Pill tone="distinction">{project.tier.toLowerCase()}</Pill>
+            <Pill tone="neutral">
               {project.durationWeeksMin}–{project.durationWeeksMax} weeks
-            </Badge>
-            <Badge variant="outline">~{Number(project.mentorHoursBudget)}h mentor time</Badge>
-            {project.defenseRequired && <Badge variant="secondary">live defense</Badge>}
-            {project.partnerCompanyName && (
-              <Badge variant="secondary">brief by {project.partnerCompanyName}</Badge>
-            )}
+            </Pill>
+            <Pill tone="neutral">
+              ~{Number(project.mentorHoursBudget)}h mentor time
+            </Pill>
+            {project.defenseRequired ? (
+              <Pill tone="info">Live defense</Pill>
+            ) : null}
+            {project.partnerCompanyName ? (
+              <Pill tone="primary">brief by {project.partnerCompanyName}</Pill>
+            ) : null}
           </div>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight">{project.title}</h1>
+          <h1 className="mt-4 font-display text-3xl font-medium tracking-tight sm:text-4xl">
+            {project.title}
+          </h1>
           <p className="mt-2 text-lg text-muted-foreground">{project.summary}</p>
           <p className="mt-2 text-sm text-muted-foreground">
             By{" "}
-            <Link href={`/c/${project.tenant.slug}`} className="font-medium hover:underline">
+            <Link
+              href={`/c/${project.tenant.slug}`}
+              className="font-semibold text-foreground hover:underline"
+            >
               {project.tenant.displayName}
             </Link>
           </p>
 
-          {project.techStack.length > 0 && (
+          {project.techStack.length > 0 ? (
             <div className="mt-4 flex flex-wrap gap-1.5">
               {project.techStack.map((t) => (
-                <Badge key={t} variant="outline">
+                <span
+                  key={t}
+                  className="rounded-md bg-muted px-2.5 py-1 font-mono text-xs font-semibold text-muted-foreground"
+                >
                   {t}
-                </Badge>
+                </span>
               ))}
             </div>
-          )}
+          ) : null}
 
-          {brief && (
+          {brief ? (
             <>
-              <h2 className="mt-8 text-xl font-semibold">The brief</h2>
-              <p className="mt-3 whitespace-pre-line text-sm leading-6">{brief}</p>
+              <h2 className="mt-10 font-display text-2xl font-medium tracking-tight">
+                The brief
+              </h2>
+              <p className="mt-3 leading-7 whitespace-pre-line text-foreground/90">
+                {brief}
+              </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                Deliberately ambiguous — you make and justify the tradeoffs. Your work
-                is checked against a held-out evaluation you can&apos;t see in advance.
+                Deliberately ambiguous — you make and justify the tradeoffs. Your
+                work is checked against a held-out evaluation you can&apos;t see
+                in advance.
               </p>
             </>
-          )}
+          ) : null}
 
-          <h2 className="mt-8 text-xl font-semibold">Milestones & mentor checkpoints</h2>
-          <div className="mt-3 space-y-3">
+          <h2 className="mt-10 font-display text-2xl font-medium tracking-tight">
+            Milestones &amp; mentor checkpoints
+          </h2>
+          <div className="mt-4 space-y-3">
             {project.milestones.map((m, i) => (
-              <Card key={m.id}>
-                <CardHeader className="py-3">
-                  <CardTitle className="flex items-center justify-between text-sm">
-                    <span>
-                      {i + 1}. {m.title}
-                    </span>
-                    <span className="flex gap-2">
-                      {m.expectedWeek && (
-                        <Badge variant="outline">week {m.expectedWeek}</Badge>
-                      )}
-                      {m.isReviewCheckpoint && <Badge>mentor review</Badge>}
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-              </Card>
+              <div
+                key={m.id}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-5 py-4"
+              >
+                <span className="flex items-center gap-3 text-sm font-bold">
+                  <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary-subtle text-xs font-extrabold text-primary-subtle-foreground">
+                    {i + 1}
+                  </span>
+                  {m.title}
+                </span>
+                <span className="flex shrink-0 gap-2">
+                  {m.expectedWeek ? (
+                    <Pill tone="neutral" className="px-2 py-0.5 text-[10px]">
+                      week {m.expectedWeek}
+                    </Pill>
+                  ) : null}
+                  {m.isReviewCheckpoint ? (
+                    <Pill tone="success" className="px-2 py-0.5 text-[10px]">
+                      mentor review
+                    </Pill>
+                  ) : null}
+                </span>
+              </div>
             ))}
           </div>
 
-          <h2 className="mt-8 text-xl font-semibold">How you&apos;re graded</h2>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <h2 className="mt-10 font-display text-2xl font-medium tracking-tight">
+            How you&apos;re graded
+          </h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {project.rubric.criteria.map((c) => (
-              <Card key={c.id}>
-                <CardContent className="pt-4">
-                  <div className="text-sm font-medium">{c.name}</div>
-                  <div className="text-xs text-muted-foreground">{c.weightPct}% weight</div>
-                </CardContent>
-              </Card>
+              <div
+                key={c.id}
+                className="rounded-2xl border border-border bg-card p-4"
+              >
+                <CircleDot className="size-4 text-primary" />
+                <div className="mt-2 text-sm font-extrabold">{c.name}</div>
+                <div className="text-xs font-semibold text-muted-foreground">
+                  {c.weightPct}% weight
+                </div>
+              </div>
             ))}
           </div>
         </div>
 
-        <aside className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Buy this project</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <aside>
+          <div className="sticky top-20 overflow-hidden rounded-2xl border border-border bg-card">
+            <GradientThumb keyer={project.slug} variant="dark" className="h-24" />
+            <div className="space-y-4 p-5">
               <div>
-                <div className="text-3xl font-semibold">
-                  {basePrice ? formatMoney(basePrice.amountMinor) : "—"}
+                <div
+                  className={cn(
+                    "text-3xl font-extrabold tracking-tight",
+                    basePrice.isFree && "text-success-subtle-foreground",
+                  )}
+                >
+                  {basePrice.label}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Includes mentor review at every checkpoint
                   {project.defenseRequired ? " + live defense" : ""}.
                 </p>
               </div>
-              <AddToCartButton itemType="PROJECT" projectId={project.id} label="Add to cart" />
-              {levelPrices.length > 0 && (
-                <div className="space-y-2 border-t pt-3">
-                  <p className="text-xs font-medium text-muted-foreground">
+              <AddToCartButton
+                itemType="PROJECT"
+                projectId={project.id}
+                label="Add to cart"
+              />
+              {levelPrices.length > 0 ? (
+                <div className="space-y-2.5 border-t border-border pt-4">
+                  <p className="text-xs font-bold text-muted-foreground">
                     Choose a more senior reviewer:
                   </p>
                   {levelPrices.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between gap-2">
-                      <span className="text-sm">
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <span className="text-sm font-semibold">
                         {LEVEL_LABELS[p.mentorLevel!] ?? p.mentorLevel}
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">
-                          {formatMoney(p.amountMinor)}
+                        <span className="text-sm font-extrabold">
+                          {priceDisplay(p).label}
                         </span>
                         <AddToCartButton
                           itemType="PROJECT"
@@ -182,12 +228,12 @@ export default async function ProjectDetailPage({
                     </div>
                   ))}
                 </div>
-              )}
+              ) : null}
               <p className="text-xs text-muted-foreground">
                 Fully refundable until your mentor kickoff call.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </aside>
       </div>
     </div>

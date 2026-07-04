@@ -33,6 +33,7 @@ export function SubscribeButton({
   isCurrent,
   hasAnnual,
   disabled,
+  interval: controlledInterval,
 }: {
   planCode: string;
   planName: string;
@@ -40,10 +41,15 @@ export function SubscribeButton({
   isCurrent: boolean;
   hasAnnual: boolean;
   disabled: boolean;
+  /** When provided, the button follows this interval and hides its own toggle. */
+  interval?: "MONTHLY" | "ANNUAL";
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [interval, setInterval] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
+  const [internalInterval, setInternalInterval] = useState<
+    "MONTHLY" | "ANNUAL"
+  >("MONTHLY");
+  const interval = controlledInterval ?? internalInterval;
 
   const confirm = useAction(confirmSubscription, {
     onSuccess: () => {
@@ -122,13 +128,13 @@ export function SubscribeButton({
 
   return (
     <div className="space-y-2">
-      {hasAnnual && (
+      {hasAnnual && controlledInterval === undefined && (
         <div className="flex gap-1 rounded-md border p-0.5 text-xs">
           {(["MONTHLY", "ANNUAL"] as const).map((i) => (
             <button
               key={i}
               type="button"
-              onClick={() => setInterval(i)}
+              onClick={() => setInternalInterval(i)}
               className={`flex-1 rounded px-2 py-1 ${interval === i ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
             >
               {i === "MONTHLY" ? "Monthly" : "Annual"}
