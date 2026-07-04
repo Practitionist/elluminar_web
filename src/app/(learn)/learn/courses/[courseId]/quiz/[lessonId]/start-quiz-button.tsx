@@ -21,7 +21,12 @@ export function StartQuizButton({
   });
 
   return (
-    <Button size="lg" disabled={isPending} onClick={() => execute({ courseId, lessonId })}>
+    <Button
+      size="lg"
+      className="rounded-full"
+      disabled={isPending}
+      onClick={() => execute({ courseId, lessonId })}
+    >
       {isPending ? "Starting…" : "Start attempt"}
     </Button>
   );

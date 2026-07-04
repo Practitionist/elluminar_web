@@ -1,5 +1,4 @@
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pill, type PillTone } from "@/components/shared";
 import { requireUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
@@ -7,6 +6,25 @@ import { formatMoney } from "@/lib/money";
 import { RequestRefundButton } from "./request-refund-button";
 
 export const metadata = { title: "Orders & refunds" };
+
+const ORDER_STATUS_TONE: Record<string, PillTone> = {
+  PAID: "success",
+  PENDING_PAYMENT: "distinction",
+  PARTIALLY_REFUNDED: "neutral",
+  REFUNDED: "neutral",
+  FAILED: "destructive",
+  CANCELLED: "destructive",
+  EXPIRED: "destructive",
+};
+
+const REFUND_STATUS_TONE: Record<string, PillTone> = {
+  REQUESTED: "distinction",
+  APPROVED: "info",
+  PROCESSING: "distinction",
+  PROCESSED: "success",
+  REJECTED: "destructive",
+  FAILED: "destructive",
+};
 
 export default async function OrdersPage() {
   const session = await requireUser("/learn/orders");
@@ -26,8 +44,10 @@ export default async function OrdersPage() {
 
   if (orders.length === 0) {
     return (
-      <div className="py-16 text-center text-muted-foreground">
-        No orders yet — your purchases will appear here.
+      <div className="space-y-6">
+        <div className="rounded-2xl border border-border bg-card px-6 py-16 text-center text-sm text-muted-foreground">
+          No orders yet — your purchases will appear here.
+        </div>
       </div>
     );
   }
@@ -36,24 +56,28 @@ export default async function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Orders & refunds</h1>
+      <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+        Orders & refunds
+      </h1>
       {orders.map((order) => (
-        <Card key={order.id}>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">
-              Order #{order.orderNo}
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
+        <div key={order.id} className="rounded-2xl border border-border bg-card p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <span className="text-base font-extrabold">Order #{order.orderNo}</span>
+              <span className="ml-2 text-sm font-semibold text-muted-foreground">
                 {order.createdAt.toLocaleDateString("en-IN", { dateStyle: "medium" })}
               </span>
-            </CardTitle>
-            <div className="flex items-center gap-3">
-              <Badge variant={order.status === "PAID" ? "default" : "secondary"}>
-                {order.status.toLowerCase().replace("_", " ")}
-              </Badge>
-              <span className="font-medium">{formatMoney(order.totalMinor)}</span>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
+            <div className="flex items-center gap-3">
+              <Pill tone={ORDER_STATUS_TONE[order.status] ?? "neutral"}>
+                {order.status.toLowerCase().replace("_", " ")}
+              </Pill>
+              <span className="text-sm font-extrabold tabular-nums">
+                {formatMoney(order.totalMinor)}
+              </span>
+            </div>
+          </div>
+          <div className="mt-3 space-y-2">
             {order.items.map((item) => {
               const openRefund = item.refunds.find((r) =>
                 ["REQUESTED", "APPROVED", "PROCESSING"].includes(r.status),
@@ -72,10 +96,10 @@ export default async function OrdersPage() {
               return (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5 text-sm"
                 >
                   <div>
-                    <div className="font-medium">{item.titleSnapshot}</div>
+                    <div className="font-bold">{item.titleSnapshot}</div>
                     <div className="text-xs text-muted-foreground">
                       {item.itemType === "PROJECT"
                         ? "Refundable until mentor kickoff"
@@ -85,16 +109,20 @@ export default async function OrdersPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span>{formatMoney(item.totalMinor)}</span>
-                    {processedRefund && <Badge variant="secondary">refunded</Badge>}
-                    {openRefund && <Badge variant="outline">refund {openRefund.status.toLowerCase()}</Badge>}
+                    <span className="font-bold tabular-nums">{formatMoney(item.totalMinor)}</span>
+                    {processedRefund && <Pill tone="success">refunded</Pill>}
+                    {openRefund && (
+                      <Pill tone={REFUND_STATUS_TONE[openRefund.status] ?? "distinction"}>
+                        refund {openRefund.status.toLowerCase()}
+                      </Pill>
+                    )}
                     {refundableNow && <RequestRefundButton orderItemId={item.id} />}
                   </div>
                 </div>
               );
             })}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ))}
     </div>
   );

@@ -1,8 +1,8 @@
+import { Award, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pill, type PillTone } from "@/components/shared";
 import { requireUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { tiptapToPlainText } from "@/lib/richtext";
@@ -19,6 +19,33 @@ const STATUS_HINT: Record<string, string> = {
   DEFENSE_PENDING: "Final step: your live defense.",
   PASSED: "Mentor-verified. Your credential is live.",
   FAILED: "Not passed this time — the feedback below explains why.",
+};
+
+const PROJECT_STATUS_TONE: Record<string, PillTone> = {
+  PENDING_KICKOFF: "neutral",
+  IN_PROGRESS: "info",
+  IN_REVIEW: "info",
+  CHANGES_REQUESTED: "distinction",
+  DEFENSE_PENDING: "distinction",
+  PASSED: "success",
+  FAILED: "destructive",
+  WITHDRAWN: "neutral",
+  REFUNDED: "neutral",
+};
+
+const MILESTONE_STATUS_TONE: Record<string, PillTone> = {
+  SUBMITTED: "neutral",
+  IN_REVIEW: "info",
+  APPROVED: "success",
+  CHANGES_REQUESTED: "distinction",
+};
+
+const REVIEW_DECISION_TONE: Record<string, PillTone> = {
+  APPROVED: "success",
+  PASS: "success",
+  CHANGES_REQUESTED: "distinction",
+  REJECTED: "destructive",
+  FAIL: "destructive",
 };
 
 export default async function ProjectWorkspacePage({
@@ -63,64 +90,70 @@ export default async function ProjectWorkspacePage({
   const canSubmit = ["IN_PROGRESS", "CHANGES_REQUESTED"].includes(instance.status);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <Link href="/learn/projects" className="text-sm text-muted-foreground hover:text-foreground">
-          ← My projects
-        </Link>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{instance.project.title}</h1>
-          <Badge>{instance.project.tier.toLowerCase()}</Badge>
-          <Badge variant="outline">{instance.status.toLowerCase().replace(/_/g, " ")}</Badge>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {instance.project.tenant.displayName}
-          {mentor ? ` · mentor: ${mentor.user.name} (${mentor.level.toLowerCase()})` : ""}
-          {instance.mentorKickoffAt
-            ? ` · kickoff ${instance.mentorKickoffAt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}`
-            : ""}
-        </p>
-        <p className="mt-2 text-sm">{STATUS_HINT[instance.status] ?? ""}</p>
-        {instance.credentials[0] && (
-          <p className="mt-2 text-sm">
-            🏆 Credential:{" "}
+    <div className="space-y-6">
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <div>
+          <Link
+            href="/learn/projects"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ChevronLeft className="size-4" />
+            My projects
+          </Link>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+              {instance.project.title}
+            </h1>
+            <Pill tone="distinction">{instance.project.tier.toLowerCase()}</Pill>
+            <Pill tone={PROJECT_STATUS_TONE[instance.status] ?? "neutral"}>
+              {instance.status.toLowerCase().replace(/_/g, " ")}
+            </Pill>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {instance.project.tenant.displayName}
+            {mentor ? ` · mentor: ${mentor.user.name} (${mentor.level.toLowerCase()})` : ""}
+            {instance.mentorKickoffAt
+              ? ` · kickoff ${instance.mentorKickoffAt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}`
+              : ""}
+          </p>
+          {STATUS_HINT[instance.status] ? (
+            <p className="mt-3 text-sm font-semibold">{STATUS_HINT[instance.status]}</p>
+          ) : null}
+          {instance.credentials[0] && (
             <Link
               href={`/verify/${instance.credentials[0].verificationCode}`}
-              className="font-medium underline"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:underline"
             >
-              {instance.credentials[0].verificationCode}
+              <Award className="size-4" />
+              Credential: {instance.credentials[0].verificationCode}
             </Link>
-          </p>
-        )}
-      </div>
+          )}
+        </div>
 
-      <div className="space-y-4">
-        {instance.project.milestones.map((m, i) => {
-          const subs = submissionsByMilestone.get(m.id) ?? [];
-          const latest = subs[0];
-          return (
-            <Card key={m.id}>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center justify-between text-base">
-                  <span>
+        <div className="space-y-4">
+          {instance.project.milestones.map((m, i) => {
+            const subs = submissionsByMilestone.get(m.id) ?? [];
+            const latest = subs[0];
+            return (
+              <div key={m.id} className="rounded-2xl border border-border bg-card p-5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-base font-extrabold">
                     {i + 1}. {m.title}
                   </span>
                   <span className="flex gap-2">
-                    {m.isReviewCheckpoint && <Badge variant="secondary">mentor review</Badge>}
+                    {m.isReviewCheckpoint && <Pill tone="info">mentor review</Pill>}
                     {latest && (
-                      <Badge variant="outline">
+                      <Pill tone={MILESTONE_STATUS_TONE[latest.status] ?? "neutral"}>
                         {latest.status.toLowerCase().replace(/_/g, " ")}
-                      </Badge>
+                      </Pill>
                     )}
                   </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">
                   {tiptapToPlainText(m.description)}
                 </p>
                 {subs.length > 0 && (
-                  <div className="space-y-1 text-xs text-muted-foreground">
+                  <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                     {subs.map((s) => (
                       <p key={s.id}>
                         Attempt {s.attemptNo} ·{" "}
@@ -129,7 +162,12 @@ export default async function ProjectWorkspacePage({
                         {s.repoUrl ? (
                           <>
                             {" · "}
-                            <a href={s.repoUrl} target="_blank" rel="noreferrer" className="underline">
+                            <a
+                              href={s.repoUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-semibold text-primary hover:underline"
+                            >
                               repo
                             </a>
                           </>
@@ -139,36 +177,42 @@ export default async function ProjectWorkspacePage({
                   </div>
                 )}
                 {canSubmit && latest?.status !== "APPROVED" && (
-                  <MilestoneSubmitForm projectInstanceId={instance.id} milestoneId={m.id} />
+                  <div className="mt-3">
+                    <MilestoneSubmitForm projectInstanceId={instance.id} milestoneId={m.id} />
+                  </div>
                 )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+              </div>
+            );
+          })}
+        </div>
 
-      {instance.projectReviews.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Mentor feedback</h2>
-          {instance.projectReviews.map((r) => (
-            <Card key={r.id}>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center justify-between text-sm">
-                  <span>{r.kind.toLowerCase().replace(/_/g, " ")}</span>
+        {instance.projectReviews.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-base font-extrabold">Mentor feedback</h2>
+            {instance.projectReviews.map((r) => (
+              <div key={r.id} className="rounded-2xl border border-border bg-card p-5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-bold">
+                    {r.kind.toLowerCase().replace(/_/g, " ")}
+                  </span>
                   <span className="flex items-center gap-2">
                     {r.overallScore != null && (
-                      <span className="font-semibold">{Math.round(r.overallScore)}%</span>
+                      <span className="text-sm font-extrabold tabular-nums">
+                        {Math.round(r.overallScore)}%
+                      </span>
                     )}
-                    {r.decision && <Badge variant="outline">{r.decision.toLowerCase()}</Badge>}
+                    {r.decision && (
+                      <Pill tone={REVIEW_DECISION_TONE[r.decision] ?? "neutral"}>
+                        {r.decision.toLowerCase()}
+                      </Pill>
+                    )}
                   </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p className="whitespace-pre-line">
+                </div>
+                <p className="mt-2 text-sm whitespace-pre-line">
                   {(r.summary as { text?: string } | null)?.text ?? ""}
                 </p>
                 {r.rubricScores.length > 0 && (
-                  <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-3">
+                  <div className="mt-3 grid gap-1 text-xs text-muted-foreground sm:grid-cols-3">
                     {r.rubricScores.map((s) => (
                       <p key={s.id}>
                         {s.rubricCriterion.name}: {s.score}/{s.maxScore}
@@ -176,11 +220,11 @@ export default async function ProjectWorkspacePage({
                     ))}
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -36,6 +36,7 @@ export function RedeemButton({
   return (
     <Button
       size="sm"
+      className="rounded-full"
       disabled={disabled || isPending}
       onClick={() => {
         if (

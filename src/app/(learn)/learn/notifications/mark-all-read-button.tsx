@@ -12,7 +12,13 @@ export function MarkAllReadButton() {
     onSuccess: () => router.refresh(),
   });
   return (
-    <Button variant="outline" size="sm" disabled={isPending} onClick={() => execute({})}>
+    <Button
+      variant="outline"
+      size="sm"
+      className="rounded-full"
+      disabled={isPending}
+      onClick={() => execute({})}
+    >
       {isPending ? "Marking…" : "Mark all read"}
     </Button>
   );

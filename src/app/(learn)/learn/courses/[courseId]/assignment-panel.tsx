@@ -5,12 +5,20 @@ import { useAction } from "next-safe-action/hooks";
 import { toast } from "sonner";
 
 import { submitAssignment } from "@/actions/learning";
-import { Badge } from "@/components/ui/badge";
+import { Pill, type PillTone } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+
+const SUBMISSION_STATUS_TONE: Record<string, PillTone> = {
+  DRAFT: "neutral",
+  SUBMITTED: "info",
+  GRADING: "info",
+  GRADED: "success",
+  RETURNED: "neutral",
+  RESUBMIT_REQUESTED: "distinction",
+};
 
 export function AssignmentPanel({
   courseId,
@@ -66,81 +74,71 @@ export function AssignmentPanel({
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{assignment.title}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="whitespace-pre-line text-sm">{assignment.instructions}</p>
-          <p className="text-xs text-muted-foreground">
-            Worth {assignment.maxPoints} points · instructor-reviewed
-          </p>
-        </CardContent>
-      </Card>
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <h2 className="text-base font-extrabold">{assignment.title}</h2>
+        <p className="mt-3 text-sm whitespace-pre-line">{assignment.instructions}</p>
+        <p className="mt-3 text-xs font-semibold text-muted-foreground">
+          Worth {assignment.maxPoints} points · instructor-reviewed
+        </p>
+      </div>
 
       {submissions.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Your submissions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <h2 className="text-base font-extrabold">Your submissions</h2>
+          <div className="mt-3 space-y-2">
             {submissions.map((s) => (
-              <div key={s.id} className="rounded-md border px-3 py-2 text-sm">
+              <div key={s.id} className="rounded-lg border border-border px-3 py-2.5 text-sm">
                 <div className="flex items-center justify-between">
-                  <span>Attempt {s.attemptNo}</span>
+                  <span className="font-semibold">Attempt {s.attemptNo}</span>
                   <div className="flex items-center gap-2">
                     {s.scorePoints != null && (
-                      <span className="font-medium">
+                      <span className="font-bold tabular-nums">
                         {s.scorePoints}/{s.maxPoints}
                       </span>
                     )}
-                    <Badge variant="outline">
+                    <Pill tone={SUBMISSION_STATUS_TONE[s.status] ?? "neutral"}>
                       {s.status.toLowerCase().replace(/_/g, " ")}
-                    </Badge>
+                    </Pill>
                   </div>
                 </div>
                 {s.feedback && (
-                  <p className="mt-1 text-xs text-muted-foreground">“{s.feedback}”</p>
+                  <p className="mt-1.5 text-xs text-muted-foreground">“{s.feedback}”</p>
                 )}
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {canSubmit && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {latest ? "Resubmit your work" : "Submit your work"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={onSubmit} className="space-y-4">
-              {assignment.submissionKinds.includes("TEXT") && (
-                <div className="space-y-2">
-                  <Label htmlFor="text">Answer</Label>
-                  <Textarea id="text" name="text" rows={6} />
-                </div>
-              )}
-              {assignment.submissionKinds.includes("REPO_URL") && (
-                <div className="space-y-2">
-                  <Label htmlFor="repoUrl">Repository URL</Label>
-                  <Input id="repoUrl" name="repoUrl" type="url" placeholder="https://github.com/…" />
-                </div>
-              )}
-              {assignment.submissionKinds.includes("URL") && (
-                <div className="space-y-2">
-                  <Label htmlFor="url">Link</Label>
-                  <Input id="url" name="url" type="url" />
-                </div>
-              )}
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "Submitting…" : "Submit"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <h2 className="text-base font-extrabold">
+            {latest ? "Resubmit your work" : "Submit your work"}
+          </h2>
+          <form onSubmit={onSubmit} className="mt-4 space-y-4">
+            {assignment.submissionKinds.includes("TEXT") && (
+              <div className="space-y-2">
+                <Label htmlFor="text">Answer</Label>
+                <Textarea id="text" name="text" rows={6} />
+              </div>
+            )}
+            {assignment.submissionKinds.includes("REPO_URL") && (
+              <div className="space-y-2">
+                <Label htmlFor="repoUrl">Repository URL</Label>
+                <Input id="repoUrl" name="repoUrl" type="url" placeholder="https://github.com/…" />
+              </div>
+            )}
+            {assignment.submissionKinds.includes("URL") && (
+              <div className="space-y-2">
+                <Label htmlFor="url">Link</Label>
+                <Input id="url" name="url" type="url" />
+              </div>
+            )}
+            <Button type="submit" disabled={isPending} className="rounded-full">
+              {isPending ? "Submitting…" : "Submit"}
+            </Button>
+          </form>
+        </div>
       )}
     </div>
   );

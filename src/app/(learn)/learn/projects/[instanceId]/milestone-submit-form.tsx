@@ -30,7 +30,7 @@ export function MilestoneSubmitForm({
 
   if (!open) {
     return (
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="sm" className="rounded-full" onClick={() => setOpen(true)}>
         Submit this milestone
       </Button>
     );
@@ -49,7 +49,7 @@ export function MilestoneSubmitForm({
           artifactUrl: String(form.get("artifactUrl") || ""),
         });
       }}
-      className="space-y-3 rounded-md border p-3"
+      className="space-y-3 rounded-xl border border-border bg-muted/30 p-4"
     >
       <Input name="repoUrl" type="url" placeholder="Repository URL" />
       <Input name="artifactUrl" type="url" placeholder="Demo / artifact URL (optional)" />
@@ -59,7 +59,7 @@ export function MilestoneSubmitForm({
         placeholder="What you built, decisions you made, what to look at first…"
       />
       <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={isPending}>
+        <Button type="submit" size="sm" className="rounded-full" disabled={isPending}>
           {isPending ? "Submitting…" : "Submit for review"}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>

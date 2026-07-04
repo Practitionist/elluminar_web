@@ -10,7 +10,8 @@ const NAV: NavSection[] = [
       { href: "/learn", label: "Home", icon: "home", exact: true },
       { href: "/learn/projects", label: "My projects", icon: "projects" },
       { href: "/learn/programs", label: "My programs", icon: "programs" },
-      { href: "/learn/org", label: "Org benefits", icon: "community" },
+      { href: "/learn/community", label: "Community", icon: "community" },
+      { href: "/learn/org", label: "Org benefits", icon: "org" },
       { href: "/learn/orders", label: "Orders", icon: "orders" },
       {
         href: "/learn/notifications",
@@ -28,7 +29,7 @@ const NAV: NavSection[] = [
   },
 ];
 
-export default async function LearnLayout({
+export default async function LearnGroupLayout({
   children,
 }: {
   children: React.ReactNode;

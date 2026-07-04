@@ -1,8 +1,8 @@
+import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Pill } from "@/components/shared";
 import { requireUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { tiptapToPlainText } from "@/lib/richtext";
@@ -35,50 +35,58 @@ export default async function ThreadPage({
   const isAuthor = thread.author.id === session.user.id;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <Link
-        href={`/learn/courses/${courseId}/discussions`}
-        className="text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← All discussions
-      </Link>
+    <div className="space-y-6">
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <Link
+          href={`/learn/courses/${courseId}/discussions`}
+          className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ChevronLeft className="size-4" />
+          All discussions
+        </Link>
 
-      <div>
-        <div className="flex items-center gap-2">
-          {thread.status === "RESOLVED" && <Badge>resolved</Badge>}
-          <h1 className="text-2xl font-semibold tracking-tight">{thread.title}</h1>
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            {thread.status === "RESOLVED" && <Pill tone="success">resolved</Pill>}
+            <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+              {thread.title}
+            </h1>
+          </div>
+          <p className="mt-1 text-xs font-semibold text-muted-foreground">
+            {thread.author.name} ·{" "}
+            {thread.createdAt.toLocaleDateString("en-IN", { dateStyle: "medium" })}
+          </p>
+          <p className="mt-3 text-sm whitespace-pre-line">{tiptapToPlainText(thread.body)}</p>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {thread.author.name} ·{" "}
-          {thread.createdAt.toLocaleDateString("en-IN", { dateStyle: "medium" })}
-        </p>
-        <p className="mt-3 whitespace-pre-line text-sm">{tiptapToPlainText(thread.body)}</p>
-      </div>
 
-      <div className="space-y-3">
-        {thread.posts.map((post) => (
-          <Card key={post.id} className={post.isAccepted ? "border-green-600/50" : ""}>
-            <CardContent className="py-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">
+        <div className="space-y-3">
+          {thread.posts.map((post) => (
+            <div
+              key={post.id}
+              className={`rounded-2xl border bg-card p-4 ${
+                post.isAccepted ? "border-success/50" : "border-border"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-muted-foreground">
                   {post.author.name} ·{" "}
                   {post.createdAt.toLocaleDateString("en-IN", { dateStyle: "medium" })}
                 </p>
-                {post.isAccepted && <Badge variant="secondary">accepted answer ✓</Badge>}
+                {post.isAccepted && <Pill tone="success">accepted answer ✓</Pill>}
               </div>
-              <p className="mt-2 whitespace-pre-line text-sm">
+              <p className="mt-2 text-sm whitespace-pre-line">
                 {tiptapToPlainText(post.body)}
               </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            </div>
+          ))}
+        </div>
 
-      <ReplyForm
-        threadId={thread.id}
-        canAccept={isAuthor && thread.status !== "RESOLVED"}
-        posts={thread.posts.map((p) => ({ id: p.id, author: p.author.name }))}
-      />
+        <ReplyForm
+          threadId={thread.id}
+          canAccept={isAuthor && thread.status !== "RESOLVED"}
+          posts={thread.posts.map((p) => ({ id: p.id, author: p.author.name }))}
+        />
+      </div>
     </div>
   );
 }

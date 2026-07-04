@@ -7,7 +7,6 @@ import { toast } from "sonner";
 
 import { createThread } from "@/actions/discussions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -25,45 +24,43 @@ export function NewThreadForm({ courseId }: { courseId: string }) {
 
   if (!open) {
     return (
-      <Button onClick={() => setOpen(true)} variant="outline">
+      <Button onClick={() => setOpen(true)} variant="outline" className="rounded-full">
         + Ask a question
       </Button>
     );
   }
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const form = new FormData(e.currentTarget);
-            execute({
-              courseId,
-              title: String(form.get("title")),
-              body: String(form.get("body")),
-            });
-          }}
-          className="space-y-3"
-        >
-          <Input name="title" placeholder="What's your question?" required minLength={5} />
-          <Textarea
-            name="body"
-            rows={4}
-            placeholder="Add details — code, errors, what you tried…"
-            required
-            minLength={5}
-          />
-          <div className="flex gap-2">
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Posting…" : "Post question"}
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+    <div className="rounded-2xl border border-border bg-card p-5">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const form = new FormData(e.currentTarget);
+          execute({
+            courseId,
+            title: String(form.get("title")),
+            body: String(form.get("body")),
+          });
+        }}
+        className="space-y-3"
+      >
+        <Input name="title" placeholder="What's your question?" required minLength={5} />
+        <Textarea
+          name="body"
+          rows={4}
+          placeholder="Add details — code, errors, what you tried…"
+          required
+          minLength={5}
+        />
+        <div className="flex gap-2">
+          <Button type="submit" disabled={isPending} className="rounded-full">
+            {isPending ? "Posting…" : "Post question"}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }

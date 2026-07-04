@@ -17,6 +17,7 @@ export function CancelSubscriptionButton({ subscriptionId }: { subscriptionId: s
     <Button
       variant="outline"
       size="sm"
+      className="rounded-full"
       disabled={isPending}
       onClick={() => {
         if (

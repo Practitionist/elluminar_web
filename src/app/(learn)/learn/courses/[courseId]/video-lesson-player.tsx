@@ -5,7 +5,6 @@ import { useAction } from "next-safe-action/hooks";
 import { useEffect, useRef } from "react";
 
 import { markLessonProgress } from "@/actions/learning";
-import { Card, CardContent } from "@/components/ui/card";
 
 type Playback =
   | { kind: "external"; url: string | null }
@@ -76,7 +75,7 @@ export function VideoLessonPlayer({
         src={playback.url}
         controls
         controlsList="nodownload"
-        className="aspect-video w-full rounded-lg border bg-black"
+        className="aspect-video w-full rounded-2xl border border-border bg-black"
       />
     );
   }
@@ -94,19 +93,17 @@ export function VideoLessonPlayer({
           src={url}
           controls
           controlsList="nodownload"
-          className="aspect-video w-full rounded-lg border bg-black"
+          className="aspect-video w-full rounded-2xl border border-border bg-black"
         />
       );
     }
   }
 
   return (
-    <Card>
-      <CardContent className="py-16 text-center text-muted-foreground">
-        {playback.kind === "pending"
-          ? "This video is still processing — check back shortly."
-          : "Video source unavailable."}
-      </CardContent>
-    </Card>
+    <div className="rounded-2xl border border-border bg-card px-6 py-16 text-center text-sm text-muted-foreground">
+      {playback.kind === "pending"
+        ? "This video is still processing — check back shortly."
+        : "Video source unavailable."}
+    </div>
   );
 }

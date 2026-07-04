@@ -1,8 +1,7 @@
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
+import { Pill, type PillTone } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth/session";
 import { getActiveSubscriptionWithPlan } from "@/lib/commerce/entitlements";
 import { db } from "@/lib/db";
@@ -11,6 +10,16 @@ import { formatMoney } from "@/lib/money";
 import { CancelSubscriptionButton } from "./cancel-subscription-button";
 
 export const metadata = { title: "Billing" };
+
+const SUBSCRIPTION_STATUS_TONE: Record<string, PillTone> = {
+  ACTIVE: "success",
+  TRIALING: "success",
+  PAST_DUE: "distinction",
+  PAUSED: "neutral",
+  CANCELLED: "neutral",
+  EXPIRED: "neutral",
+  INCOMPLETE: "distinction",
+};
 
 export default async function BillingPage() {
   const session = await requireUser("/billing");
@@ -27,32 +36,24 @@ export default async function BillingPage() {
   });
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-8">
-      <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">Billing</h1>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Membership</CardTitle>
-          <CardDescription>
-            Memberships add breadth and mentor benefits — à la carte purchases are never gated.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <h2 className="text-base font-extrabold">Membership</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Memberships add breadth and mentor benefits — à la carte purchases are never gated.
+        </p>
+        <div className="mt-4">
           {sub ? (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="text-xl font-semibold">{sub.plan.name}</span>
-                <Badge
-                  variant={
-                    sub.status === "ACTIVE" || sub.status === "TRIALING"
-                      ? "default"
-                      : "secondary"
-                  }
-                >
+                <span className="text-xl font-extrabold">{sub.plan.name}</span>
+                <Pill tone={SUBSCRIPTION_STATUS_TONE[sub.status] ?? "neutral"}>
                   {sub.status.toLowerCase().replace("_", " ")}
-                </Badge>
+                </Pill>
                 {sub.cancelAtPeriodEnd && (
-                  <Badge variant="outline">ends at period close</Badge>
+                  <Pill tone="distinction">ends at period close</Pill>
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
@@ -63,7 +64,7 @@ export default async function BillingPage() {
               </p>
               {sub.credits.length > 0 && (
                 <div className="text-sm">
-                  <p className="font-medium">Project credits</p>
+                  <p className="font-bold">Project credits</p>
                   {sub.credits.slice(0, 4).map((c) => (
                     <p key={c.id} className="text-muted-foreground">
                       {c.creditType === "SPRINT_PROJECT" ? "Sprint" : "Flagship"} ·{" "}
@@ -77,21 +78,21 @@ export default async function BillingPage() {
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">
                 You&apos;re on the Free tier — everything à la carte.
               </p>
-              <Button render={<Link href="/pricing" />}>See memberships</Button>
+              <Button render={<Link href="/pricing" />} className="rounded-full">
+                See memberships
+              </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Payment history</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <h2 className="text-base font-extrabold">Payment history</h2>
+        <div className="mt-4">
           {payments.length === 0 ? (
             <p className="text-sm text-muted-foreground">No payments yet.</p>
           ) : (
@@ -99,10 +100,10 @@ export default async function BillingPage() {
               {payments.map((p) => (
                 <div
                   key={p.id}
-                  className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm"
                 >
                   <div>
-                    <div className="font-medium">
+                    <div className="font-bold">
                       {p.order
                         ? `Order #${p.order.orderNo}`
                         : `${p.subscription?.plan.name ?? "Membership"} renewal`}
@@ -112,13 +113,13 @@ export default async function BillingPage() {
                       {p.invoices[0] ? ` · ${p.invoices[0].number}` : ""}
                     </div>
                   </div>
-                  <span className="font-medium">{formatMoney(p.amountMinor)}</span>
+                  <span className="font-bold tabular-nums">{formatMoney(p.amountMinor)}</span>
                 </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

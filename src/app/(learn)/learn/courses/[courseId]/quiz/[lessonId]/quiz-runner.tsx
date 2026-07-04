@@ -6,9 +6,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { submitQuizAttempt } from "@/actions/learning";
-import { Badge } from "@/components/ui/badge";
+import { Pill } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 
@@ -71,25 +70,26 @@ export function QuizRunner({
 
   if (result) {
     return (
-      <Card className="text-center">
-        <CardHeader>
-          <CardTitle>{result.passed ? "Passed 🎉" : "Not this time"}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-3xl font-semibold">
-            {result.score}/{result.maxPoints}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Pass mark: {passPct}%.{" "}
-            {result.passed
-              ? "This lesson is now marked complete."
-              : "Review the material and try again."}
-          </p>
-          <Button render={<Link href={`/learn/courses/${courseId}?lesson=${lessonId}`} />}>
-            Back to course
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="rounded-2xl border border-border bg-card p-8 text-center">
+        <Pill tone={result.passed ? "success" : "distinction"}>
+          {result.passed ? "Passed 🎉" : "Not this time"}
+        </Pill>
+        <p className="mt-4 text-3xl font-extrabold tabular-nums">
+          {result.score}/{result.maxPoints}
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Pass mark: {passPct}%.{" "}
+          {result.passed
+            ? "This lesson is now marked complete."
+            : "Review the material and try again."}
+        </p>
+        <Button
+          render={<Link href={`/learn/courses/${courseId}?lesson=${lessonId}`} />}
+          className="mt-5 rounded-full"
+        >
+          Back to course
+        </Button>
+      </div>
     );
   }
 
@@ -97,26 +97,24 @@ export function QuizRunner({
     setAnswers((prev) => ({ ...prev, [qid]: value }));
 
   return (
-    <div className="space-y-4 py-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="font-display text-xl font-medium tracking-tight">{title}</h1>
         {secondsLeft != null && (
-          <Badge variant={secondsLeft < 60 ? "destructive" : "outline"}>
+          <Pill tone={secondsLeft < 60 ? "destructive" : "neutral"} className="font-mono">
             {Math.max(0, Math.floor(secondsLeft / 60))}:
             {String(Math.max(0, secondsLeft % 60)).padStart(2, "0")}
-          </Badge>
+          </Pill>
         )}
       </div>
 
       {questions.map((q, i) => (
-        <Card key={q.id}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              {i + 1}. {q.prompt}{" "}
-              <span className="font-normal text-muted-foreground">({q.points} pts)</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <div key={q.id} className="rounded-2xl border border-border bg-card p-5">
+          <p className="text-sm font-bold">
+            {i + 1}. {q.prompt}{" "}
+            <span className="font-semibold text-muted-foreground">({q.points} pts)</span>
+          </p>
+          <div className="mt-3 space-y-2">
             {(q.type === "SINGLE_CHOICE" || q.type === "TRUE_FALSE") &&
               q.options.map((opt, oi) => (
                 <label key={oi} className="flex cursor-pointer items-center gap-2 text-sm">
@@ -125,6 +123,7 @@ export function QuizRunner({
                     name={q.id}
                     checked={answers[q.id] === oi}
                     onChange={() => setAnswer(q.id, oi)}
+                    className="accent-primary"
                   />
                   {opt}
                 </label>
@@ -158,12 +157,12 @@ export function QuizRunner({
                 placeholder="Your answer"
               />
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ))}
 
       <Button
-        className="w-full"
+        className="w-full rounded-full"
         size="lg"
         disabled={isPending}
         onClick={() => execute({ attemptId, answers })}

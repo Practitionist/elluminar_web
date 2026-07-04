@@ -16,6 +16,7 @@ export function RequestRefundButton({ orderItemId }: { orderItemId: string }) {
     <Button
       variant="outline"
       size="sm"
+      className="rounded-full"
       disabled={isPending}
       onClick={() => {
         if (window.confirm("Request a refund for this item? Access will be revoked once processed.")) {
