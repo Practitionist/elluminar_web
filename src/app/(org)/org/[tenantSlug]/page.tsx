@@ -1,9 +1,10 @@
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/dashboard/stat-card";
+import type { PillTone } from "@/components/shared";
 import { requireTenantMember } from "@/lib/auth/session";
-import { db } from "@/lib/db";
-import { tenantLabels } from "@/lib/enterprise/labels";
-import { formatMoney } from "@/lib/money";
 import { poolBalanceMinor } from "@/lib/enterprise/credit-math";
+import { tenantLabels } from "@/lib/enterprise/labels";
+import { db } from "@/lib/db";
+import { formatMoney } from "@/lib/money";
 
 export const metadata = { title: "Organization overview" };
 
@@ -16,20 +17,26 @@ export default async function OrgOverviewPage({
   const { tenant } = await requireTenantMember(tenantSlug);
   const labels = tenantLabels(tenant.type);
 
-  const [licenses, memberCount, programCount, activeCohorts] = await Promise.all([
-    db.orgLicense.findMany({
-      where: { tenantId: tenant.id, status: "ACTIVE" },
-      include: {
-        seatsAssigned: { where: { status: { in: ["INVITED", "ACTIVATED"] } } },
-        consumptions: { select: { amountMinor: true } },
-      },
-    }),
-    db.member.count({ where: { organizationId: tenant.organizationId } }),
-    db.program.count({ where: { ownerTenantId: tenant.id } }),
-    db.programCohort.count({
-      where: { program: { ownerTenantId: tenant.id }, status: { in: ["OPEN", "RUNNING"] } },
-    }),
-  ]);
+  const [licenses, memberCount, programCount, activeCohorts] =
+    await Promise.all([
+      db.orgLicense.findMany({
+        where: { tenantId: tenant.id, status: "ACTIVE" },
+        include: {
+          seatsAssigned: {
+            where: { status: { in: ["INVITED", "ACTIVATED"] } },
+          },
+          consumptions: { select: { amountMinor: true } },
+        },
+      }),
+      db.member.count({ where: { organizationId: tenant.organizationId } }),
+      db.program.count({ where: { ownerTenantId: tenant.id } }),
+      db.programCohort.count({
+        where: {
+          program: { ownerTenantId: tenant.id },
+          status: { in: ["OPEN", "RUNNING"] },
+        },
+      }),
+    ]);
 
   const seatLicenses = licenses.filter((l) => l.kind !== "CREDIT_POOL");
   const seatsLicensed = seatLicenses.reduce((s, l) => s + l.seats, 0);
@@ -45,40 +52,72 @@ export default async function OrgOverviewPage({
     0n,
   );
 
-  const stats = [
-    { label: "Active licenses", value: String(licenses.length) },
-    { label: "Seats used / licensed", value: `${seatsUsed} / ${seatsLicensed}` },
+  const stats: {
+    label: string;
+    value: string;
+    icon: string;
+    tone: PillTone;
+  }[] = [
+    {
+      label: "Active licenses",
+      value: String(licenses.length),
+      icon: "licenses",
+      tone: "primary",
+    },
+    {
+      label: "Seats used / licensed",
+      value: `${seatsUsed} / ${seatsLicensed}`,
+      icon: "roster",
+      tone: "info",
+    },
     ...(pools.length > 0
-      ? [{ label: "Credit balance", value: formatMoney(poolBalance) }]
+      ? [
+          {
+            label: "Credit balance",
+            value: formatMoney(poolBalance),
+            icon: "earnings",
+            tone: "success" as PillTone,
+          },
+        ]
       : []),
-    { label: labels.members, value: String(memberCount) },
-    { label: "Programs", value: String(programCount) },
-    { label: "Active cohorts", value: String(activeCohorts) },
+    {
+      label: labels.members,
+      value: String(memberCount),
+      icon: "community",
+      tone: "distinction",
+    },
+    {
+      label: "Programs",
+      value: String(programCount),
+      icon: "programs",
+      tone: "primary",
+    },
+    {
+      label: "Active cohorts",
+      value: String(activeCohorts),
+      icon: "cohorts",
+      tone: "info",
+    },
   ];
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+    <div className="space-y-6">
+      <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+        Overview
+      </h1>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         {stats.map((s) => (
-          <Card key={s.label}>
-            <CardHeader className="pb-2">
-              <CardDescription>{s.label}</CardDescription>
-              <CardTitle className="text-2xl tabular-nums">{s.value}</CardTitle>
-            </CardHeader>
-          </Card>
+          <StatCard key={s.label} {...s} />
         ))}
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Getting started</CardTitle>
-          <CardDescription>
-            1. Create a license (seats or credit pool) · 2. Import your{" "}
-            {labels.members.toLowerCase()} roster · 3. Build a program and enroll
-            a cohort · 4. Track completion in Reports.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="text-sm font-extrabold">Getting started</div>
+        <p className="mt-2 text-sm text-muted-foreground">
+          1. Create a license (seats or credit pool) · 2. Import your{" "}
+          {labels.members.toLowerCase()} roster · 3. Build a program and enroll a
+          cohort · 4. Track completion in Reports.
+        </p>
+      </div>
     </div>
   );
 }
