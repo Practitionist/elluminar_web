@@ -53,3 +53,7 @@ next-env.d.ts
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Designer reference drop (not app code)
+/LMS and project completion design/
+/LMS and project completion design.zip

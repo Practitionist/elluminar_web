@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "src/generated/**",
     ".netlify/**",
+    // Designer reference drop — not app code.
+    "LMS and project completion design/**",
   ]),
 ]);
 
