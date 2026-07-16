@@ -17,6 +17,7 @@ const COLUMNS: { title: string; links: [string, string][] }[] = [
     title: "Company",
     links: [
       ["Become a creator", "/onboarding"],
+      ["Contact us", "/contact"],
       ["Sign in", "/sign-in"],
       ["Get started", "/sign-up"],
     ],
@@ -24,9 +25,9 @@ const COLUMNS: { title: string; links: [string, string][] }[] = [
   {
     title: "Legal",
     links: [
-      ["Privacy", "/verify"],
-      ["Terms", "/verify"],
-      ["Refund policy", "/verify"],
+      ["Privacy", "/privacy"],
+      ["Terms", "/terms"],
+      ["Refund policy", "/refund-policy"],
     ],
   },
 ];

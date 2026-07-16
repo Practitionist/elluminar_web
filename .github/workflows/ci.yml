@@ -10,6 +10,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Schema freeze (issue #43): the schema is finalized pre-launch — zero migrations with
+  # customers on board. PRs touching prisma/ fail unless they carry the `schema-approved` label.
+  schema-freeze:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Block unapproved schema changes
+        env:
+          HAS_APPROVAL: ${{ contains(github.event.pull_request.labels.*.name, 'schema-approved') }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          CHANGED=$(git diff --name-only "$BASE_SHA"...HEAD -- 'prisma/schema.prisma' 'prisma/models/**' 'prisma/migrations/**')
+          if [ -n "$CHANGED" ] && [ "$HAS_APPROVAL" != "true" ]; then
+            echo "::error::Schema is frozen (issue #43). This PR touches:"
+            echo "$CHANGED"
+            echo "::error::Add the 'schema-approved' label to override (additive-only, founder sign-off)."
+            exit 1
+          fi
+          echo "Schema freeze check passed."
+
   verify:
     runs-on: ubuntu-latest
     env:
@@ -32,6 +58,9 @@ jobs:
 
       - name: Validate Prisma schema
         run: pnpm db:validate
+
+      - name: Schema-coverage audit (issue #43)
+        run: pnpm db:audit
 
       - name: Generate Prisma client
         run: pnpm db:generate

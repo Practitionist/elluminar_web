@@ -68,6 +68,21 @@ export const auth = betterAuth({
     },
   },
 
+  // Brute-force protection on auth endpoints (issue #35). Memory storage is
+  // per-instance on serverless — enough to blunt bursts; move to secondary
+  // storage if credential-stuffing shows up in Sentry.
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 60,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 5 },
+      "/sign-up/email": { window: 60, max: 3 },
+      "/forget-password": { window: 300, max: 3 },
+      "/two-factor/verify-totp": { window: 60, max: 5 },
+    },
+  },
+
   databaseHooks: {
     session: {
       create: {

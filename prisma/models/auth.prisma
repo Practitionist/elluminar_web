@@ -65,6 +65,7 @@ model User {
   giftedOrderItemsClaimed OrderItem[]        @relation("OrderItemGiftClaimedBy")
   subscriptions           Subscription[]
   ledgerAccounts          LedgerAccount[]
+  paymentAgreements       PaymentAgreement[]
 
   // enterprise relations
   licenseSeats        LicenseSeat[]
