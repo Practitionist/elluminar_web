@@ -1,8 +1,20 @@
-# lms-web
+# gradezy
 
 Unified learning platform & mentor-guided project marketplace — courses (recorded + live), mentor-reviewed projects (Sprint/Capstone/Flagship), multi-tenant creator storefronts, and enterprise/university programs, sold à la carte through one cart.
 
-Strategy docs: [`docs/`](docs/) (PRD + competitive teardown). Post-MVP roadmap lives in [GitHub issues](https://github.com/teetangh/lms_web/issues).
+Strategy docs: [`docs/`](docs/) (PRD + competitive teardown). Post-MVP roadmap lives in [GitHub issues](https://github.com/Practitionerist/gradezy/issues).
+
+## Deployment
+
+Hosted on Netlify ([gradezy.netlify.app](https://gradezy.netlify.app)):
+
+| Branch | Environment | URL |
+|---|---|---|
+| `prod` | Production | https://gradezy.netlify.app |
+| `dev` | Branch deploy | https://dev--gradezy.netlify.app |
+| PRs | Deploy previews | auto-generated per PR |
+
+No `main` branch — PRs target `dev`, releases merge `dev` → `prod`. When `gradezy.io` is purchased, production moves there and `dev.gradezy.io` becomes the branch subdomain (`netlify.toml` contexts already handle `NEXT_PUBLIC_APP_URL`).
 
 ## Stack
 
