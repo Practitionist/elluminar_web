@@ -1,4 +1,4 @@
-// lms-web — finalized schema (pre- + post-MVP domains).
+// elluminar — finalized schema (pre- + post-MVP domains).
 //
 // Conventions:
 // - Money: BigInt minor units (paise/cents) + ISO currency string; percentages in basis points (Int).

@@ -35,7 +35,7 @@ export const env = createEnv({
 
     // Email (Resend)
     RESEND_API_KEY: z.string().optional(),
-    EMAIL_FROM: z.string().default("lms-web <onboarding@resend.dev>"),
+    EMAIL_FROM: z.string().default("elluminar <onboarding@resend.dev>"),
 
     // Supabase Storage (server-side, service role)
     SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),

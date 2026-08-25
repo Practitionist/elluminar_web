@@ -67,7 +67,7 @@ export function CreatorApplicationForm() {
             <Label htmlFor="slug">Storefront handle</Label>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-muted-foreground">
-                lms-web.com/c/
+                elluminar.com/c/
               </span>
               <Input
                 id="slug"

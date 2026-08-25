@@ -11,7 +11,7 @@ import { createAuthSecondaryStorage } from "@/lib/auth/secondary-storage";
 import { sendEmail } from "@/lib/email";
 
 export const auth = betterAuth({
-  appName: "lms-web",
+  appName: "elluminar",
   baseURL: env.NEXT_PUBLIC_APP_URL,
   secret: env.BETTER_AUTH_SECRET,
   database: prismaAdapter(db, { provider: "postgresql" }),
@@ -181,7 +181,7 @@ export const auth = betterAuth({
       domainVerification: { enabled: true },
     }),
     twoFactor({
-      issuer: "lms-web",
+      issuer: "elluminar",
     }),
     // Must be last: applies Set-Cookie handling for Next.js server actions.
     nextCookies(),

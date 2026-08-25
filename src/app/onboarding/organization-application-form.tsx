@@ -114,7 +114,7 @@ export function OrganizationApplicationForm() {
             <Label htmlFor="slug">Handle</Label>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-muted-foreground">
-                lms-web.com/c/
+                elluminar.com/c/
               </span>
               <Input
                 id="slug"

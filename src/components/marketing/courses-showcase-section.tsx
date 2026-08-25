@@ -37,7 +37,7 @@ const COURSES: CourseCardData[] = [
     title: "Git & GitHub for Absolute Beginners",
     href: "/courses",
     metaLabel: "28 lessons",
-    creatorLabel: "lms-web Team",
+    creatorLabel: "elluminar Team",
     rating: 4.6,
     ratingCount: 540,
     price: { label: "Free", isFree: true },

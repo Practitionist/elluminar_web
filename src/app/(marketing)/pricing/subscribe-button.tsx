@@ -74,7 +74,7 @@ export function SubscribeButton({
       const rzp = new window.Razorpay!({
         key: payload.keyId,
         subscription_id: payload.razorpaySubscriptionId,
-        name: "lms-web",
+        name: "elluminar",
         description: `${planName} membership`,
         handler: (response: {
           razorpay_payment_id: string;
