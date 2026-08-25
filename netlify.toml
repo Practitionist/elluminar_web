@@ -8,11 +8,11 @@
   # Next.js on pnpm requires hoisted node_modules on Netlify
   PNPM_FLAGS = "--shamefully-hoist"
 
-# Production branch (`prod`) serves gradezy.netlify.app until gradezy.io is live
+# Production branch (`prod`) serves elluminar.netlify.app until elluminar.com is live
 [context.production.environment]
-  NEXT_PUBLIC_APP_URL = "https://gradezy.netlify.app"
+  NEXT_PUBLIC_APP_URL = "https://elluminar.netlify.app"
 
-# Branch deploys (`dev`) serve dev.gradezy.io once the branch subdomain is attached;
+# Branch deploys (`dev`) serve dev.elluminar.com once the branch subdomain is attached;
 # DEPLOY_PRIME_URL resolves to https://dev--<site>.netlify.app until then
 [context.branch-deploy.environment]
   NEXT_PUBLIC_APP_URL = "$DEPLOY_PRIME_URL"
