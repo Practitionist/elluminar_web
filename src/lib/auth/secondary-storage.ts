@@ -15,6 +15,7 @@ export function createAuthSecondaryStorage():
       get: (key: string) => Promise<string | null>;
       set: (key: string, value: string, ttl?: number) => Promise<void>;
       delete: (key: string) => Promise<void>;
+      increment: (key: string, ttl?: number) => Promise<number>;
     }
   | null {
   if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) return null;
@@ -32,6 +33,16 @@ export function createAuthSecondaryStorage():
     },
     delete: async (key) => {
       await redis.del(key);
+    },
+    // Atomic consume path for better-auth's rate limiter (single INCR + one-time
+    // EXPIRE NX in one HTTP roundtrip) — no get+set race across instances.
+    increment: async (key, ttlSeconds) => {
+      const [count] = (await redis
+        .pipeline()
+        .incr(key)
+        .expire(key, ttlSeconds ?? 60, "NX")
+        .exec()) as [number, number];
+      return count ?? 0;
     },
   };
 }

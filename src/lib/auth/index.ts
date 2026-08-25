@@ -67,6 +67,16 @@ export const auth = betterAuth({
       enabled: true,
       maxAge: 5 * 60,
     },
+    // With secondaryStorage configured, better-auth defaults to storing session
+    // records in it. We only want Redis for rate limiting — sessions stay in
+    // Postgres so an Upstash outage/eviction can never log users out.
+    storeSessionInDatabase: true,
+  },
+
+  // Same for verification values (email verification, password-reset tokens):
+  // durable in Postgres, not subject to Redis TTL/eviction.
+  verification: {
+    storeInDatabase: true,
   },
 
   // Shared store for rate limiting (issue #35): Upstash Redis via

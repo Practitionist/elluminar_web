@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
               where: { id: item.orderId },
               data: {
                 status:
-                  remaining === 0 ? "PAID" : remaining === total ? "PARTIALLY_REFUNDED" : "REFUNDED",
+                  remaining === 0 ? "PAID" : remaining === total ? "REFUNDED" : "PARTIALLY_REFUNDED",
               },
             });
           });
