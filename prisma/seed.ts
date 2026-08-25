@@ -295,7 +295,7 @@ async function seedPlatformTenant() {
     update: {},
     create: {
       id: "org_platform",
-      name: "lms-web Platform",
+      name: "elluminar Platform",
       slug: "platform",
     },
   });
@@ -307,7 +307,7 @@ async function seedPlatformTenant() {
       type: "CREATOR",
       status: "APPROVED",
       slug: "platform",
-      displayName: "lms-web",
+      displayName: "elluminar",
       commissionBps: 0,
       marketplaceOptInDefault: true,
       approvedAt: new Date(),
@@ -1026,7 +1026,7 @@ async function seedEnterpriseDemo() {
 }
 
 async function main() {
-  console.log("Seeding lms_web…");
+  console.log("Seeding elluminar…");
   await seedPlatformConfig();
   await seedCategories();
   await seedPlans();

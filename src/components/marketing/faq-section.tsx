@@ -7,9 +7,9 @@ import { FadeIn } from "@/components/ui/fade-in";
 
 const faqs = [
   {
-    question: "What is lms-web?",
+    question: "What is elluminar?",
     answer:
-      "lms-web is a marketplace where independent technical creators teach courses and live cohorts, and real mentors review your projects. You buy exactly what you need — a single course or a single project — and your portfolio carries verifiable proof of work, not just certificates.",
+      "elluminar is a marketplace where independent technical creators teach courses and live cohorts, and real mentors review your projects. You buy exactly what you need — a single course or a single project — and your portfolio carries verifiable proof of work, not just certificates.",
   },
   {
     question: "Do I have to buy a bundle or subscription?",
@@ -53,7 +53,7 @@ export function FAQSection() {
                   </span>
                 </h2>
                 <p className="text-muted-foreground text-lg">
-                  Wondering how lms-web works? Our FAQ section has all the
+                  Wondering how elluminar works? Our FAQ section has all the
                   answers you need!
                 </p>
               </div>

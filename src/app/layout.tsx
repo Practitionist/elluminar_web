@@ -27,8 +27,8 @@ const newsreader = Newsreader({
 
 export const metadata: Metadata = {
   title: {
-    default: "lms-web — Learn by building, verified by mentors",
-    template: "%s · lms-web",
+    default: "elluminar — Learn by building, verified by mentors",
+    template: "%s · elluminar",
   },
   description:
     "Courses, live cohorts, and mentor-reviewed projects from independent technical creators — buy exactly what you need, à la carte.",

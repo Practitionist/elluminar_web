@@ -34,7 +34,7 @@
 
 ## 4. Resend (email)
 
-`RESEND_API_KEY` + verified sending domain → `EMAIL_FROM` (e.g. `lms-web <no-reply@yourdomain.com>`).
+`RESEND_API_KEY` + verified sending domain → `EMAIL_FROM` (e.g. `elluminar <no-reply@yourdomain.com>`).
 Without a key, emails log to the server console (dev-safe).
 
 ## 5. BetterAuth

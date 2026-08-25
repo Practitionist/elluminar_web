@@ -53,7 +53,7 @@ export default async function LearnOrgPage() {
             Organization benefits
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            When your company or university licenses lms-web, your included
+            When your company or university licenses elluminar, your included
             catalog and credit benefits appear here.
           </p>
         </div>

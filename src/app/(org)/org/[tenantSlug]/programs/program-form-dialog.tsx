@@ -111,7 +111,7 @@ export function ProgramFormDialog({
               id="coBrandPartnerName"
               name="coBrandPartnerName"
               defaultValue={program?.coBrandPartnerName}
-              placeholder="Shown on program certificates alongside lms-web"
+              placeholder="Shown on program certificates alongside elluminar"
             />
           </div>
           <Button type="submit" disabled={isPending} className="w-full rounded-full">
