@@ -1,7 +1,36 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
+// Content-Security-Policy (issue #35). External origins with a reason to exist:
+// Razorpay (checkout.js script + payment iframe + telemetry), Supabase (storage,
+// signed URLs), Fermion/codedamn (video CDN, future embedded rooms/labs), Sentry
+// (error ingest). `'unsafe-inline'` in script-src is required by Next.js without
+// nonce middleware — nonce hardening is a follow-up under #35.
+const csp = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline' https://checkout.razorpay.com${
+    process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""
+  }`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' blob: https:",
+  "font-src 'self' data:",
+  "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.fermion.app https://*.codedamn.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.razorpay.com https://lumberjack.razorpay.com https://checkout.razorpay.com https://*.fermion.app https://*.codedamn.com https://backend.codedamn.com https://*.ingest.sentry.io https://*.sentry.io",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "upgrade-insecure-requests",
+].join("; ");
+
 const securityHeaders = [
+  { key: "Content-Security-Policy", value: csp },
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains",
+  },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

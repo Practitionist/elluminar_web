@@ -1,5 +1,5 @@
 {
-  "name": "lms-web",
+  "name": "elluminar-web",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -20,6 +20,7 @@
     "e2e": "playwright test",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
+    "db:audit": "tsx scripts/schema-audit.ts",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
@@ -44,6 +45,7 @@
     "@tiptap/pm": "^3.27.1",
     "@tiptap/react": "^3.27.1",
     "@tiptap/starter-kit": "^3.27.1",
+    "@upstash/redis": "^1.38.2",
     "better-auth": "^1.6.23",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

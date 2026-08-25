@@ -1,8 +1,20 @@
-# lms-web
+# elluminar
 
 Unified learning platform & mentor-guided project marketplace — courses (recorded + live), mentor-reviewed projects (Sprint/Capstone/Flagship), multi-tenant creator storefronts, and enterprise/university programs, sold à la carte through one cart.
 
-Strategy docs: [`docs/`](docs/) (PRD + competitive teardown). Post-MVP roadmap lives in [GitHub issues](https://github.com/teetangh/lms_web/issues).
+Strategy docs: [`docs/`](docs/) (PRD + competitive teardown). Post-MVP roadmap lives in [GitHub issues](https://github.com/Practitionist/elluminar_web/issues).
+
+## Deployment
+
+Hosted on Netlify ([elluminar.netlify.app](https://elluminar.netlify.app)):
+
+| Branch | Environment | URL |
+|---|---|---|
+| `prod` | Production | https://elluminar.netlify.app |
+| `dev` | Branch deploy | https://dev--elluminar.netlify.app |
+| PRs | Deploy previews | auto-generated per PR |
+
+No `main` branch — PRs target `dev`, releases merge `dev` → `prod`. `elluminar.com` is purchased; once its DNS points at Netlify, production moves there and `dev.elluminar.com` becomes the branch subdomain (`netlify.toml` contexts already handle `NEXT_PUBLIC_APP_URL`).
 
 ## Stack
 
@@ -24,7 +36,7 @@ npm artifact and not a monorepo marker.
 ```bash
 pnpm install
 cp .env.example .env        # fill values (local Postgres works out of the box)
-createdb lms_web_dev        # if using local Postgres
+createdb elluminar_dev        # if using local Postgres
 pnpm db:migrate             # apply migrations
 pnpm db:seed                # plans, categories, config, badges, demo data
 pnpm dev
@@ -40,9 +52,9 @@ missing providers degrade gracefully with clear messages):
 | Group | Vars | Needed for |
 |---|---|---|
 | Database | `DATABASE_URL`, `DIRECT_URL` | everything (required) |
-| Auth | `BETTER_AUTH_SECRET` (required), `NEXT_PUBLIC_APP_URL`, `GOOGLE_CLIENT_ID/SECRET` | sessions, Google sign-in |
+| Auth | `BETTER_AUTH_SECRET` (required), `NEXT_PUBLIC_APP_URL`, `GOOGLE_CLIENT_ID/SECRET`, `UPSTASH_REDIS_REST_URL/TOKEN` | sessions, Google sign-in, shared rate-limit storage |
 | Payments (MVP) | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `NEXT_PUBLIC_RAZORPAY_KEY_ID` | checkout, subscriptions, refunds |
-| Payments (post-MVP) | Dodo vars arrive with issue [#1](https://github.com/teetangh/lms_web/issues/1) | international MoR |
+| Payments (post-MVP) | Dodo vars arrive with issue [#1](https://github.com/Practitionist/elluminar_web/issues/1) | international MoR |
 | Fermion | `FERMION_API_KEY`, `FERMION_WEBHOOK_SECRET` | DRM video, live classes, code labs |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM` | transactional email (console fallback in dev) |
 | Storage | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | uploads, certificates |

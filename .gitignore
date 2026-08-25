@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# opencode local config (contains MCP secrets)
+opencode.json
+
 # netlify
 .netlify
 
@@ -57,3 +60,6 @@ next-env.d.ts
 # Designer reference drop (not app code)
 /LMS and project completion design/
 /LMS and project completion design.zip
+
+# local scratch/handoffs
+temp/

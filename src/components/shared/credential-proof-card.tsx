@@ -23,7 +23,7 @@ const SAMPLE: Required<Omit<CredentialProofData, "holderInitials" | "reviewerIni
   holderInitials: string;
   reviewerInitials: string;
 } = {
-  code: "LMS-9F3K-QX",
+  code: "EL-7Q2M-KX",
   holderName: "Ananya Iyer",
   holderInitials: "AI",
   title: "Payments API — Build, Scale, Defend",

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 
+import { CookieConsent } from "@/components/cookie-consent";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -26,8 +27,8 @@ const newsreader = Newsreader({
 
 export const metadata: Metadata = {
   title: {
-    default: "lms-web — Learn by building, verified by mentors",
-    template: "%s · lms-web",
+    default: "elluminar — Learn by building, verified by mentors",
+    template: "%s · elluminar",
   },
   description:
     "Courses, live cohorts, and mentor-reviewed projects from independent technical creators — buy exactly what you need, à la carte.",
@@ -52,6 +53,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
+          <CookieConsent />
           <Toaster richColors position="top-center" />
         </ThemeProvider>
       </body>

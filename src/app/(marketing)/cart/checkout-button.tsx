@@ -60,7 +60,7 @@ export function CheckoutButton({ email }: { email: string }) {
         order_id: payload.razorpayOrderId,
         amount: payload.amount,
         currency: payload.currency,
-        name: "lms-web",
+        name: "elluminar",
         prefill: { email, ...payload.prefill },
         handler: (response: {
           razorpay_order_id: string;

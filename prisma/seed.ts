@@ -8,6 +8,7 @@ import {
   learnerEntitlementsSchema,
 } from "../src/lib/validation/entitlements";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { seedComplexMockData } from "./seeds/complex-mock";
 
 const adapter = new PrismaPg({ connectionString: process.env.DIRECT_URL! });
 const db = new PrismaClient({ adapter });
@@ -294,7 +295,7 @@ async function seedPlatformTenant() {
     update: {},
     create: {
       id: "org_platform",
-      name: "lms-web Platform",
+      name: "elluminar Platform",
       slug: "platform",
     },
   });
@@ -306,7 +307,7 @@ async function seedPlatformTenant() {
       type: "CREATOR",
       status: "APPROVED",
       slug: "platform",
-      displayName: "lms-web",
+      displayName: "elluminar",
       commissionBps: 0,
       marketplaceOptInDefault: true,
       approvedAt: new Date(),
@@ -1025,7 +1026,7 @@ async function seedEnterpriseDemo() {
 }
 
 async function main() {
-  console.log("Seeding lms_web…");
+  console.log("Seeding elluminar…");
   await seedPlatformConfig();
   await seedCategories();
   await seedPlans();
@@ -1036,6 +1037,7 @@ async function main() {
   await seedPlatformTenant();
   await seedDemoContent();
   await seedEnterpriseDemo();
+  await seedComplexMockData(db);
   console.log("Done.");
 }
 

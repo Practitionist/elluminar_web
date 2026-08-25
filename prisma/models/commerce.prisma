@@ -209,12 +209,13 @@ model OrderItem {
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 
-  enrollments      Enrollment[]
-  projectInstances ProjectInstance[]
-  subscriptions    Subscription[]
-  mentorBookings   MentorBooking[]
-  refunds          Refund[]
-  ledgerEntries    LedgerEntry[]
+  enrollments       Enrollment[]
+  projectInstances  ProjectInstance[]
+  subscriptions     Subscription[]
+  mentorBookings    MentorBooking[]
+  refunds           Refund[]
+  ledgerEntries     LedgerEntry[]
+  paymentAgreements PaymentAgreement[]
 
   @@index([orderId])
   @@index([sellerTenantId, createdAt])
@@ -447,4 +448,31 @@ model InvoiceSeries {
   series     String   @unique
   nextNumber Int      @default(1)
   updatedAt  DateTime @updatedAt
+}
+
+/// Deferred-payment agreements (income-share / success-fee, issue #25).
+/// Table ships empty at launch; feature is post-MVP. Fee collections record as
+/// Payment(provider: MANUAL); the signed agreement PDF is a soft asset ref.
+model PaymentAgreement {
+  id                String                 @id @default(cuid())
+  kind              PaymentAgreementKind   @default(SUCCESS_FEE)
+  userId            String
+  user              User                   @relation(fields: [userId], references: [id])
+  orderItemId       String?
+  orderItem         OrderItem?             @relation(fields: [orderItemId], references: [id])
+  termsVersion      String
+  triggerConditions Json // placed-within-N-months, min CTC, attribution channel…
+  status            PaymentAgreementStatus @default(DRAFT)
+  dueMinor          BigInt?
+  currency          String                 @default("INR")
+  acceptedAt        DateTime?
+  triggeredAt       DateTime?
+  settledAt         DateTime?
+  agreementAssetId  String? // soft ref → MediaAsset (signed agreement PDF snapshot)
+  metadata          Json?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([userId])
+  @@index([status, createdAt])
 }

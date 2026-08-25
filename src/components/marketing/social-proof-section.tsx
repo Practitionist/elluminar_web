@@ -146,7 +146,7 @@ export function SocialProofSection() {
               </div>
               <div className="col-span-5 row-span-1 flex items-center justify-center">
                 <div className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight">
-                  lms-web
+                  elluminar
                 </div>
               </div>
               <div className="col-span-2 row-span-1">
@@ -187,7 +187,7 @@ export function SocialProofSection() {
               <div className="text-5xl font-bold">200+</div>
               <div className="text-3xl font-bold">Creators</div>
               <div className="text-3xl font-bold">Choose</div>
-              <div className="text-3xl font-bold">lms-web</div>
+              <div className="text-3xl font-bold">elluminar</div>
             </div>
           </div>
         </FadeIn>

@@ -377,6 +377,19 @@ enum RefundStatus {
   FAILED
 }
 
+enum PaymentAgreementKind {
+  SUCCESS_FEE
+}
+
+enum PaymentAgreementStatus {
+  DRAFT
+  ACTIVE
+  TRIGGERED
+  SETTLED
+  WAIVED
+  CANCELLED
+}
+
 enum PlanAudience {
   LEARNER
   CREATOR
