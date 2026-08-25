@@ -120,15 +120,58 @@ export async function POST(request: NextRequest) {
             extra: { providerRefundRef: entity.id, paymentId: entity.payment_id },
           });
         } else if (eventType === "refund.failed") {
-          await db.refund.update({
-            where: { id: refund.id },
-            data: { status: "FAILED", providerRefundRef: entity.id },
+          // Settlement failed after the approval flow already revoked access and
+          // flipped fulfillment to refunded — restore user-facing state in the
+          // same transaction that marks the refund FAILED. Ledger clawbacks and
+          // the credit note are deliberately NOT auto-reversed (money-path
+          // policy needs a designed reversal flow) — the Sentry error below
+          // flags them for manual reconciliation.
+          const item = refund.orderItemId
+            ? await db.orderItem.findUnique({
+                where: { id: refund.orderItemId },
+                select: { id: true, orderId: true },
+              })
+            : null;
+          await db.$transaction(async (tx) => {
+            await tx.refund.update({
+              where: { id: refund.id },
+              data: { status: "FAILED", providerRefundRef: entity.id },
+            });
+            if (!item) return;
+            await tx.orderItem.updateMany({
+              where: { id: item.id, fulfillmentStatus: "REFUNDED" },
+              data: { fulfillmentStatus: "FULFILLED" },
+            });
+            await tx.enrollment.updateMany({
+              where: { orderItemId: item.id, status: "REVOKED" },
+              data: { status: "ACTIVE" },
+            });
+            await tx.projectInstance.updateMany({
+              where: { orderItemId: item.id, status: "REFUNDED" },
+              data: { status: "PENDING_KICKOFF" },
+            });
+            const [remaining, total] = await Promise.all([
+              tx.orderItem.count({
+                where: { orderId: item.orderId, fulfillmentStatus: "REFUNDED" },
+              }),
+              tx.orderItem.count({ where: { orderId: item.orderId } }),
+            ]);
+            await tx.order.update({
+              where: { id: item.orderId },
+              data: {
+                status:
+                  remaining === 0 ? "PAID" : remaining === total ? "PARTIALLY_REFUNDED" : "REFUNDED",
+              },
+            });
           });
-          Sentry.captureMessage("razorpay refund failed", {
-            level: "error",
-            tags: { webhook: "razorpay", eventType },
-            extra: { refundId: refund.id, providerRefundRef: entity.id },
-          });
+          Sentry.captureMessage(
+            "razorpay refund failed — fulfillment restored, ledger clawback + credit note need manual reconciliation",
+            {
+              level: "error",
+              tags: { webhook: "razorpay", eventType },
+              extra: { refundId: refund.id, orderItemId: refund.orderItemId, providerRefundRef: entity.id },
+            },
+          );
         } else if (refund.status !== "PROCESSED" || !refund.processedAt) {
           await db.refund.update({
             where: { id: refund.id },

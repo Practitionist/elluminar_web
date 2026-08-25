@@ -1,9 +1,11 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 
+import { CookieSettingsLink } from "@/components/cookie-consent";
 import { Button } from "@/components/ui/button";
 import { BRAND } from "@/lib/brand";
 
-const COLUMNS: { title: string; links: [string, string][] }[] = [
+const COLUMNS: { title: string; links: [string, string][]; extra?: ReactNode }[] = [
   {
     title: "Product",
     links: [
@@ -29,6 +31,7 @@ const COLUMNS: { title: string; links: [string, string][] }[] = [
       ["Terms", "/terms"],
       ["Refund policy", "/refund-policy"],
     ],
+    extra: <CookieSettingsLink />,
   },
 ];
 
@@ -92,6 +95,7 @@ export function SiteFooter() {
                     </Link>
                   </li>
                 ))}
+                {col.extra ? <li>{col.extra}</li> : null}
               </ul>
             </div>
           ))}

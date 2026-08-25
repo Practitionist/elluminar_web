@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,14 @@ function subscribe(listener: () => void) {
   };
 }
 
+// Re-open requests (e.g. the footer "Cookie settings" control) — lets users
+// review or withdraw a previously stored choice (DPDP).
+let reopenListeners: Array<() => void> = [];
+
+export function openCookieSettings() {
+  for (const listener of reopenListeners) listener();
+}
+
 function setCookieConsent(value: CookieConsentValue) {
   document.cookie = `${CONSENT_COOKIE}=${value}; path=/; max-age=${CONSENT_MAX_AGE}; SameSite=Lax`;
   for (const listener of listeners) listener();
@@ -45,8 +53,23 @@ export function CookieConsent() {
     getCookieConsent,
     () => "essential" as const,
   );
+  const [reopen, setReopen] = useState(false);
+  useEffect(
+    () => {
+      reopenListeners.push(() => setReopen(true));
+      return () => {
+        reopenListeners = [];
+      };
+    },
+    [],
+  );
 
-  if (consent !== null) return null;
+  if (consent !== null && !reopen) return null;
+
+  const choose = (value: CookieConsentValue) => {
+    setCookieConsent(value);
+    setReopen(false);
+  };
 
   return (
     <div
@@ -68,19 +91,32 @@ export function CookieConsent() {
             variant="outline"
             size="sm"
             className="rounded-full"
-            onClick={() => setCookieConsent("essential")}
+            onClick={() => choose("essential")}
           >
             Essential only
           </Button>
           <Button
             size="sm"
             className="rounded-full"
-            onClick={() => setCookieConsent("all")}
+            onClick={() => choose("all")}
           >
             Accept all
           </Button>
         </div>
       </div>
     </div>
+  );
+}
+
+/** Footer control that reopens the consent banner so users can change/withdraw consent. */
+export function CookieSettingsLink() {
+  return (
+    <button
+      type="button"
+      onClick={openCookieSettings}
+      className="cursor-pointer transition-colors hover:text-white"
+    >
+      Cookie settings
+    </button>
   );
 }

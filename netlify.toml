@@ -13,13 +13,15 @@
   NEXT_PUBLIC_APP_URL = "https://elluminar.netlify.app"
 
 # Branch deploys (`dev`) serve dev.elluminar.com once the branch subdomain is attached;
-# DEPLOY_PRIME_URL resolves to https://dev--<site>.netlify.app until then
-[context.branch-deploy.environment]
-  NEXT_PUBLIC_APP_URL = "$DEPLOY_PRIME_URL"
+# DEPLOY_PRIME_URL resolves to https://dev--<site>.netlify.app until then.
+# netlify.toml env values are NOT interpolated, so inject the resolved deploy URL
+# through the build command instead (shell-expanded, inlined by Next at build time).
+[context.branch-deploy]
+  command = "NEXT_PUBLIC_APP_URL=\"$DEPLOY_PRIME_URL\" pnpm build"
 
 # Per-PR preview URLs (deploy-preview-<n>--<site>.netlify.app)
-[context.deploy-preview.environment]
-  NEXT_PUBLIC_APP_URL = "$DEPLOY_PRIME_URL"
+[context.deploy-preview]
+  command = "NEXT_PUBLIC_APP_URL=\"$DEPLOY_PRIME_URL\" pnpm build"
 
 [functions."scheduled-maintenance"]
   schedule = "@daily"

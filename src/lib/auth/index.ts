@@ -7,6 +7,7 @@ import { admin, organization, twoFactor } from "better-auth/plugins";
 import { env } from "@/env";
 import { db } from "@/lib/db";
 import { ac, orgRoles } from "@/lib/auth/permissions";
+import { createAuthSecondaryStorage } from "@/lib/auth/secondary-storage";
 import { sendEmail } from "@/lib/email";
 
 export const auth = betterAuth({
@@ -68,9 +69,14 @@ export const auth = betterAuth({
     },
   },
 
-  // Brute-force protection on auth endpoints (issue #35). Memory storage is
-  // per-instance on serverless — enough to blunt bursts; move to secondary
-  // storage if credential-stuffing shows up in Sentry.
+  // Shared store for rate limiting (issue #35): Upstash Redis via
+  // secondaryStorage when configured — limits hold across serverless instances.
+  // Falls back to per-instance memory in local dev / pre-provisioning; escalate
+  // only if credential-stuffing still shows up in Sentry.
+  secondaryStorage: createAuthSecondaryStorage() ?? undefined,
+
+  // Brute-force protection on auth endpoints (issue #35). Storage is shared
+  // (secondaryStorage) when Upstash is configured; otherwise memory.
   rateLimit: {
     enabled: true,
     window: 60,
@@ -78,7 +84,7 @@ export const auth = betterAuth({
     customRules: {
       "/sign-in/email": { window: 60, max: 5 },
       "/sign-up/email": { window: 60, max: 3 },
-      "/forget-password": { window: 300, max: 3 },
+      "/request-password-reset": { window: 300, max: 3 },
       "/two-factor/verify-totp": { window: 60, max: 5 },
     },
   },
