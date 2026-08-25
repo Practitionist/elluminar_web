@@ -6,6 +6,7 @@ export { PriceTag } from "./price-tag";
 export { PrintButton } from "./print-button";
 export { CourseCard, type CourseCardData } from "./course-card";
 export { ProjectCard, type ProjectCardData } from "./project-card";
+export { CarouselRow, CarouselItem } from "./carousel-row";
 export { MentorCard, type MentorCardData } from "./mentor-card";
 export {
   CredentialProofCard,

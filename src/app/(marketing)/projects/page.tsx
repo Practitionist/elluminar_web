@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import {
+  CarouselItem,
+  CarouselRow,
   ProjectCard,
   SectionEyebrow,
   SectionHeading,
@@ -24,31 +26,48 @@ const TIERS: [string, string][] = [
 export default async function ProjectsCatalogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; tier?: string }>;
+  searchParams: Promise<{ q?: string; tier?: string; category?: string }>;
 }) {
-  const { q, tier } = await searchParams;
+  const { q, tier, category } = await searchParams;
+  const filtered = Boolean(q || tier || category);
 
   const where: Prisma.ProjectWhereInput = {
     status: "PUBLISHED",
     visibility: "MARKETPLACE",
   };
   if (tier) where.tier = tier as never;
+  if (category) where.category = { slug: category };
   if (q) {
     const ids = await searchPublishedProjectIds(q);
     where.id = { in: ids };
   }
 
-  const projects = await db.project.findMany({
-    where,
-    orderBy: [{ purchaseCount: "desc" }, { publishedAt: "desc" }],
-    take: 48,
-    include: {
-      tenant: { select: { slug: true, displayName: true } },
-      prices: {
-        where: { active: true, currency: "INR", region: null, mentorLevel: null },
+  const [projects, categories] = await Promise.all([
+    db.project.findMany({
+      where,
+      orderBy: [{ purchaseCount: "desc" }, { publishedAt: "desc" }],
+      take: 48,
+      include: {
+        tenant: { select: { slug: true, displayName: true } },
+        category: { select: { slug: true, name: true } },
+        prices: {
+          where: { active: true, currency: "INR", region: null, mentorLevel: null },
+        },
       },
-    },
-  });
+    }),
+    db.category.findMany({ orderBy: { sort: "asc" } }),
+  ]);
+
+  // Netflix-style browse: category rows when exploring everything; a plain
+  // results grid once the learner searches or narrows to a tier.
+  const grouped = !filtered
+    ? categories
+        .map((c) => ({
+          category: c,
+          projects: projects.filter((p) => p.categoryId === c.id),
+        }))
+        .filter((g) => g.projects.length > 0)
+    : [];
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-12">
@@ -92,10 +111,33 @@ export default async function ProjectsCatalogPage({
 
       {projects.length === 0 ? (
         <p className="mt-12 text-muted-foreground">No projects match.</p>
-      ) : (
+      ) : filtered ? (
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
             <ProjectCard key={project.id} project={toProjectCardData(project)} />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-10 space-y-10">
+          <CarouselRow title="Most purchased">
+            {projects.slice(0, 12).map((project) => (
+              <CarouselItem key={project.id}>
+                <ProjectCard project={toProjectCardData(project)} />
+              </CarouselItem>
+            ))}
+          </CarouselRow>
+          {grouped.map((g) => (
+            <CarouselRow
+              key={g.category.id}
+              title={g.category.name}
+              href={`/projects?category=${g.category.slug}`}
+            >
+              {g.projects.map((project) => (
+                <CarouselItem key={project.id}>
+                  <ProjectCard project={toProjectCardData(project)} />
+                </CarouselItem>
+              ))}
+            </CarouselRow>
           ))}
         </div>
       )}

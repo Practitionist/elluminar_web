@@ -1,6 +1,12 @@
 import Link from "next/link";
 
-import { CourseCard, SectionEyebrow, SectionHeading } from "@/components/shared";
+import {
+  CarouselItem,
+  CarouselRow,
+  CourseCard,
+  SectionEyebrow,
+  SectionHeading,
+} from "@/components/shared";
 import { Input } from "@/components/ui/input";
 import { searchPublishedCourseIds } from "@/lib/catalog";
 import { db } from "@/lib/db";
@@ -16,6 +22,7 @@ export default async function CoursesCatalogPage({
   searchParams: Promise<{ q?: string; category?: string; level?: string }>;
 }) {
   const { q, category, level } = await searchParams;
+  const filtered = Boolean(q || category || level);
 
   const where: Prisma.CourseWhereInput = {
     status: "PUBLISHED",
@@ -36,6 +43,7 @@ export default async function CoursesCatalogPage({
       take: 48,
       include: {
         tenant: { select: { slug: true, displayName: true } },
+        category: { select: { slug: true, name: true } },
         prices: {
           where: { active: true, currency: "INR", region: null, cohortId: null },
         },
@@ -43,6 +51,17 @@ export default async function CoursesCatalogPage({
     }),
     db.category.findMany({ orderBy: { sort: "asc" } }),
   ]);
+
+  // Netflix-style browse: category rows when exploring everything; a plain
+  // results grid once the learner searches or narrows to one category.
+  const grouped = !filtered
+    ? categories
+        .map((c) => ({
+          category: c,
+          courses: courses.filter((course) => course.categoryId === c.id),
+        }))
+        .filter((g) => g.courses.length > 0)
+    : [];
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-12">
@@ -83,10 +102,33 @@ export default async function CoursesCatalogPage({
         <p className="mt-12 text-muted-foreground">
           No courses match — try another search.
         </p>
-      ) : (
+      ) : filtered ? (
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {courses.map((course) => (
             <CourseCard key={course.id} course={toCourseCardData(course)} />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-10 space-y-10">
+          <CarouselRow title="Popular right now">
+            {courses.slice(0, 12).map((course) => (
+              <CarouselItem key={course.id}>
+                <CourseCard course={toCourseCardData(course)} />
+              </CarouselItem>
+            ))}
+          </CarouselRow>
+          {grouped.map((g) => (
+            <CarouselRow
+              key={g.category.id}
+              title={g.category.name}
+              href={`/courses?category=${g.category.slug}`}
+            >
+              {g.courses.map((course) => (
+                <CarouselItem key={course.id}>
+                  <CourseCard course={toCourseCardData(course)} />
+                </CarouselItem>
+              ))}
+            </CarouselRow>
           ))}
         </div>
       )}
