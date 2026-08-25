@@ -52,7 +52,7 @@ missing providers degrade gracefully with clear messages):
 | Group | Vars | Needed for |
 |---|---|---|
 | Database | `DATABASE_URL`, `DIRECT_URL` | everything (required) |
-| Auth | `BETTER_AUTH_SECRET` (required), `NEXT_PUBLIC_APP_URL`, `GOOGLE_CLIENT_ID/SECRET` | sessions, Google sign-in |
+| Auth | `BETTER_AUTH_SECRET` (required), `NEXT_PUBLIC_APP_URL`, `GOOGLE_CLIENT_ID/SECRET`, `UPSTASH_REDIS_REST_URL/TOKEN` | sessions, Google sign-in, shared rate-limit storage |
 | Payments (MVP) | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `NEXT_PUBLIC_RAZORPAY_KEY_ID` | checkout, subscriptions, refunds |
 | Payments (post-MVP) | Dodo vars arrive with issue [#1](https://github.com/Practitionist/elluminar_web/issues/1) | international MoR |
 | Fermion | `FERMION_API_KEY`, `FERMION_WEBHOOK_SECRET` | DRM video, live classes, code labs |

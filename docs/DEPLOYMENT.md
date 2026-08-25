@@ -8,6 +8,11 @@
    - `DIRECT_URL` — **session** connection, port **5432** (Prisma CLI/migrations)
    - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 3. Apply schema + seed: `pnpm db:deploy && pnpm db:seed`
+   - The finalization migration runs `CREATE EXTENSION IF NOT EXISTS vector` (pgvector, for the
+     post-MVP AI tutor). Supabase ships pgvector — if the migration errors on a fresh project,
+     enable it first (Dashboard → Database → Extensions, or SQL editor:
+     `CREATE EXTENSION IF NOT EXISTS vector;`) and re-run `pnpm db:deploy`. Local dev needs
+     Homebrew pgvector (`brew install pgvector` for PG16).
 4. Create Storage buckets: `public-assets` (public), `uploads`, `submissions`, `certificates` (private).
 
 ## 2. Razorpay

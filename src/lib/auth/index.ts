@@ -7,6 +7,7 @@ import { admin, organization, twoFactor } from "better-auth/plugins";
 import { env } from "@/env";
 import { db } from "@/lib/db";
 import { ac, orgRoles } from "@/lib/auth/permissions";
+import { createAuthSecondaryStorage } from "@/lib/auth/secondary-storage";
 import { sendEmail } from "@/lib/email";
 
 export const auth = betterAuth({
@@ -65,6 +66,36 @@ export const auth = betterAuth({
     cookieCache: {
       enabled: true,
       maxAge: 5 * 60,
+    },
+    // With secondaryStorage configured, better-auth defaults to storing session
+    // records in it. We only want Redis for rate limiting — sessions stay in
+    // Postgres so an Upstash outage/eviction can never log users out.
+    storeSessionInDatabase: true,
+  },
+
+  // Same for verification values (email verification, password-reset tokens):
+  // durable in Postgres, not subject to Redis TTL/eviction.
+  verification: {
+    storeInDatabase: true,
+  },
+
+  // Shared store for rate limiting (issue #35): Upstash Redis via
+  // secondaryStorage when configured — limits hold across serverless instances.
+  // Falls back to per-instance memory in local dev / pre-provisioning; escalate
+  // only if credential-stuffing still shows up in Sentry.
+  secondaryStorage: createAuthSecondaryStorage() ?? undefined,
+
+  // Brute-force protection on auth endpoints (issue #35). Storage is shared
+  // (secondaryStorage) when Upstash is configured; otherwise memory.
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 60,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 5 },
+      "/sign-up/email": { window: 60, max: 3 },
+      "/request-password-reset": { window: 300, max: 3 },
+      "/two-factor/verify-totp": { window: 60, max: 5 },
     },
   },
 
