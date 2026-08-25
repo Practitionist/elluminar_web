@@ -5,6 +5,21 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # Next.js on pnpm requires hoisted node_modules on Netlify
+  PNPM_FLAGS = "--shamefully-hoist"
+
+# Production branch (`prod`) serves gradezy.io
+[context.production.environment]
+  NEXT_PUBLIC_APP_URL = "https://gradezy.io"
+
+# Branch deploys (`dev`) serve dev.gradezy.io once the branch subdomain is attached;
+# DEPLOY_PRIME_URL resolves to https://dev--<site>.netlify.app until then
+[context.branch-deploy.environment]
+  NEXT_PUBLIC_APP_URL = "$DEPLOY_PRIME_URL"
+
+# Per-PR preview URLs (deploy-preview-<n>--<site>.netlify.app)
+[context.deploy-preview.environment]
+  NEXT_PUBLIC_APP_URL = "$DEPLOY_PRIME_URL"
 
 [functions."scheduled-maintenance"]
   schedule = "@daily"
