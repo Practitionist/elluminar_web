@@ -1,7 +1,42 @@
 # Vendor Strategy: Fermion Integration & Build-vs-Buy
 
-> Condensed from the full analysis (Aug 2026). Sources: fermion.app pricing/docs,
+> Condensed from the full analysis. Sources: fermion.app pricing/docs,
 > `docs/Product_Requirements_System_Design_Spec.docx` §4/§8/§9, GitHub issues #52/#53/#29/#39.
+
+## ⚠️ Status update — Aug 2026: Fermion acquired by Testpress
+
+- **Fermion was acquired by Testpress** (Chennai) on 2026-05-22; founder Mehul Mohan exited ("clean exit", relocated to Dubai); **codedamn itself sunsets Dec 31 2026**.
+- Official line for customers: "nothing changes — same product, same login". Testpress plans to fold Fermion live-class infra into Testpress/TPStreams; sandbox kept ("more on that soon").
+- **Infra liveness verified 2026-08-26**: `fermion.app` ✅ · `docs.fermion.app` ✅ · `backend.codedamn.com/api/public` responds with valid Fermion API envelopes ✅. New-school self-serve signup appears gated during migration → outreach letter drafted (temp folder) to support@testpress.in / support@codedamn.com.
+- **Decision posture:** probe Testpress provisioning; in parallel evaluate narrow-specialist stack below. The vendor boundary (`src/lib/fermion/*`) confines any swap to ~5 files.
+
+### Narrow-specialist landscape (researched Aug 2026)
+
+| Capability | Top pick (beta budget) | Entry price | Runner-up |
+| --- | --- | --- | --- |
+| Video + DRM (Widevine/FairPlay) | **VdoCipher** Starter — $149/**yr**, 1TB annual bandwidth, watermarking incl. | cheapest legit DRM entry | Gumlet Growth $19 + DRM add-on $99/mo (monthly billing, analytics); Bunny Stream PAYG ≈$110–150/mo all-in; Kinescope €10/mo w/ DRM included |
+| Live classes (host→cohort) | **Stream Video** livestream call type — $100 free credit/mo covers modeled beta usage (~$0–110/mo typical; chat cliff at 1K MAU → $399/mo) | verify Mumbai SFU placement w/ sales | LiveKit Cloud ($50/mo Ship tier, OSS escape hatch); 100ms ($0.0012/viewer-min streaming); Agora (whiteboard included) |
+| Community chat | **Stream Chat** — free ≤1,000 MAU / 100 concurrent | $0 at beta scale | In-house discussions (already built) |
+| Code execution / judge | **Judge0** self-host (OSS) or hosted; Piston public API free | ~VPS cost | Sphere Engine (commercial); Fermion labs if Testpress deal lands |
+| Quizzes / assignments / grading / credentials / commerce / enterprise | **In-house — already built and ours** | ₹0 | No vendor needed or useful here |
+
+Notes: Cloudflare Stream has **no Widevine/FairPlay** (signed URLs only). Mux DRM = $100/mo base + per-play. White-label OTT suites (Muvi $399+, Enveu $699+, Ventuno $299+) are over budget. AWS DIY ≈ $4.6k/mo at real scale — not viable. TPStreams Start **$150/mo** bundles multi-DRM + forensic watermarking + live + India support — effectively the closest single-vendor replacement if the Testpress relationship works out. Euron Systems (₹3,999–24,999/mo, launched 2026): broad suite but no evident coding sandbox, unproven durability. Teachyst: micro storefront LMS — not a competitor for this stack.
+
+### Component coverage matrix — who solves what
+
+| Capability | In-house (today) | Testpress/Fermion | Euron | Narrow stack |
+| --- | --- | --- | --- | --- |
+| Courses, quizzes, assignments | ✅ built | ✅ (unused) | ✅ | ✅ keep ours |
+| Projects/mentor review engine | ✅ built (differentiator) | ❌ | ❌ | ❌ nowhere else |
+| DRM video | EXTERNAL URLs only | ✅ | ✅ Enterprise tier | VdoCipher/Gumlet/Bunny |
+| Live interactive classes | broken (#53 pending vendor) | ✅ roadmap | ✅ native | Stream/LiveKit/100ms |
+| Coding sandbox + judge | stubbed behind boundary | ✅ kept | ❌ not evident | Judge0/Piston/Sphere |
+| Chat/community | basic (discussions+XP) | ✅ community feature | ✅ CRM-ish | Stream Chat free tier |
+| Payments/commerce/enterprise | ✅ Razorpay + licensing | n/a | partial (their rails) | keep ours |
+
+**Bottom line:** no single vendor replaces the whole stack; the differentiated layers exist only in-house; commodity layers have 2–3 credible swappable options at every price point.
+
+---
 
 ## What Fermion is
 
