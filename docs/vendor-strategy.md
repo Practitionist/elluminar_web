@@ -5,7 +5,7 @@
 
 ## ⚠️ Status update — Aug 2026: Fermion acquired by Testpress
 
-- **Fermion was acquired by Testpress** (Chennai) on 2026-05-22; founder Mehul Mohan exited ("clean exit", relocated to Dubai); **codedamn itself sunsets Dec 31 2026**.
+- **Fermion was acquired by Testpress** (Chennai) on 2026-05-22; founder Mehul Mohan is [stepping into an advisory role](https://fermion.app/acquisition) ("As part of the transition, I'll be stepping into an advisory role") rather than exiting outright; **[codedamn is sunsetting](https://codedamn.com/codedamn-is-sunsetting)** — purchased content stays accessible to end-Dec 2026, registrations are closed, and refunds are processed in the first 30 business days of 2027.
 - Official line for customers: "nothing changes — same product, same login". Testpress plans to fold Fermion live-class infra into Testpress/TPStreams; sandbox kept ("more on that soon").
 - **Infra liveness verified 2026-08-26**: `fermion.app` ✅ · `docs.fermion.app` ✅ · `backend.codedamn.com/api/public` responds with valid Fermion API envelopes ✅. New-school self-serve signup appears gated during migration → outreach letter drafted (temp folder) to support@testpress.in / support@codedamn.com.
 - **Decision posture:** probe Testpress provisioning; in parallel evaluate narrow-specialist stack below. The vendor boundary (`src/lib/fermion/*`) confines any swap to ~5 files.

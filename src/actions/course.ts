@@ -559,7 +559,10 @@ export const confirmLessonVideoUpload = editorClient
         },
       }),
       db.lesson.findFirst({
-        where: { id: parsedInput.lessonId, courseId: parsedInput.courseId },
+        // Same predicate as requestLessonVideoUpload: confirm is separately
+        // callable, so without the type check a Fermion asset could be pinned
+        // onto an article/quiz lesson that will never render a player.
+        where: { id: parsedInput.lessonId, courseId: parsedInput.courseId, type: "VIDEO" },
       }),
     ]);
     if (!asset) throw new ActionError("Video asset not found.");

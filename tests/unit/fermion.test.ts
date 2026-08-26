@@ -2,25 +2,35 @@ import crypto from "node:crypto";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const db = vi.hoisted(() => ({
-  videoAsset: {
-    findUniqueOrThrow: vi.fn(),
-    findFirst: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    updateMany: vi.fn(),
-  },
-  sandboxSession: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-  user: { findUnique: vi.fn() },
-  userProviderIdentity: { findUnique: vi.fn() },
-  notification: { create: vi.fn() },
-  webhookEvent: { findMany: vi.fn(), update: vi.fn() },
-}));
+const db = vi.hoisted(() => {
+  const client = {
+    videoAsset: {
+      findUniqueOrThrow: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    sandboxSession: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    user: { findUnique: vi.fn() },
+    userProviderIdentity: { findUnique: vi.fn() },
+    notification: { create: vi.fn() },
+    webhookEvent: { findMany: vi.fn(), update: vi.fn() },
+    $transaction: vi.fn(),
+  };
+  // Interactive transactions run the callback against the same mock client, so
+  // tx.* calls land on the spies above and a throwing callback propagates the
+  // way a real rollback does.
+  client.$transaction.mockImplementation((fn: (tx: typeof client) => unknown) =>
+    fn(client),
+  );
+  return client;
+});
 
 const sentry = vi.hoisted(() => ({
   captureException: vi.fn(),
@@ -261,6 +271,32 @@ describe("reconcileStuckFermionVideos", () => {
       data: expect.objectContaining({ userId: "creator-1", category: "system" }),
     });
     expect(sentry.captureMessage).toHaveBeenCalled();
+  });
+
+  it("does not strand an asset as FAILED when the notification write fails", async () => {
+    const now = new Date();
+    db.videoAsset.findMany.mockResolvedValueOnce([
+      {
+        id: "a2",
+        providerVideoRef: "v2",
+        title: "Broken",
+        uploadedById: "creator-1",
+        updatedAt: new Date(now.getTime() - 80 * 3600_000),
+        tenant: { slug: "acme" },
+      },
+    ]);
+    fetchMock.mockRejectedValueOnce(new Error("not ready"));
+    db.notification.create.mockRejectedValueOnce(new Error("notification store down"));
+
+    const results = await reconcileStuckFermionVideos(now);
+
+    // The status flip and the notice share a transaction, so a failed notice
+    // rolls the flip back: the asset stays UPLOADING/PROCESSING and the next
+    // sweep retries it, instead of sitting FAILED with the creator never told
+    // (later sweeps only select UPLOADING/PROCESSING, so it could never recover).
+    expect(results).toEqual({ probed: 1, readied: 0, failed: 0 });
+    expect(sentry.captureMessage).not.toHaveBeenCalled();
+    expect(sentry.captureException).toHaveBeenCalled();
   });
 });
 

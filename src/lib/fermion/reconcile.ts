@@ -60,21 +60,27 @@ export async function reconcileStuckFermionVideos(now = new Date()) {
       }
 
       if (now.getTime() - asset.updatedAt.getTime() > FAIL_AFTER_MS) {
-        await db.videoAsset.updateMany({
-          where: { provider: "FERMION", providerVideoRef: asset.providerVideoRef },
-          data: { status: "FAILED" },
-        });
-        if (asset.uploadedById) {
-          await db.notification.create({
-            data: {
-              userId: asset.uploadedById,
-              category: "system",
-              title: `Video processing failed: ${asset.title ?? "untitled"}`,
-              body: "The upload could not be processed within 72 hours. Please re-upload it from the studio curriculum builder.",
-              actionUrl: `/studio/${asset.tenant.slug}/courses`,
-            },
+        // One transaction: later sweeps only pick up UPLOADING/PROCESSING rows,
+        // so a notification failure after the status flip would strand the
+        // creator with a silently FAILED video and no way to retry the notice.
+        // Rolling back keeps the asset eligible for the next sweep.
+        await db.$transaction(async (tx) => {
+          await tx.videoAsset.updateMany({
+            where: { provider: "FERMION", providerVideoRef: asset.providerVideoRef },
+            data: { status: "FAILED" },
           });
-        }
+          if (asset.uploadedById) {
+            await tx.notification.create({
+              data: {
+                userId: asset.uploadedById,
+                category: "system",
+                title: `Video processing failed: ${asset.title ?? "untitled"}`,
+                body: "The upload could not be processed within 72 hours. Please re-upload it from the studio curriculum builder.",
+                actionUrl: `/studio/${asset.tenant.slug}/courses`,
+              },
+            });
+          }
+        });
         Sentry.captureMessage("fermion video stuck beyond 72h — marked FAILED", {
           level: "warning",
           tags: { vendor: "fermion", job: "reconcile-videos" },
