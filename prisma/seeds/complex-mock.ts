@@ -134,7 +134,10 @@ export async function seedComplexMockData(db: PrismaClient) {
   // Creator + mentor users
   const gaurav = await ensureUser("gaurav@codecraft.test", "Gaurav Saxena");
   const shreya = await ensureUser("shreya@datawicket.test", "Shreya Bose");
-  const cora = await db.user.findUniqueOrThrow({ where: { email: "creator@demo.test" } });
+  // Self-heal: the demo-account seed script that used to create this user was
+  // dropped in a245761 (prod hardening), which left `pnpm db:seed` failing with
+  // P2025 on any clean database. Create it the same way as the creators above.
+  const cora = await ensureUser("creator@demo.test", "Cora Dev");
 
   const mentorRithvik = await ensureUser("rithvik@mentor.test", "Rithvik Menon");
   const mentorLakshmi = await ensureUser("lakshmi@mentor.test", "Lakshmi Narayan");

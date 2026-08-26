@@ -32,11 +32,16 @@ export function GradeForm({
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
+    // `new FormData(form)` deliberately omits the submitter button, so reading
+    // form.get("intent") always yielded null and "Request changes" silently
+    // behaved exactly like "Grade" — completing the lesson instead of asking
+    // for a resubmission. The intent has to come off the submitter itself.
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     execute({
       submissionId,
       scorePoints: Number(form.get("score") || 0),
       feedback: String(form.get("feedback") || "") || undefined,
-      requestResubmission: form.get("intent") === "resubmit",
+      requestResubmission: submitter?.value === "resubmit",
     });
   }
 
