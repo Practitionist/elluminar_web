@@ -29,6 +29,16 @@ describe("queue cursor round-trip", () => {
     expect(parseQueueCursor("_sub_1")).toBeNull();
     expect(parseQueueCursor("abc_sub_1")).toBeNull();
   });
+
+  it("rejects finite-but-out-of-range timestamps that make an Invalid Date", () => {
+    // |t| > 8.64e15 is still a finite Number but produces an Invalid Date, which
+    // Prisma rejects with a validation error — a crafted ?after= must page from
+    // the start, not 500 the grading queue.
+    expect(parseQueueCursor("8640000000000001_sub_1")).toBeNull();
+    expect(parseQueueCursor("-8640000000000001_sub_1")).toBeNull();
+    // The exact boundary is still a valid Date and must survive.
+    expect(parseQueueCursor("8640000000000000_sub_1")?.id).toBe("sub_1");
+  });
 });
 
 describe("queueCursorFilter", () => {

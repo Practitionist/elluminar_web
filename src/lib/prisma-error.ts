@@ -49,6 +49,11 @@ export function uniqueViolationColumns(err: unknown): string[] | null {
   return columns.length > 0 ? columns : null;
 }
 
+/** P2003 — a foreign key constraint rejected the write. */
+export function isForeignKeyViolation(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2003";
+}
+
 /**
  * True when `err` is a unique violation involving every one of `columns`.
  *

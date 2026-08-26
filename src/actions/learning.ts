@@ -422,10 +422,11 @@ export const gradeAssignmentSubmission = authActionClient
     // for work still marked as needing changes. Only the writer that actually
     // moved the row off a pending status runs the side effects below.
     const { count: transitioned } = await db.assignmentSubmission.updateMany({
-      where: {
-        id: submission.id,
-        status: { in: ["SUBMITTED", "RESUBMIT_REQUESTED"] },
-      },
+      // Compare-and-swap on the status we actually read. Matching any pending
+      // status is not enough: two graders can both read SUBMITTED, and if one
+      // requests changes first, the other's decision — made against the stale
+      // SUBMITTED — would still land and complete the lesson.
+      where: { id: submission.id, status: submission.status },
       data: {
         status: parsedInput.requestResubmission ? "RESUBMIT_REQUESTED" : "GRADED",
         scorePoints: parsedInput.scorePoints,

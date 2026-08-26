@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import { env } from "@/env";
 import { db } from "@/lib/db";
+import { isForeignKeyViolation } from "@/lib/prisma-error";
 
 /**
  * Supabase Storage for non-video files (images, documents, submissions,
@@ -104,36 +105,53 @@ export async function objectExists(bucket: string, path: string): Promise<boolea
  * Returns whether the asset was actually removed.
  */
 export async function deleteMediaAssetIfUnreferenced(assetId: string): Promise<boolean> {
-  const asset = await db.mediaAsset.findUnique({
-    where: { id: assetId },
-    select: {
-      bucket: true,
-      path: true,
-      _count: {
+  // Count and delete in one transaction so a concurrent attach can't land
+  // between the two. The foreign key is the real arbiter: an insert referencing
+  // this asset holds a key-share lock on the row, so a racing delete surfaces
+  // as P2003 (the relation is Restrict by default) instead of orphaning it.
+  let removed: { bucket: string | null; path: string | null } | null;
+  try {
+    removed = await db.$transaction(async (tx) => {
+      const asset = await tx.mediaAsset.findUnique({
+        where: { id: assetId },
         select: {
-          lessonResources: true,
-          submissionFiles: true,
-          digitalProducts: true,
-          credentials: true,
+          bucket: true,
+          path: true,
+          _count: {
+            select: {
+              lessonResources: true,
+              submissionFiles: true,
+              digitalProducts: true,
+              credentials: true,
+            },
+          },
         },
-      },
-    },
-  });
-  if (!asset) return false;
-  const references =
-    asset._count.lessonResources +
-    asset._count.submissionFiles +
-    asset._count.digitalProducts +
-    asset._count.credentials;
-  if (references > 0) return false;
+      });
+      if (!asset) return null;
+      const references =
+        asset._count.lessonResources +
+        asset._count.submissionFiles +
+        asset._count.digitalProducts +
+        asset._count.credentials;
+      if (references > 0) return null;
+      await tx.mediaAsset.delete({ where: { id: assetId } });
+      return { bucket: asset.bucket, path: asset.path };
+    });
+  } catch (err) {
+    // Someone attached the file while we were deciding — keep both.
+    if (isForeignKeyViolation(err)) return false;
+    throw err;
+  }
+  if (!removed) return false;
 
-  if (asset.bucket && asset.path && isStorageConfigured()) {
-    const { error } = await storageClient().storage.from(asset.bucket).remove([asset.path]);
-    // A stubborn object must not strand the row: log it and drop the record
-    // anyway, otherwise the asset is invisible in the UI but undeletable.
+  // Storage cleanup strictly AFTER the row is gone. Removing the object first
+  // would, on a failed delete, leave a surviving MediaAsset pointing at nothing.
+  if (removed.bucket && removed.path && isStorageConfigured()) {
+    const { error } = await storageClient().storage.from(removed.bucket).remove([removed.path]);
+    // The record is already deleted; a stubborn object is a storage-side leak to
+    // log, not a reason to resurrect the row.
     if (error) Sentry.captureException(error, { tags: { vendor: "supabase-storage" } });
   }
-  await db.mediaAsset.delete({ where: { id: assetId } });
   return true;
 }
 

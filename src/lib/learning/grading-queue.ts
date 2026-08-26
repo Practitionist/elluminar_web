@@ -25,7 +25,12 @@ export function parseQueueCursor(raw: string | undefined | null): QueueCursor | 
   const millis = Number(raw.slice(0, sep));
   const id = raw.slice(sep + 1);
   if (!Number.isFinite(millis) || !id) return null;
-  return { submittedAt: new Date(millis), id };
+  // Finite but out of Date's range (|t| > 8.64e15) yields an Invalid Date, which
+  // Prisma rejects with a validation error — a crafted ?after= would 500 the
+  // page rather than just paging from nowhere.
+  const submittedAt = new Date(millis);
+  if (Number.isNaN(submittedAt.getTime())) return null;
+  return { submittedAt, id };
 }
 
 /**
