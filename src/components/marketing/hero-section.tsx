@@ -25,7 +25,7 @@ export function HeroSection() {
               </div>
 
               <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl/none">
-                <span className="bg-gradient-to-r from-primary via-purple-600 to-primary bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-primary via-purple-600 to-primary bg-clip-text text-primary gradient-clip">
                   Learn by Building
                 </span>
                 <br />
@@ -96,9 +96,9 @@ export function HeroSection() {
                 </div>
               </div>
               <div className="bg-card p-5">
-                <h3 className="font-bold text-lg mb-1">
+                <h2 className="font-bold text-lg mb-1">
                   Distributed Systems in Go
-                </h3>
+                </h2>
                 <p className="text-sm text-muted-foreground">
                   Course • Live cohort + replays
                 </p>
@@ -150,9 +150,9 @@ export function HeroSection() {
                 </div>
               </div>
               <div className="bg-card p-5">
-                <h3 className="font-bold text-lg mb-1">
+                <h2 className="font-bold text-lg mb-1">
                   Realtime ML Pipeline
-                </h3>
+                </h2>
                 <p className="text-sm text-muted-foreground">
                   Project • Mentor-reviewed
                 </p>
@@ -203,9 +203,9 @@ export function HeroSection() {
                 </div>
               </div>
               <div className="bg-card p-5">
-                <h3 className="font-bold text-lg mb-1">
+                <h2 className="font-bold text-lg mb-1">
                   Shipping LLM Products
-                </h3>
+                </h2>
                 <p className="text-sm text-muted-foreground">
                   Course • Code labs included
                 </p>
