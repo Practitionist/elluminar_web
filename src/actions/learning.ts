@@ -4,9 +4,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import { issueCourseCredentialIfEarned } from "@/lib/credentials/issue";
 import { drawQuizQuestions } from "@/lib/learning/quiz";
+import { evaluateDeadline } from "@/lib/learning/deadline";
+import { STORAGE_BUCKETS } from "@/lib/storage";
 import { ActionError, authActionClient } from "@/lib/safe-action";
+import { submitAssignmentSchema } from "@/lib/validation/learning";
 
 async function requireActiveEnrollment(userId: string, courseId: string) {
   const enrollment = await db.enrollment.findFirst({
@@ -75,6 +79,22 @@ export const markLessonProgress = authActionClient
   )
   .action(async ({ parsedInput, ctx }) => {
     const enrollment = await requireActiveEnrollment(ctx.session.user.id, parsedInput.courseId);
+    const lesson = await db.lesson.findUnique({
+      where: { id: parsedInput.lessonId },
+      select: { type: true, courseId: true },
+    });
+    if (!lesson || lesson.courseId !== parsedInput.courseId) {
+      throw new ActionError("Lesson not found.");
+    }
+    // QUIZ/ASSIGNMENT lessons complete only via their own flows (quiz pass /
+    // instructor grading), never by self-marking — keeps progress honest.
+    if (parsedInput.status === "COMPLETED" && (lesson.type === "QUIZ" || lesson.type === "ASSIGNMENT")) {
+      throw new ActionError(
+        lesson.type === "ASSIGNMENT"
+          ? "This lesson completes when your instructor grades your submission."
+          : "This lesson completes when you pass the quiz.",
+      );
+    }
     await db.lessonProgress.upsert({
       where: {
         enrollmentId_lessonId: {
@@ -236,23 +256,51 @@ export const submitQuizAttempt = authActionClient
   });
 
 export const submitAssignment = authActionClient
-  .inputSchema(
-    z.object({
-      courseId: z.string().min(1),
-      lessonId: z.string().min(1),
-      text: z.string().max(20000).optional(),
-      repoUrl: z.url().optional().or(z.literal("")),
-      url: z.url().optional().or(z.literal("")),
-    }),
-  )
+  .inputSchema(submitAssignmentSchema)
   .action(async ({ parsedInput, ctx }) => {
     const enrollment = await requireActiveEnrollment(ctx.session.user.id, parsedInput.courseId);
     const assignment = await db.assignment.findUnique({
       where: { lessonId: parsedInput.lessonId },
     });
     if (!assignment) throw new ActionError("Assignment not found.");
-    if (!parsedInput.text && !parsedInput.repoUrl && !parsedInput.url) {
+
+    // Deadline enforcement: dueAt = enrollment.activatedAt + dueOffsetDays.
+    const verdict = evaluateDeadline({
+      activatedAt: enrollment.activatedAt,
+      dueOffsetDays: assignment.dueOffsetDays,
+      allowLate: assignment.allowLate,
+    });
+    if (verdict.action === "reject") {
+      throw new ActionError(
+        `The deadline passed ${verdict.dueAt.toLocaleDateString("en-IN", { dateStyle: "medium" })} and late submissions are disabled.`,
+      );
+    }
+
+    const mediaAssetIds = [...new Set(parsedInput.mediaAssetIds ?? [])];
+    const hasFiles = mediaAssetIds.length > 0;
+    if (!parsedInput.text && !parsedInput.repoUrl && !parsedInput.url && !hasFiles) {
       throw new ActionError("Add your work before submitting.");
+    }
+
+    // Validate attached files before writing anything.
+    if (hasFiles) {
+      const assets = await db.mediaAsset.findMany({
+        where: { id: { in: mediaAssetIds } },
+        select: { id: true, uploadedById: true, bucket: true, status: true },
+      });
+      for (const id of mediaAssetIds) {
+        const asset = assets.find((a) => a.id === id);
+        if (
+          !asset ||
+          asset.uploadedById !== ctx.session.user.id ||
+          asset.bucket !== STORAGE_BUCKETS.submissions
+        ) {
+          throw new ActionError("One of the attached files is invalid.");
+        }
+        if (asset.status !== "READY") {
+          throw new ActionError("Finish uploading all files first.");
+        }
+      }
     }
 
     const prior = await db.assignmentSubmission.count({
@@ -262,22 +310,44 @@ export const submitAssignment = authActionClient
       throw new ActionError("Resubmission isn't allowed for this assignment.");
     }
 
-    await db.assignmentSubmission.create({
-      data: {
-        assignmentId: assignment.id,
-        userId: ctx.session.user.id,
-        enrollmentId: enrollment.id,
-        attemptNo: prior + 1,
-        text: parsedInput.text,
-        repoUrl: parsedInput.repoUrl || null,
-        url: parsedInput.url || null,
-        status: "SUBMITTED",
-        submittedAt: new Date(),
-      },
-    });
+    // Concurrent submits can race on @@unique([assignmentId, userId, attemptNo]);
+    // retry with the next slot instead of failing the learner.
+    let created = false;
+    let attemptNo = prior + 1;
+    for (let i = 0; i < 3 && !created; i += 1) {
+      try {
+        await db.assignmentSubmission.create({
+          data: {
+            assignmentId: assignment.id,
+            userId: ctx.session.user.id,
+            enrollmentId: enrollment.id,
+            attemptNo,
+            text: parsedInput.text,
+            repoUrl: parsedInput.repoUrl || null,
+            url: parsedInput.url || null,
+            status: "SUBMITTED",
+            submittedAt: new Date(),
+            late: verdict.action === "flag-late",
+            ...(hasFiles
+              ? { files: { create: mediaAssetIds.map((mediaAssetId) => ({ mediaAssetId })) } }
+              : {}),
+          },
+        });
+        created = true;
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+          attemptNo += 1;
+          continue;
+        }
+        throw err;
+      }
+    }
+    if (!created) {
+      throw new ActionError("Could not save your submission. Please try again.");
+    }
 
     revalidatePath(`/learn/courses/${parsedInput.courseId}`);
-    return { ok: true };
+    return { ok: true, late: verdict.action === "flag-late" };
   });
 
 /** Instructor grading (studio side). */
@@ -298,6 +368,15 @@ export const gradeAssignmentSubmission = authActionClient
       },
     });
     if (!submission) throw new ActionError("Submission not found.");
+    // Only pending work is gradeable; grading twice would double-complete.
+    if (submission.status !== "SUBMITTED" && submission.status !== "RESUBMIT_REQUESTED") {
+      throw new ActionError("This submission was already graded.");
+    }
+    if (parsedInput.scorePoints > submission.assignment.maxPoints) {
+      throw new ActionError(
+        `Score can't exceed ${submission.assignment.maxPoints} points for this assignment.`,
+      );
+    }
     const orgId = submission.assignment.lesson!.course.tenant.organizationId;
     const membership = await db.member.findUnique({
       where: {
@@ -348,5 +427,5 @@ export const gradeAssignmentSubmission = authActionClient
         actionUrl: `/learn/courses/${submission.assignment.lesson!.courseId}`,
       },
     });
-    return { ok: true };
+    return { ok: true, resubmission: parsedInput.requestResubmission };
   });

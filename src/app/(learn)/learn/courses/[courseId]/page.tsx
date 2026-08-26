@@ -22,6 +22,7 @@ import { resolveCourseAccess } from "@/lib/commerce/entitlements";
 import { db } from "@/lib/db";
 import { getVideoPlayback } from "@/lib/fermion/video";
 import { isLessonUnlocked } from "@/lib/learning/lesson-access";
+import { getDueDate } from "@/lib/learning/deadline";
 import { tiptapToPlainText } from "@/lib/richtext";
 import { getSignedReadUrl, isStorageConfigured } from "@/lib/storage";
 import { cn } from "@/lib/utils";
@@ -310,7 +311,14 @@ export default async function CoursePlayerPage({
                 maxPoints: assignment.maxPoints,
                 submissionKinds: assignment.submissionKinds,
                 allowResubmission: assignment.allowResubmission,
+                allowLate: assignment.allowLate,
               }}
+              dueAt={
+                getDueDate(enrollment.activatedAt, assignment.dueOffsetDays)?.toISOString() ??
+                null
+              }
+              nowIso={new Date().toISOString()}
+              storageReady={isStorageConfigured()}
               submissions={assignment.submissions.map((s) => ({
                 id: s.id,
                 attemptNo: s.attemptNo,
@@ -319,6 +327,7 @@ export default async function CoursePlayerPage({
                 maxPoints: assignment.maxPoints,
                 feedback: (s.feedback as { text?: string } | null)?.text ?? null,
                 submittedAt: s.submittedAt?.toISOString() ?? null,
+                late: s.late,
               }))}
             />
           ) : activeLesson.type === "CODE_LAB" ? (
