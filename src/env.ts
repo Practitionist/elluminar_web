@@ -32,6 +32,8 @@ export const env = createEnv({
     FERMION_API_KEY: z.string().optional(),
     FERMION_API_BASE_URL: z.url().optional(),
     FERMION_WEBHOOK_SECRET: z.string().optional(),
+    // School hostname (e.g. "elluminar.fermion.app") for whitelabel embed URLs
+    FERMION_SCHOOL_HOSTNAME: z.string().optional(),
 
     // Email (Resend)
     RESEND_API_KEY: z.string().optional(),
@@ -71,6 +73,7 @@ export const env = createEnv({
     FERMION_API_KEY: process.env.FERMION_API_KEY,
     FERMION_API_BASE_URL: process.env.FERMION_API_BASE_URL,
     FERMION_WEBHOOK_SECRET: process.env.FERMION_WEBHOOK_SECRET,
+    FERMION_SCHOOL_HOSTNAME: process.env.FERMION_SCHOOL_HOSTNAME,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_FROM: process.env.EMAIL_FROM,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,

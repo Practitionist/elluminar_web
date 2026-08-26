@@ -1,30 +1,32 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { fermionFetch } from "@/lib/fermion/client";
+import { fermionSchoolHostname, fermionFetch } from "@/lib/fermion/client";
+import { signFermionJwt } from "@/lib/fermion/jwt";
 
 /**
- * Video lifecycle against Fermion:
- *   1. createVideoUpload → VideoAsset(UPLOAD_PENDING) + presigned PUT URL
+ * Video lifecycle against Fermion (per docs.fermion.app API reference):
+ *   1. get-presigned-url-for-video-upload → VideoAsset(UPLOADING) + presigned PUT URL
  *   2. client uploads the file directly to the presigned URL
- *   3. markUploadedAndProcess → Fermion transcodes (status PROCESSING)
- *   4. webhook (or pollVideoStatus fallback) → READY with playbackMeta
- *   5. getVideoPlayback → short-lived signed playback data for the player
+ *   3. start-processing-uploaded-video → Fermion transcodes (status PROCESSING)
+ *   4. webhook "recoded-video-ready-for-playback" (or reconcile job) → READY
+ *   5. playback via JWT-signed private iframe embed — DRM-protected videos can
+ *      ONLY play through Fermion's embedded player (manual M3U8 has no DRM).
  */
 
 type PresignResponse = {
   videoId: string;
-  presignedUploadUrl: string;
+  presignedUrl: string;
 };
 
 export async function createVideoUpload(input: {
   tenantId: string;
   uploadedById: string;
-  title: string;
+  filename: string;
 }) {
   const presign = await fermionFetch<PresignResponse>(
-    "get-presigned-url-to-upload-video",
-    { title: input.title },
+    "get-presigned-url-for-video-upload",
+    { rawFilename: input.filename },
   );
 
   const asset = await db.videoAsset.create({
@@ -33,12 +35,12 @@ export async function createVideoUpload(input: {
       uploadedById: input.uploadedById,
       provider: "FERMION",
       providerVideoRef: presign.videoId,
-      title: input.title,
+      title: input.filename,
       status: "UPLOADING",
     },
   });
 
-  return { videoAssetId: asset.id, uploadUrl: presign.presignedUploadUrl };
+  return { videoAssetId: asset.id, uploadUrl: presign.presignedUrl };
 }
 
 export async function markUploadedAndProcess(videoAssetId: string) {
@@ -55,31 +57,47 @@ export async function markUploadedAndProcess(videoAssetId: string) {
   });
 }
 
-type SignedPlaybackResponse = {
-  m3u8Url?: string;
-  playbackUrl?: string;
-  drm?: unknown;
-  [key: string]: unknown;
-};
+export type VideoPlayback =
+  | { kind: "external"; url: string | null }
+  | { kind: "fermion"; videoId: string; jwtToken: string; websiteHostname: string }
+  | { kind: "pending"; status?: string };
 
-/** Short-lived signed playback data — call per view session, never cache long. */
-export async function getVideoPlayback(videoAssetId: string) {
+/**
+ * Playback data for one view session. The Fermion variant returns everything
+ * the official SDK needs to mount a DRM-capable private embed:
+ * `new FermionRecordedVideo({ videoId, websiteHostname })
+ *   .getPrivateEmbedPlaybackIframeCode({ jwtToken })`.
+ */
+export async function getVideoPlayback(
+  videoAssetId: string,
+  viewerUserId: string,
+): Promise<VideoPlayback> {
   const asset = await db.videoAsset.findUniqueOrThrow({ where: { id: videoAssetId } });
 
   if (asset.provider === "EXTERNAL") {
     // Dev/testing escape hatch: playbackMeta.url is a directly playable URL.
     const meta = (asset.playbackMeta ?? {}) as { url?: string };
-    return { kind: "external" as const, url: meta.url ?? null };
+    return { kind: "external", url: meta.url ?? null };
   }
 
-  if (asset.status !== "READY") {
-    return { kind: "pending" as const, status: asset.status };
+  if (asset.status !== "READY" || !asset.providerVideoRef) {
+    return { kind: "pending", status: asset.status };
   }
-  const data = await fermionFetch<SignedPlaybackResponse>(
-    "get-signed-url-data-for-recorded-videos",
-    { videoId: asset.providerVideoRef },
-  );
-  return { kind: "fermion" as const, data };
+
+  return {
+    kind: "fermion",
+    videoId: asset.providerVideoRef,
+    jwtToken: signFermionJwt(
+      {
+        type: "external-embed",
+        videoId: asset.providerVideoRef,
+        userId: viewerUserId,
+      },
+      // Official recommendation: 10h–20h validity for signed embeds.
+      10 * 3600,
+    ),
+    websiteHostname: fermionSchoolHostname(),
+  };
 }
 
 /** Fallback when webhooks are not configured: reconcile processing status. */
@@ -91,4 +109,19 @@ export async function markVideoReady(providerVideoRef: string, playbackMeta?: un
       playbackMeta: (playbackMeta as object) ?? undefined,
     },
   });
+}
+
+/**
+ * Reconciliation probe for stuck transcodes: signed-URL issuance only succeeds
+ * for videos that are actually playable, so success ⇒ READY.
+ */
+export async function probeVideoReady(providerVideoRef: string): Promise<boolean> {
+  try {
+    await fermionFetch("get-signed-url-data-for-recorded-videos", {
+      videoId: providerVideoRef,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }

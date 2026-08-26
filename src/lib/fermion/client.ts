@@ -39,6 +39,18 @@ export class FermionNotConfiguredError extends FermionError {
 
 export const isFermionConfigured = () => Boolean(env.FERMION_API_KEY);
 
+/**
+ * School hostname (e.g. "acme.fermion.app") used to build whitelabel embed
+ * URLs for recorded videos, coding labs, and live sessions.
+ */
+export function fermionSchoolHostname(): string {
+  const host = env.FERMION_SCHOOL_HOSTNAME;
+  if (!host) {
+    throw new FermionNotConfiguredError();
+  }
+  return host.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+}
+
 type FermionOutput<T> = {
   output:
     | { status: "ok"; data: T }

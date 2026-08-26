@@ -5,36 +5,47 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { env } from "@/env";
 import { db } from "@/lib/db";
-import { markVideoReady } from "@/lib/fermion/video";
+import {
+  checkWebhookSecret,
+  processFermionEvent,
+  reportWebhookProcessingError,
+} from "@/lib/fermion/webhook-handlers";
 
 /**
- * Fermion webhook intake. Every event lands in WebhookEvent first (idempotent
- * on provider+eventRef), then is processed. Unknown event types are stored and
- * SKIPPED — never 500 on novelty.
+ * Fermion webhook intake (docs.fermion.app/webhooks).
+ *
+ * Authenticity: Fermion sends the configured secret in the
+ * `X-Fermion-Webhook-Secret` header on every event — a plain shared-secret
+ * comparison, NOT an HMAC signature. Unconfigured secrets fail closed in
+ * production (503); invalid secrets are rejected with 401 everywhere.
+ *
+ * Envelope: { eventUniqueId, timestampIsoString, isTestEvent,
+ *             payload: { eventType, ...eventData } }.
+ * Every event lands in WebhookEvent first (idempotent on provider+eventRef,
+ * created atomically to survive concurrent deliveries), then is processed;
+ * unknown event types are stored and acknowledged.
  */
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
 
-  let signatureValid = false;
-  if (env.FERMION_WEBHOOK_SECRET) {
-    const signature =
-      request.headers.get("x-fermion-signature") ??
-      request.headers.get("fermion-signature") ??
-      "";
-    const expected = crypto
-      .createHmac("sha256", env.FERMION_WEBHOOK_SECRET)
-      .update(rawBody)
-      .digest("hex");
-    signatureValid =
-      signature.length > 0 &&
-      signature.length === expected.length &&
-      crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-    if (!signatureValid) {
-      Sentry.captureMessage("fermion webhook signature verification failed", {
+  const secretCheck = checkWebhookSecret(
+    request.headers.get("x-fermion-webhook-secret"),
+  );
+  if (secretCheck.reason === "invalid") {
+    Sentry.captureMessage("fermion webhook secret verification failed", {
+      level: "warning",
+      tags: { webhook: "fermion" },
+    });
+    return NextResponse.json({ error: "invalid secret" }, { status: 401 });
+  }
+  if (secretCheck.reason === "not-configured") {
+    if (process.env.NODE_ENV === "production" || env.FERMION_API_KEY) {
+      // Configured vendor without a webhook secret must not accept forgeries.
+      Sentry.captureMessage("fermion webhook received without configured secret", {
         level: "warning",
         tags: { webhook: "fermion" },
       });
-      return NextResponse.json({ error: "invalid signature" }, { status: 401 });
+      return NextResponse.json({ error: "webhook not configured" }, { status: 503 });
     }
   }
 
@@ -45,54 +56,53 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
 
-  const eventType = String(payload.event ?? payload.type ?? "unknown");
-  const eventRef = String(
-    payload.eventId ?? payload.id ?? crypto.createHash("sha256").update(rawBody).digest("hex"),
-  );
+  const envelope = payload as {
+    eventUniqueId?: string;
+    id?: string;
+    eventId?: string;
+    type?: string;
+    event?: string;
+    eventType?: string;
+    payload?: Record<string, unknown>;
+    data?: Record<string, unknown>;
+  };
 
-  // Idempotency: first writer wins; replays acknowledge without reprocessing.
-  const existing = await db.webhookEvent.findUnique({
+  const eventType = String(
+    envelope.payload?.eventType ?? envelope.eventType ?? envelope.event ?? envelope.type ?? "unknown",
+  );
+  const eventRef = String(
+    envelope.eventUniqueId ??
+      envelope.eventId ??
+      envelope.id ??
+      crypto.createHash("sha256").update(rawBody).digest("hex"),
+  );
+  const data = (envelope.payload ?? envelope.data ?? payload) as Record<string, unknown>;
+
+  // Idempotency: atomic create-or-get survives concurrent deliveries of the
+  // same eventUniqueId (P2002-safe, unlike find-then-create).
+  const event = await db.webhookEvent.upsert({
     where: { provider_eventRef: { provider: "FERMION", eventRef } },
+    update: {},
+    create: {
+      provider: "FERMION",
+      eventRef,
+      eventType,
+      signatureValid: secretCheck.reason === "valid",
+      payload: payload as object,
+    },
   });
-  if (existing && existing.status === "PROCESSED") {
+  if (event.status === "PROCESSED") {
     return NextResponse.json({ ok: true, deduped: true });
   }
 
-  const event =
-    existing ??
-    (await db.webhookEvent.create({
-      data: {
-        provider: "FERMION",
-        eventRef,
-        eventType,
-        signatureValid,
-        payload: payload as object,
-      },
-    }));
-
   try {
-    const data = (payload.data ?? payload) as Record<string, unknown>;
-
-    if (eventType.includes("video") && String(data.status ?? "").toLowerCase().includes("ready")) {
-      const videoRef = String(data.videoId ?? data.videoRef ?? "");
-      if (videoRef) await markVideoReady(videoRef, data);
-    } else if (eventType.includes("video") && data.videoId) {
-      // processing progress / failures — reconcile status conservatively
-      const status = String(data.status ?? "").toLowerCase();
-      if (status.includes("fail")) {
-        await db.videoAsset.updateMany({
-          where: { provider: "FERMION", providerVideoRef: String(data.videoId) },
-          data: { status: "FAILED" },
-        });
-      }
-    }
-
+    await processFermionEvent(eventType, data);
     await db.webhookEvent.update({
       where: { id: event.id },
       data: { status: "PROCESSED", processedAt: new Date(), attempts: { increment: 1 } },
     });
   } catch (err) {
-    Sentry.captureException(err, { tags: { webhook: "fermion", eventType } });
+    reportWebhookProcessingError(err, eventType);
     await db.webhookEvent.update({
       where: { id: event.id },
       data: {
@@ -101,7 +111,7 @@ export async function POST(request: NextRequest) {
         error: err instanceof Error ? err.message : String(err),
       },
     });
-    // Acknowledge receipt; failures are retried by the reconciliation job (M13).
+    // Acknowledge receipt; FAILED events are replayed by the reconciliation job.
   }
 
   return NextResponse.json({ ok: true });

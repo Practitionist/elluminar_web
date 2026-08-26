@@ -14,7 +14,10 @@ export async function ensureFermionUser(userId: string): Promise<string> {
   if (existing) return existing.externalRef;
 
   const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
+  // Pass our own id so Fermion echoes it back as apiUserId on webhook events
+  // (e.g. lab-run-tests), giving lossless attribution to our users.
   const created = await fermionFetch<{ userId: string }>("create-new-user", {
+    userId,
     name: user.name,
     email: user.email,
   });
