@@ -3,13 +3,16 @@
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/lib/db";
+import { isFermionConfigured } from "@/lib/fermion/client";
+import { createVideoUpload, markUploadedAndProcess } from "@/lib/fermion/video";
 import { ActionError, adminActionClient, tenantActionClient } from "@/lib/safe-action";
 import {
-  courseIdInput,
+  confirmLessonVideoUploadSchema,
   createCourseSchema,
   deleteEntitySchema,
   deleteQuizQuestionSchema,
   reorderSchema,
+  requestLessonVideoUploadSchema,
   reviewCourseSchema,
   setCoursePriceSchema,
   submitCourseForReviewSchema,
@@ -115,21 +118,45 @@ export const upsertLesson = editorClient
   .action(async ({ parsedInput, ctx }) => {
     await assertCourseInTenant(parsedInput.courseId, ctx.tenant.id);
 
-    // Dev/testing escape hatch: an external video URL creates an EXTERNAL VideoAsset.
+    // Ownership: the lesson (when editing) must belong to THIS course — a raw
+    // id from another tenant must never be writable here.
+    const existingLesson = parsedInput.lessonId
+      ? await db.lesson.findFirst({
+          where: { id: parsedInput.lessonId, courseId: parsedInput.courseId },
+        })
+      : null;
+    if (parsedInput.lessonId && !existingLesson) {
+      throw new ActionError("Lesson not found.");
+    }
+
+    // Dev/testing escape hatch: an external video URL creates an EXTERNAL
+    // VideoAsset — reusing the lesson's existing EXTERNAL asset on re-save so
+    // edits never orphan rows or clobber a linked Fermion asset.
     let videoAssetId = parsedInput.videoAssetId ?? undefined;
     if (!videoAssetId && parsedInput.type === "VIDEO" && parsedInput.externalVideoUrl) {
-      const asset = await db.videoAsset.create({
-        data: {
-          tenantId: ctx.tenant.id,
-          provider: "EXTERNAL",
-          status: "READY",
-          title: parsedInput.title,
-          drmEnabled: false,
-          playbackMeta: { url: parsedInput.externalVideoUrl },
-          uploadedById: ctx.session.user.id,
-        },
-      });
-      videoAssetId = asset.id;
+      const current = existingLesson?.videoAssetId
+        ? await db.videoAsset.findUnique({ where: { id: existingLesson.videoAssetId } })
+        : null;
+      if (current?.provider === "EXTERNAL") {
+        await db.videoAsset.update({
+          where: { id: current.id },
+          data: { playbackMeta: { url: parsedInput.externalVideoUrl } },
+        });
+        videoAssetId = current.id;
+      } else {
+        const asset = await db.videoAsset.create({
+          data: {
+            tenantId: ctx.tenant.id,
+            provider: "EXTERNAL",
+            status: "READY",
+            title: parsedInput.title,
+            drmEnabled: false,
+            playbackMeta: { url: parsedInput.externalVideoUrl },
+            uploadedById: ctx.session.user.id,
+          },
+        });
+        videoAssetId = asset.id;
+      }
     }
 
     const data = {
@@ -139,13 +166,18 @@ export const upsertLesson = editorClient
       releaseAfterDays: parsedInput.releaseAfterDays ?? null,
       durationSec: parsedInput.durationSec ?? null,
       content: parsedInput.content ?? undefined,
-      videoAssetId: videoAssetId ?? null,
       labConfig: parsedInput.labConfig ?? undefined,
     };
+    // Only touch videoAssetId when explicitly provided — editing any other
+    // field must never detach an already-linked video asset.
+    const updateData = {
+      ...data,
+      ...(videoAssetId !== undefined ? { videoAssetId } : {}),
+    };
 
-    let lessonId = parsedInput.lessonId;
+    let lessonId = existingLesson?.id;
     if (lessonId) {
-      await db.lesson.update({ where: { id: lessonId }, data });
+      await db.lesson.update({ where: { id: lessonId }, data: updateData });
     } else {
       const last = await db.lesson.findFirst({
         where: { sectionId: parsedInput.sectionId },
@@ -153,7 +185,8 @@ export const upsertLesson = editorClient
       });
       const lesson = await db.lesson.create({
         data: {
-          ...data,
+          ...updateData,
+          videoAssetId: videoAssetId ?? null,
           sectionId: parsedInput.sectionId,
           courseId: parsedInput.courseId,
           position: (last?.position ?? -1) + 1,
@@ -184,9 +217,10 @@ export const reorderEntity = editorClient
   .action(async ({ parsedInput, ctx }) => {
     await assertCourseInTenant(parsedInput.courseId, ctx.tenant.id);
     if (parsedInput.kind === "SECTION") {
-      const section = await db.courseSection.findUniqueOrThrow({
-        where: { id: parsedInput.id },
+      const section = await db.courseSection.findFirst({
+        where: { id: parsedInput.id, courseId: parsedInput.courseId },
       });
+      if (!section) throw new ActionError("Section not found.");
       const neighbor = await db.courseSection.findFirst({
         where: {
           courseId: section.courseId,
@@ -210,7 +244,10 @@ export const reorderEntity = editorClient
         ]);
       }
     } else {
-      const lesson = await db.lesson.findUniqueOrThrow({ where: { id: parsedInput.id } });
+      const lesson = await db.lesson.findFirst({
+        where: { id: parsedInput.id, courseId: parsedInput.courseId },
+      });
+      if (!lesson) throw new ActionError("Lesson not found.");
       const neighbor = await db.lesson.findFirst({
         where: {
           sectionId: lesson.sectionId,
@@ -237,9 +274,17 @@ export const deleteEntity = editorClient
   .action(async ({ parsedInput, ctx }) => {
     await assertCourseInTenant(parsedInput.courseId, ctx.tenant.id);
     if (parsedInput.kind === "SECTION") {
-      await db.courseSection.delete({ where: { id: parsedInput.id } });
+      const section = await db.courseSection.findFirst({
+        where: { id: parsedInput.id, courseId: parsedInput.courseId },
+      });
+      if (!section) throw new ActionError("Section not found.");
+      await db.courseSection.delete({ where: { id: section.id } });
     } else {
-      await db.lesson.delete({ where: { id: parsedInput.id } });
+      const lesson = await db.lesson.findFirst({
+        where: { id: parsedInput.id, courseId: parsedInput.courseId },
+      });
+      if (!lesson) throw new ActionError("Lesson not found.");
+      await db.lesson.delete({ where: { id: lesson.id } });
     }
     revalidatePath(`/studio/${ctx.tenant.slug}/courses/${parsedInput.courseId}`);
     return { ok: true };
@@ -454,6 +499,60 @@ export const deleteQuizQuestion = editorClient
     await db.quizQuestion.delete({ where: { id: parsedInput.questionId } });
     revalidatePath(`/studio/${ctx.tenant.slug}/courses/${parsedInput.courseId}`);
     return { ok: true };
+  });
+
+// ── DRM video uploads (Fermion) ─────────────────────────────────────
+
+/**
+ * Mints a Fermion presigned upload URL and links the new VideoAsset to the
+ * lesson. The browser PUTs the file directly to the presigned URL, then calls
+ * confirmLessonVideoUpload to start transcoding.
+ */
+export const requestLessonVideoUpload = editorClient
+  .inputSchema(requestLessonVideoUploadSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    await assertCourseInTenant(parsedInput.courseId, ctx.tenant.id);
+    const lesson = await db.lesson.findFirst({
+      where: { id: parsedInput.lessonId, courseId: parsedInput.courseId, type: "VIDEO" },
+    });
+    if (!lesson) throw new ActionError("Video lesson not found.");
+    if (!isFermionConfigured()) {
+      throw new ActionError(
+        "Video uploads are not configured yet (missing FERMION_API_KEY). Use an external URL for now.",
+      );
+    }
+
+    const upload = await createVideoUpload({
+      tenantId: ctx.tenant.id,
+      uploadedById: ctx.session.user.id,
+      filename: parsedInput.filename,
+    });
+    await db.lesson.update({
+      where: { id: lesson.id },
+      data: { videoAssetId: upload.videoAssetId },
+    });
+
+    revalidatePath(`/studio/${ctx.tenant.slug}/courses/${parsedInput.courseId}`);
+    return upload;
+  });
+
+/** Marks the uploaded file as complete so Fermion's transcoder picks it up. */
+export const confirmLessonVideoUpload = editorClient
+  .inputSchema(confirmLessonVideoUploadSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    await assertCourseInTenant(parsedInput.courseId, ctx.tenant.id);
+    const asset = await db.videoAsset.findFirst({
+      where: {
+        id: parsedInput.videoAssetId,
+        tenantId: ctx.tenant.id,
+        provider: "FERMION",
+      },
+    });
+    if (!asset) throw new ActionError("Video asset not found.");
+
+    const updated = await markUploadedAndProcess(asset.id);
+    revalidatePath(`/studio/${ctx.tenant.slug}/courses/${parsedInput.courseId}`);
+    return { status: updated.status };
   });
 
 export const upsertAssignment = editorClient

@@ -12,6 +12,8 @@ export const lessonTypeSchema = z.enum([
   "EMBED",
 ]);
 
+export type LessonType = z.infer<typeof lessonTypeSchema>;
+
 export const createCourseSchema = z.object({
   tenantSlug: slugSchema,
   title: z.string().min(3).max(120),
@@ -89,6 +91,23 @@ export const deleteEntitySchema = z.object({
   courseId: z.string().min(1),
   kind: z.enum(["SECTION", "LESSON"]),
   id: z.string().min(1),
+});
+
+export const requestLessonVideoUploadSchema = z.object({
+  tenantSlug: slugSchema,
+  courseId: z.string().min(1),
+  lessonId: z.string().min(1),
+  filename: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(/\.(mp4|mov|webm|mkv|m4v)$/i, "Unsupported video format."),
+});
+
+export const confirmLessonVideoUploadSchema = z.object({
+  tenantSlug: slugSchema,
+  courseId: z.string().min(1),
+  videoAssetId: z.string().min(1),
 });
 
 export const setCoursePriceSchema = z.object({

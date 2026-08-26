@@ -20,6 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import { requireUser } from "@/lib/auth/session";
 import { resolveCourseAccess } from "@/lib/commerce/entitlements";
 import { db } from "@/lib/db";
+import { fermionSchoolHostname } from "@/lib/fermion/client";
 import { getVideoPlayback } from "@/lib/fermion/video";
 import { isLessonUnlocked } from "@/lib/learning/lesson-access";
 import { tiptapToPlainText } from "@/lib/richtext";
@@ -27,6 +28,7 @@ import { getSignedReadUrl, isStorageConfigured } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
 import { AssignmentPanel } from "./assignment-panel";
+import { CodeLabFrame } from "./code-lab-frame";
 import { MarkCompleteButton } from "./mark-complete-button";
 import { VideoLessonPlayer } from "./video-lesson-player";
 
@@ -94,7 +96,9 @@ export default async function CoursePlayerPage({
   // Type-specific data
   let playback: Awaited<ReturnType<typeof getVideoPlayback>> | null = null;
   if (unlocked && activeLesson.type === "VIDEO" && activeLesson.videoAssetId) {
-    playback = await getVideoPlayback(activeLesson.videoAssetId).catch(() => null);
+    playback = await getVideoPlayback(activeLesson.videoAssetId, session.user.id).catch(
+      () => null,
+    );
   }
   const assignment =
     unlocked && activeLesson.type === "ASSIGNMENT"
@@ -258,7 +262,12 @@ export default async function CoursePlayerPage({
                 playback?.kind === "external"
                   ? { kind: "external", url: playback.url }
                   : playback?.kind === "fermion"
-                    ? { kind: "fermion", data: playback.data as Record<string, unknown> }
+                    ? {
+                        kind: "fermion",
+                        videoId: playback.videoId,
+                        jwtToken: playback.jwtToken,
+                        websiteHostname: playback.websiteHostname,
+                      }
                     : { kind: "pending" }
               }
               resumeAt={activeProgress?.lastPositionSec ?? 0}
@@ -322,15 +331,20 @@ export default async function CoursePlayerPage({
               }))}
             />
           ) : activeLesson.type === "CODE_LAB" ? (
-            <div className="space-y-3 rounded-2xl border border-border bg-card px-6 py-14 text-center">
-              <p className="text-sm text-muted-foreground">
-                Interactive code lab
-                {(activeLesson.labConfig as { labRef?: string } | null)?.labRef
-                  ? ` (${(activeLesson.labConfig as { labRef?: string }).labRef})`
-                  : ""}{" "}
-                — launches embedded once Fermion is configured.
-              </p>
-            </div>
+            <CodeLabFrame
+              courseId={courseId}
+              lessonId={activeLesson.id}
+              labRef={(activeLesson.labConfig as { labRef?: string } | null)?.labRef ?? null}
+              expectedOrigin={
+                (() => {
+                  try {
+                    return `https://${fermionSchoolHostname()}`;
+                  } catch {
+                    return "";
+                  }
+                })()
+              }
+            />
           ) : activeLesson.type === "RESOURCE" ? (
             <div className="space-y-2 rounded-2xl border border-border bg-card p-5">
               {resourceLinks.length === 0 ? (

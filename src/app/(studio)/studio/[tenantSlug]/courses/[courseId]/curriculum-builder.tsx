@@ -1,14 +1,17 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Pencil, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Pencil, Plus, Upload, X } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
+  confirmLessonVideoUpload,
   deleteEntity,
   reorderEntity,
+  requestLessonVideoUpload,
   upsertLesson,
   upsertSection,
 } from "@/actions/course";
@@ -32,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import type { LessonType } from "@/lib/validation/course";
 
 type LessonRow = {
   id: string;
@@ -265,28 +269,73 @@ function LessonDialog({
   lesson?: LessonRow;
 }) {
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState(lesson?.type ?? "VIDEO");
+  const [type, setType] = useState<LessonType>(lesson?.type as LessonType ?? "VIDEO");
   const [isFreePreview, setIsFreePreview] = useState(lesson?.isFreePreview ?? false);
+  const [uploadState, setUploadState] = useState<"idle" | "uploading">("idle");
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { execute, isPending } = useAction(upsertLesson, {
-    onSuccess: () => {
-      toast.success("Lesson saved");
-      setOpen(false);
-    },
+  // Close-on-success is decided in onSubmit (a pending video upload keeps the
+  // dialog open); the hook only surfaces errors.
+  const { executeAsync: saveLesson, isPending } = useAction(upsertLesson, {
     onError: ({ error }) => toast.error(error.serverError ?? "Failed"),
   });
+  const { executeAsync: requestUpload } = useAction(requestLessonVideoUpload, {
+    onError: ({ error }) => {
+      setUploadState("idle");
+      toast.error(error.serverError ?? "Could not start video upload.");
+    },
+  });
+  const { executeAsync: confirmUpload } = useAction(confirmLessonVideoUpload, {
+    onError: ({ error }) => toast.error(error.serverError ?? "Transcode kickoff failed."),
+  });
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  /** Presign → direct browser PUT → confirm (transcode starts server-side). */
+  async function uploadVideoFile(lessonId: string, file: File) {
+    setUploadState("uploading");
+    try {
+      const presign = await requestUpload({
+        tenantSlug,
+        courseId,
+        lessonId,
+        filename: file.name,
+      });
+      if (!presign?.data) throw new Error("no presigned url");
+      // No explicit Content-Type header — the presigned URL's signature must
+      // stay authoritative over headers.
+      const put = await fetch(presign.data.uploadUrl, {
+        method: "PUT",
+        body: file,
+      });
+      if (!put.ok) throw new Error(`upload failed (${put.status})`);
+      await confirmUpload({
+        tenantSlug,
+        courseId,
+        videoAssetId: presign.data.videoAssetId,
+      });
+      toast.success("Video uploaded — DRM transcode in progress");
+      router.refresh();
+    } catch {
+      toast.error("Video upload failed. Please retry.");
+    } finally {
+      setUploadState("idle");
+    }
+  }
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const articleText = String(form.get("articleText") || "");
     const embedUrl = String(form.get("embedUrl") || "");
-    execute({
+    const file = type === "VIDEO" ? fileInputRef.current?.files?.[0] : undefined;
+    if (file && uploadState === "uploading") return;
+
+    const result = await saveLesson({
       tenantSlug,
       courseId,
       sectionId,
       lessonId: lesson?.id,
-      type: type as never,
+      type,
       title: String(form.get("title")),
       isFreePreview,
       releaseAfterDays: form.get("releaseAfterDays")
@@ -305,7 +354,7 @@ function LessonDialog({
           : type === "EMBED" && embedUrl
             ? { embedUrl }
             : undefined,
-      externalVideoUrl: String(form.get("externalVideoUrl") || ""),
+      externalVideoUrl: file ? "" : String(form.get("externalVideoUrl") || ""),
       labConfig:
         type === "CODE_LAB"
           ? {
@@ -314,6 +363,15 @@ function LessonDialog({
             }
           : undefined,
     });
+
+    if (!result?.data) return; // save failed — error toast already surfaced
+    if (file && result.data.lessonId) {
+      toast.success("Lesson saved — uploading video…");
+      await uploadVideoFile(result.data.lessonId, file);
+    } else {
+      toast.success("Lesson saved");
+    }
+    setOpen(false);
   }
 
   return (
@@ -344,7 +402,7 @@ function LessonDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Type</Label>
-              <Select value={type} onValueChange={(v) => setType(v ?? "")} disabled={Boolean(lesson)}>
+              <Select value={type} onValueChange={(v) => setType((v ?? "VIDEO") as LessonType)} disabled={Boolean(lesson)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -370,17 +428,29 @@ function LessonDialog({
           </div>
           {type === "VIDEO" && (
             <div className="space-y-2">
-              <Label htmlFor="externalVideoUrl">Video URL</Label>
+              <Label htmlFor="videoFile">DRM video (upload via Fermion)</Label>
               <Input
-                id="externalVideoUrl"
-                name="externalVideoUrl"
-                type="url"
-                placeholder="https://… (or upload via Fermion once configured)"
+                id="videoFile"
+                name="videoFile"
+                ref={fileInputRef}
+                type="file"
+                accept="video/mp4,video/quicktime,video/webm,video/x-matroska"
               />
               <p className="text-xs text-muted-foreground">
-                DRM uploads via Fermion appear here once FERMION_API_KEY is set;
-                an external URL works for drafts and testing.
+                {lesson?.videoStatus
+                  ? `Current source: ${lesson.videoStatus.toLowerCase().replace("_", " ")}. Selecting a file replaces it.`
+                  : "The file uploads after saving; playback appears once transcoding finishes."}{" "}
+                An external URL below works for drafts and testing.
               </p>
+              <div className="space-y-2">
+                <Label htmlFor="externalVideoUrl">External video URL (optional)</Label>
+                <Input
+                  id="externalVideoUrl"
+                  name="externalVideoUrl"
+                  type="url"
+                  placeholder="https://…"
+                />
+              </div>
             </div>
           )}
           {type === "ARTICLE" && (
@@ -417,8 +487,19 @@ function LessonDialog({
               <Label>Free preview</Label>
             </div>
           </div>
-          <Button type="submit" disabled={isPending} className="w-full rounded-full">
-            {isPending ? "Saving…" : "Save lesson"}
+          <Button type="submit" disabled={isPending || uploadState === "uploading"} className="w-full rounded-full">
+            {uploadState === "uploading" ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="size-4 animate-spin" /> Uploading video…
+              </span>
+            ) : isPending ? (
+              "Saving…"
+            ) : (
+              <span className="flex items-center gap-2">
+                <Upload className="size-3.5" />
+                Save lesson
+              </span>
+            )}
           </Button>
         </form>
       </DialogContent>
