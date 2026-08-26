@@ -4,6 +4,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/env";
 import { grantPeriodCredits } from "@/lib/commerce/subscriptions";
 import { db } from "@/lib/db";
+import { isFermionConfigured } from "@/lib/fermion/client";
+import {
+  reconcileStuckFermionVideos,
+  retryFailedFermionWebhooks,
+} from "@/lib/fermion/reconcile";
 
 /**
  * Daily maintenance (invoked by the Netlify scheduled function with CRON_SECRET):
@@ -11,6 +16,7 @@ import { db } from "@/lib/db";
  *  2. re-grant period credits for active subscriptions (new period keys)
  *  3. abandon stale carts; expire stale pending orders
  *  4. surface (don't retry) repeatedly-failing webhook events
+ *  5. Fermion reconciliation: stuck transcodes + failed webhook replays (#52)
  */
 export async function POST(request: NextRequest) {
   const auth = request.headers.get("authorization");
@@ -148,6 +154,18 @@ export async function POST(request: NextRequest) {
           });
         }
         results.renewalsDue = renewalsDue;
+
+        // 9. Fermion reconciliation — only meaningful when the vendor is
+        //    configured; a no-op otherwise.
+        if (isFermionConfigured()) {
+          const videos = await reconcileStuckFermionVideos(now);
+          results.fermionVideosProbed = videos.probed;
+          results.fermionVideosReadied = videos.readied;
+          results.fermionVideosFailed = videos.failed;
+          const webhooks = await retryFailedFermionWebhooks();
+          results.fermionWebhooksRetried = webhooks.retried;
+          results.fermionWebhooksRecovered = webhooks.recovered;
+        }
 
         return results;
       },
