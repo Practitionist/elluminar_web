@@ -11,6 +11,21 @@ export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const IMAGE_MIMES = ["image/png", "image/jpeg", "image/webp"];
 const ARCHIVE_MIMES = ["application/zip", "application/x-zip-compressed"];
 const TEXT_MIMES = ["text/plain", "text/markdown", "text/csv"];
+/** Data & notebook deliverables — the artefact itself for data/ML capstones. */
+const DATA_MIMES = ["application/json", "application/x-ipynb+json", "application/sql"];
+/**
+ * Design deliverables. Several of these have no registered IANA type, so the
+ * tokens below are ours and are matched by extension (see MIME_BY_EXT). That is
+ * fine because the MIME is client-asserted either way — the real protections
+ * are the size cap, the private bucket, and short-lived signed reads. Nothing
+ * uploaded is ever executed or served from an origin we trust.
+ */
+const DESIGN_MIMES = [
+  "image/vnd.adobe.photoshop",
+  "application/illustrator",
+  "application/x-figma",
+  "application/x-sketch",
+];
 const OFFICE_MIMES = [
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -35,6 +50,8 @@ export const SUBMISSION_MIME_ALLOWLIST = [
   ...ARCHIVE_MIMES,
   ...OFFICE_MIMES,
   ...TEXT_MIMES,
+  ...DATA_MIMES,
+  ...DESIGN_MIMES,
 ] as const;
 
 /** Creator RESOURCE lessons: everything a learner may submit, plus GIF. */
@@ -73,6 +90,13 @@ export const MIME_BY_EXT: Record<string, string> = {
   txt: "text/plain",
   md: "text/markdown",
   csv: "text/csv",
+  json: "application/json",
+  ipynb: "application/x-ipynb+json",
+  sql: "application/sql",
+  psd: "image/vnd.adobe.photoshop",
+  ai: "application/illustrator",
+  fig: "application/x-figma",
+  sketch: "application/x-sketch",
 };
 
 /** `accept` attribute for learner submission pickers. Derived, never hand-listed. */
@@ -81,9 +105,15 @@ export const SUBMISSION_ACCEPT_ATTR = Object.entries(MIME_BY_EXT)
   .map(([ext]) => `.${ext}`)
   .join(",");
 
-/** Best-effort MIME for a picked file: the browser's type, else the extension. */
+/**
+ * Best-effort MIME for a picked file: the browser's type, else the extension.
+ *
+ * `application/octet-stream` is treated as "the browser doesn't know" rather
+ * than as an answer — it's what Chrome reports for .fig, .sketch and friends,
+ * and taking it literally would reject exactly the design files we just allowed.
+ */
 export function mimeForFilename(filename: string, browserType?: string): string {
-  if (browserType) return browserType;
+  if (browserType && browserType !== "application/octet-stream") return browserType;
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   return MIME_BY_EXT[ext] ?? "";
 }

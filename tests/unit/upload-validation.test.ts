@@ -5,6 +5,7 @@ import {
   mediaKindForMime,
   RESOURCE_MIME_ALLOWLIST,
   SUBMISSION_MIME_ALLOWLIST,
+  mimeForFilename,
 } from "@/lib/learning/uploads";
 
 describe("SUBMISSION_MIME_ALLOWLIST", () => {
@@ -26,6 +27,13 @@ describe("SUBMISSION_MIME_ALLOWLIST", () => {
         "text/plain",
         "text/markdown",
         "text/csv",
+        "application/json",
+        "application/x-ipynb+json",
+        "application/sql",
+        "image/vnd.adobe.photoshop",
+        "application/illustrator",
+        "application/x-figma",
+        "application/x-sketch",
       ].sort(),
     );
   });
@@ -42,6 +50,14 @@ describe("SUBMISSION_MIME_ALLOWLIST", () => {
     expect(list).toContain(
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     );
+  });
+
+  it("accepts data/notebook and design deliverables", () => {
+    const list = SUBMISSION_MIME_ALLOWLIST as readonly string[];
+    expect(list).toContain("application/x-ipynb+json");
+    expect(list).toContain("application/json");
+    expect(list).toContain("image/vnd.adobe.photoshop");
+    expect(list).toContain("application/x-figma");
   });
 
   it("rejects executables and videos", () => {
@@ -64,6 +80,30 @@ describe("RESOURCE_MIME_ALLOWLIST", () => {
     expect(list.includes("application/msword")).toBe(true);
     expect(list).toContain("text/csv");
     expect(list).toContain("image/gif");
+  });
+});
+
+describe("mimeForFilename", () => {
+  it("trusts a real browser type", () => {
+    expect(mimeForFilename("deck.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")).toBe(
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    );
+  });
+
+  it("falls back to the extension when the browser says nothing", () => {
+    expect(mimeForFilename("analysis.ipynb", "")).toBe("application/x-ipynb+json");
+    expect(mimeForFilename("mockup.fig")).toBe("application/x-figma");
+  });
+
+  it("treats octet-stream as unknown, not as an answer", () => {
+    // Chrome reports octet-stream for .fig/.sketch; taking it literally would
+    // reject the very design files the allowlist now permits.
+    expect(mimeForFilename("mockup.fig", "application/octet-stream")).toBe("application/x-figma");
+    expect(mimeForFilename("board.sketch", "application/octet-stream")).toBe("application/x-sketch");
+  });
+
+  it("returns empty for genuinely unknown extensions", () => {
+    expect(mimeForFilename("payload.exe", "application/octet-stream")).toBe("");
   });
 });
 
