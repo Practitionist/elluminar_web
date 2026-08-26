@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { createSafeActionClient } from "next-safe-action";
 
+import { CONTENT_TEAM_ROLES, type OrgRole } from "@/lib/auth/roles";
 import { getSession, requireTenantMember } from "@/lib/auth/session";
 
 export class ActionError extends Error {}
@@ -34,13 +35,7 @@ export const adminActionClient = authActionClient.use(async ({ next, ctx }) => {
  * Binds an action to a tenant the caller belongs to. The action's input must
  * include { tenantSlug }; ctx gains { tenant, membership }.
  */
-export function tenantActionClient(
-  allowedRoles: Array<"owner" | "admin" | "instructor" | "member"> = [
-    "owner",
-    "admin",
-    "instructor",
-  ],
-) {
+export function tenantActionClient(allowedRoles: readonly OrgRole[] = CONTENT_TEAM_ROLES) {
   return authActionClient.use(async ({ next, clientInput }) => {
     const tenantSlug = (clientInput as { tenantSlug?: string })?.tenantSlug;
     if (!tenantSlug) throw new ActionError("Missing tenant.");
