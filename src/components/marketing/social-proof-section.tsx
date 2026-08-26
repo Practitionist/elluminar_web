@@ -37,11 +37,11 @@ function CreatorCard({
         <div
           className={`absolute ${isSmall ? "bottom-3 left-3 right-3" : "bottom-4 left-4 right-4"}`}
         >
-          <h4
+          <h3
             className={`font-bold text-primary ${isSmall ? "text-base" : "text-lg"}`}
           >
             {name}
-          </h4>
+          </h3>
           <p className="text-xs text-muted-foreground">Since {year}</p>
         </div>
       </div>
@@ -170,9 +170,9 @@ export function SocialProofSection() {
                       <User className="w-16 h-16 text-primary/40" />
                     </div>
                     <div className="absolute bottom-0 left-0 right-0 p-3">
-                      <h4 className="font-bold text-primary text-sm">
+                      <h3 className="font-bold text-primary text-sm">
                         {creator.name}
-                      </h4>
+                      </h3>
                       <p className="text-xs text-muted-foreground">
                         Since {creator.year}
                       </p>

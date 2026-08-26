@@ -67,7 +67,7 @@ export function ProjectsSection() {
                     <Rocket className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-lg">Industry-Relevant</h4>
+                    <h3 className="font-semibold text-lg">Industry-Relevant</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       Work on projects scoped like real take-home assessments
                     </p>
@@ -79,7 +79,7 @@ export function ProjectsSection() {
                     <Users className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-lg">Mentor Reviewed</h4>
+                    <h3 className="font-semibold text-lg">Mentor Reviewed</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       Real mentors grade your checkpoints and run revision
                       loops with you

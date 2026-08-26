@@ -49,9 +49,9 @@ export function CoursesSection() {
                     <GraduationCap className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-lg">
+                    <h3 className="font-semibold text-lg">
                       Creator-Led Content
-                    </h4>
+                    </h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       Learn from independent technical creators who work in the
                       field
@@ -64,7 +64,7 @@ export function CoursesSection() {
                     <Target className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-lg">Practice-Focused</h4>
+                    <h3 className="font-semibold text-lg">Practice-Focused</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       Apply concepts immediately with embedded code labs and
                       real assignments
