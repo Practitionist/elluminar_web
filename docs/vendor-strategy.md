@@ -40,6 +40,28 @@ Notes: Cloudflare Stream has **no Widevine/FairPlay** (signed URLs only). Mux DR
 
 ## What Fermion is
 
+## Vendor Risk Register — last reviewed 2026-08-26 (owner: CTO)
+
+| Vendor | Tier | Grade | Escape hatch today? | Fallback action | Cadence |
+|---|---|---|---|---|---|
+| Supabase | Critical | A | Partial (ORM isolates; backups NOT external) | Nightly pg_dump→external storage + restore drill | Quarterly |
+| Razorpay | Critical | A | PaymentProvider enum exists; warm 2nd account doesn't | Cashfree warm + webhook normalizer | Monthly |
+| Testpress/Fermion | Critical | B− | Yes — provider enums everywhere | Masters in own storage; TPStreams/VdoCipher swap | Quarterly |
+| Stream | High | A− ($58M raised, $43M ARR, stable headcount) | Planned (#59/#61) | LiveKit/Daily | Semiannual |
+| VdoCipher | High | B (11yr, ~bootstrapped, durable) | Planned (VideoProvider.VDOCIPHER #60) | Gumlet/Bunny re-encode | Semiannual |
+| Gumlet | High | B+ (Peak XV-backed) | Planned (same enum) | Bunny.Stream | Semiannual |
+| Kinescope | Low | **C** (tiny NL entity, no funding) | Same enum — **never primary**; evaluation only | Drop anytime | Semiannual |
+| Bunny.net | Low | A− (bootstrapped, profitable) | Yes (CNAME-level) | Any CDN | Annual |
+| Resend | High | B ($18M a16z, small team) | No (EmailProvider interface = ½ day) | SES/Postmark | Semiannual |
+| Upstash | High | B− | Yes (Redis protocol client) | Redis Cloud | Semiannual |
+| Sentry | Low | A | N/A (SDK-standard) | GlitchTip/self-host | Annual |
+| Netlify | Low | B (solvent-but-stalled) | Implicit (git-based deploy) | Cloudflare Pages redeploy | Annual |
+| Judge0/Piston | High | **D hosted / A OSS** | ⚠️ Piston free public API died Feb'26 → self-host from day one (#62) | Self-hosted Judge0 CE container | Monthly |
+
+**Standing rules:** runbooks for exactly 3 vendors (Supabase backups→external storage, Razorpay warm fallback account, Testpress media-egress guarantee) · escape-hatch provider enums for everything else (build the 2nd implementation only when needed) · dual-vendor-live justified for **payments only** · no production dependency on free public APIs · media masters always in our own object storage · out-of-cycle review triggers: acquisition rumor, pricing-page change, >2h status degradation, founder departure at any critical/high vendor.
+
+### What Fermion is
+
 Fermion (by the codedamn team) is a whitelabeled, API-first **infrastructure layer**
 for ed-tech — "AI-ready cloud for ed-tech". It bundles four capabilities that are
 normally four vendor relationships:
