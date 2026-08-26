@@ -8,7 +8,7 @@ argument-hint: "[PR number — defaults to the PR for the current branch]"
 
 Turn a pile of automated/human PR review comments into a clean, verified result. The flow has a hard **pause for user approval** before anything is committed or pushed, and resolves bot threads **without replying**.
 
-Resolve the target PR number from `$ARGUMENTS`; if empty, use the PR for the current branch (`gh pr view --json number`).
+Resolve the target PR number from `$ARGUMENTS`; if empty, use the PR for the current branch (`gh pr view --json number --jq .number`).
 
 ---
 
@@ -83,10 +83,13 @@ Commit with a clear message linking the PR/issue (`Part of #N`, not `Closes` unl
 Once pushed, resolve every addressed thread **without posting a reply**, in a background agent. Use GraphQL with a variable (string interpolation of the node id malforms the query) and throttle to avoid the secondary-mutation rate limit:
 
 ```bash
-# list unresolved thread ids
-gh api graphql -f query='{ repository(owner:"OWNER", name:"REPO"){ pullRequest(number: PR){
-  reviewThreads(first: 100){ nodes { id isResolved } } } } }' \
-  --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved==false) | .id'
+# list unresolved thread ids (gh substitutes {owner}/{repo} from the current repo)
+gh api graphql -F owner='{owner}' -F repo='{repo}' -F pr="$PR" -f query='
+  query($owner: String!, $repo: String!, $pr: Int!) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $pr) { reviewThreads(first: 100) { nodes { id isResolved } } }
+    }
+  }' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved==false) | .id'
 # resolve each (variable form, ~1s apart)
 gh api graphql -f query='mutation($id: ID!){ resolveReviewThread(input:{threadId:$id}){ thread { isResolved } } }' -F id="$THREAD_ID"
 ```
