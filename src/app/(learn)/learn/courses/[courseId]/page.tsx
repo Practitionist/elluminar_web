@@ -332,6 +332,7 @@ export default async function CoursePlayerPage({
             />
           ) : activeLesson.type === "CODE_LAB" ? (
             <CodeLabFrame
+              key={activeLesson.id}
               courseId={courseId}
               lessonId={activeLesson.id}
               labRef={(activeLesson.labConfig as { labRef?: string } | null)?.labRef ?? null}

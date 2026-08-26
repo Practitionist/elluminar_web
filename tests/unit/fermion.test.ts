@@ -203,6 +203,11 @@ describe("checkWebhookSecret", () => {
     expect(checkWebhookSecret("")).toEqual({ ok: false, reason: "invalid" });
   });
 
+  it("rejects same-string-length values whose UTF-8 byte length differs", () => {
+    // "whsec-tëst": 10 JS chars but 11 UTF-8 bytes vs the 10-byte secret.
+    expect(checkWebhookSecret("whsec-tëst")).toEqual({ ok: false, reason: "invalid" });
+  });
+
   it("reports not-configured when no secret is set", () => {
     env.env.FERMION_WEBHOOK_SECRET = undefined;
     expect(checkWebhookSecret("anything")).toEqual({

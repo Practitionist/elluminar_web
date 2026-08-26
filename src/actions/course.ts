@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { env } from "@/env";
 import { db } from "@/lib/db";
 import { isFermionConfigured } from "@/lib/fermion/client";
 import { createVideoUpload, markUploadedAndProcess } from "@/lib/fermion/video";
@@ -179,6 +180,12 @@ export const upsertLesson = editorClient
     if (lessonId) {
       await db.lesson.update({ where: { id: lessonId }, data: updateData });
     } else {
+      // The section FK alone wouldn't stop a lesson landing in another
+      // course's section — require the section to belong to THIS course.
+      const section = await db.courseSection.findFirst({
+        where: { id: parsedInput.sectionId, courseId: parsedInput.courseId },
+      });
+      if (!section) throw new ActionError("Section not found in this course.");
       const last = await db.lesson.findFirst({
         where: { sectionId: parsedInput.sectionId },
         orderBy: { position: "desc" },
@@ -504,9 +511,9 @@ export const deleteQuizQuestion = editorClient
 // ── DRM video uploads (Fermion) ─────────────────────────────────────
 
 /**
- * Mints a Fermion presigned upload URL and links the new VideoAsset to the
- * lesson. The browser PUTs the file directly to the presigned URL, then calls
- * confirmLessonVideoUpload to start transcoding.
+ * Mints a Fermion presigned upload URL. The VideoAsset is NOT linked to the
+ * lesson yet — that happens in confirmLessonVideoUpload, so a failed browser
+ * upload never strips the lesson's previous playable asset.
  */
 export const requestLessonVideoUpload = editorClient
   .inputSchema(requestLessonVideoUploadSchema)
@@ -521,36 +528,48 @@ export const requestLessonVideoUpload = editorClient
         "Video uploads are not configured yet (missing FERMION_API_KEY). Use an external URL for now.",
       );
     }
+    // Playback needs the whitelabel embed host too — reject early rather than
+    // accepting an upload that could never play.
+    if (!env.FERMION_SCHOOL_HOSTNAME) {
+      throw new ActionError(
+        "Video embeds are not configured (missing FERMION_SCHOOL_HOSTNAME).",
+      );
+    }
 
     const upload = await createVideoUpload({
       tenantId: ctx.tenant.id,
       uploadedById: ctx.session.user.id,
       filename: parsedInput.filename,
     });
-    await db.lesson.update({
-      where: { id: lesson.id },
-      data: { videoAssetId: upload.videoAssetId },
-    });
-
     revalidatePath(`/studio/${ctx.tenant.slug}/courses/${parsedInput.courseId}`);
     return upload;
   });
 
-/** Marks the uploaded file as complete so Fermion's transcoder picks it up. */
+/** Marks the uploaded file as complete, starts transcoding, links the asset. */
 export const confirmLessonVideoUpload = editorClient
   .inputSchema(confirmLessonVideoUploadSchema)
   .action(async ({ parsedInput, ctx }) => {
     await assertCourseInTenant(parsedInput.courseId, ctx.tenant.id);
-    const asset = await db.videoAsset.findFirst({
-      where: {
-        id: parsedInput.videoAssetId,
-        tenantId: ctx.tenant.id,
-        provider: "FERMION",
-      },
-    });
+    const [asset, lesson] = await Promise.all([
+      db.videoAsset.findFirst({
+        where: {
+          id: parsedInput.videoAssetId,
+          tenantId: ctx.tenant.id,
+          provider: "FERMION",
+        },
+      }),
+      db.lesson.findFirst({
+        where: { id: parsedInput.lessonId, courseId: parsedInput.courseId },
+      }),
+    ]);
     if (!asset) throw new ActionError("Video asset not found.");
+    if (!lesson) throw new ActionError("Video lesson not found.");
 
     const updated = await markUploadedAndProcess(asset.id);
+    await db.lesson.update({
+      where: { id: lesson.id },
+      data: { videoAssetId: asset.id },
+    });
     revalidatePath(`/studio/${ctx.tenant.slug}/courses/${parsedInput.courseId}`);
     return { status: updated.status };
   });

@@ -134,9 +134,11 @@ export function checkWebhookSecret(provided: string | null): {
 } {
   const expected = env.FERMION_WEBHOOK_SECRET;
   if (!expected) return { ok: false, reason: "not-configured" };
+  // Compare byte lengths (UTF-8), not JS string lengths (UTF-16 code units) —
+  // a multi-byte header value can match on .length yet differ in bytes.
   if (
     !provided ||
-    provided.length !== expected.length ||
+    Buffer.byteLength(provided) !== Buffer.byteLength(expected) ||
     !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected))
   ) {
     return { ok: false, reason: "invalid" };

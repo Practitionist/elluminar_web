@@ -107,6 +107,7 @@ export const requestLessonVideoUploadSchema = z.object({
 export const confirmLessonVideoUploadSchema = z.object({
   tenantSlug: slugSchema,
   courseId: z.string().min(1),
+  lessonId: z.string().min(1),
   videoAssetId: z.string().min(1),
 });
 

@@ -290,7 +290,7 @@ function LessonDialog({
     onError: ({ error }) => toast.error(error.serverError ?? "Transcode kickoff failed."),
   });
 
-  /** Presign → direct browser PUT → confirm (transcode starts server-side). */
+  /** Presign → direct browser PUT → confirm (transcode + asset link). */
   async function uploadVideoFile(lessonId: string, file: File) {
     setUploadState("uploading");
     try {
@@ -311,6 +311,7 @@ function LessonDialog({
       await confirmUpload({
         tenantSlug,
         courseId,
+        lessonId,
         videoAssetId: presign.data.videoAssetId,
       });
       toast.success("Video uploaded — DRM transcode in progress");
@@ -490,7 +491,7 @@ function LessonDialog({
           <Button type="submit" disabled={isPending || uploadState === "uploading"} className="w-full rounded-full">
             {uploadState === "uploading" ? (
               <span className="flex items-center gap-2">
-                <Loader2 className="size-4 animate-spin" /> Uploading video…
+                <Loader2 className="size-4 motion-safe:animate-spin" /> Uploading video…
               </span>
             ) : isPending ? (
               "Saving…"
