@@ -15,6 +15,7 @@ import {
   createMediaUpload,
   finalizeMediaUpload,
   isStorageConfigured,
+  objectExists,
   STORAGE_BUCKETS,
 } from "@/lib/storage";
 
@@ -58,7 +59,7 @@ export const finalizeResourceUpload = editorClient
   .action(async ({ parsedInput, ctx }) => {
     const asset = await db.mediaAsset.findUnique({
       where: { id: parsedInput.assetId },
-      select: { uploadedById: true, bucket: true },
+      select: { uploadedById: true, bucket: true, path: true, status: true },
     });
     if (
       !asset ||
@@ -67,7 +68,12 @@ export const finalizeResourceUpload = editorClient
     ) {
       throw new ActionError("Upload not found.");
     }
-    await finalizeMediaUpload(parsedInput.assetId);
+    if (asset.status !== "READY") {
+      if (!asset.path || !(await objectExists(asset.bucket, asset.path))) {
+        throw new ActionError("Upload didn't complete — try attaching the file again.");
+      }
+      await finalizeMediaUpload(parsedInput.assetId);
+    }
     return { ok: true };
   });
 
@@ -81,12 +87,15 @@ export const attachLessonResources = editorClient
     const ids = [...new Set(parsedInput.resources.map((r) => r.assetId))];
     const assets = await db.mediaAsset.findMany({
       where: { id: { in: ids } },
-      select: { id: true, uploadedById: true, bucket: true, status: true },
+      select: { id: true, tenantId: true, uploadedById: true, bucket: true, status: true },
     });
     for (const id of ids) {
       const asset = assets.find((a) => a.id === id);
       if (
         !asset ||
+        // An editor in two tenants must not bridge tenant A files into
+        // tenant B lessons — asset has to belong to this course's tenant.
+        asset.tenantId !== ctx.tenant.id ||
         asset.uploadedById !== ctx.session.user.id ||
         asset.bucket !== STORAGE_BUCKETS.uploads
       ) {

@@ -8,6 +8,7 @@ import {
   createMediaUpload,
   finalizeMediaUpload,
   isStorageConfigured,
+  objectExists,
   STORAGE_BUCKETS,
 } from "@/lib/storage";
 import { mediaKindForMime } from "@/lib/learning/uploads";
@@ -62,7 +63,7 @@ export const finalizeSubmissionUpload = authActionClient
   .action(async ({ parsedInput, ctx }) => {
     const asset = await db.mediaAsset.findUnique({
       where: { id: parsedInput.assetId },
-      select: { uploadedById: true, bucket: true },
+      select: { uploadedById: true, bucket: true, path: true, status: true },
     });
     if (
       !asset ||
@@ -71,7 +72,14 @@ export const finalizeSubmissionUpload = authActionClient
     ) {
       throw new ActionError("Upload not found.");
     }
-    await finalizeMediaUpload(parsedInput.assetId);
+    // The PUT must have actually landed — READY without an object would let a
+    // submission through whose download later 404s.
+    if (asset.status !== "READY") {
+      if (!asset.path || !(await objectExists(asset.bucket, asset.path))) {
+        throw new ActionError("Upload didn't complete — try attaching the file again.");
+      }
+      await finalizeMediaUpload(parsedInput.assetId);
+    }
     revalidatePath("/learn");
     return { ok: true };
   });

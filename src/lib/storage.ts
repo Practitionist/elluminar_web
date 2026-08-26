@@ -78,6 +78,24 @@ export async function finalizeMediaUpload(assetId: string) {
   });
 }
 
+/**
+ * Confirms the object actually landed in storage before an asset is marked
+ * READY — a client that skips the PUT must not produce a gradeable asset.
+ */
+export async function objectExists(bucket: string, path: string): Promise<boolean> {
+  const slash = path.lastIndexOf("/");
+  const folder = slash > 0 ? path.slice(0, slash) : "";
+  const filename = slash > 0 ? path.slice(slash + 1) : path;
+  const { data, error } = await storageClient()
+    .storage.from(bucket)
+    .list(folder, { search: filename, limit: 1 });
+  if (error) {
+    Sentry.captureException(error, { tags: { vendor: "supabase-storage" } });
+    return false;
+  }
+  return data.some((o) => o.name === filename);
+}
+
 /** Signed read URL for private buckets (submissions, certificates). */
 export async function getSignedReadUrl(assetId: string, expiresInSeconds = 60 * 10) {
   const asset = await db.mediaAsset.findUniqueOrThrow({ where: { id: assetId } });

@@ -175,7 +175,10 @@ export function AssignmentPanel({
         <p className="mt-3 text-xs font-semibold text-muted-foreground">
           Worth {assignment.maxPoints} points · instructor-reviewed
           {dueDate
-            ? ` · due ${dueDate.toLocaleDateString("en-IN", { dateStyle: "medium" })}`
+            ? ` · due ${dueDate.toLocaleDateString("en-IN", {
+                dateStyle: "medium",
+                timeZone: "Asia/Kolkata",
+              })}`
             : ""}
         </p>
         {pastDue && (

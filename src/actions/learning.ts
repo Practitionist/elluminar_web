@@ -261,8 +261,23 @@ export const submitAssignment = authActionClient
     const enrollment = await requireActiveEnrollment(ctx.session.user.id, parsedInput.courseId);
     const assignment = await db.assignment.findUnique({
       where: { lessonId: parsedInput.lessonId },
+      select: {
+        id: true,
+        maxPoints: true,
+        dueOffsetDays: true,
+        allowLate: true,
+        allowResubmission: true,
+        lesson: { select: { courseId: true } },
+      },
     });
-    if (!assignment) throw new ActionError("Assignment not found.");
+    // The lesson must belong to the course the learner is enrolled in —
+    // otherwise a submission would link another course's assignment to this
+    // enrollment (and land in the wrong tenant's grading queue).
+    if (!assignment || assignment.lesson.courseId !== parsedInput.courseId) {
+      throw new ActionError("Assignment not found.");
+    }
+
+    const text = parsedInput.text?.trim() || undefined;
 
     // Deadline enforcement: dueAt = enrollment.activatedAt + dueOffsetDays.
     const verdict = evaluateDeadline({
@@ -278,7 +293,7 @@ export const submitAssignment = authActionClient
 
     const mediaAssetIds = [...new Set(parsedInput.mediaAssetIds ?? [])];
     const hasFiles = mediaAssetIds.length > 0;
-    if (!parsedInput.text && !parsedInput.repoUrl && !parsedInput.url && !hasFiles) {
+    if (!text && !parsedInput.repoUrl && !parsedInput.url && !hasFiles) {
       throw new ActionError("Add your work before submitting.");
     }
 
@@ -310,11 +325,13 @@ export const submitAssignment = authActionClient
       throw new ActionError("Resubmission isn't allowed for this assignment.");
     }
 
-    // Concurrent submits can race on @@unique([assignmentId, userId, attemptNo]);
-    // retry with the next slot instead of failing the learner.
+    // Concurrent submits can race on @@unique([assignmentId, userId, attemptNo]).
+    // With resubmission allowed, retry with the next slot; without it, the race
+    // loser is a duplicate submit and must NOT sneak in as attempt #2.
+    const maxTries = assignment.allowResubmission ? 3 : 1;
     let created = false;
     let attemptNo = prior + 1;
-    for (let i = 0; i < 3 && !created; i += 1) {
+    for (let i = 0; i < maxTries && !created; i += 1) {
       try {
         await db.assignmentSubmission.create({
           data: {
@@ -322,7 +339,7 @@ export const submitAssignment = authActionClient
             userId: ctx.session.user.id,
             enrollmentId: enrollment.id,
             attemptNo,
-            text: parsedInput.text,
+            text,
             repoUrl: parsedInput.repoUrl || null,
             url: parsedInput.url || null,
             status: "SUBMITTED",
@@ -335,7 +352,15 @@ export const submitAssignment = authActionClient
         });
         created = true;
       } catch (err) {
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === "P2002" &&
+          // Only retry on the attempt-number unique, not an unrelated index.
+          String((err.meta as { target?: string[] } | null)?.target?.[0] ?? "").includes("assignmentId")
+        ) {
+          if (!assignment.allowResubmission) {
+            throw new ActionError("You've already submitted this assignment.");
+          }
           attemptNo += 1;
           continue;
         }
@@ -368,6 +393,17 @@ export const gradeAssignmentSubmission = authActionClient
       },
     });
     if (!submission) throw new ActionError("Submission not found.");
+    // Authorize BEFORE any state/score validation — error text must not leak
+    // submission status or assignment config to non-members guessing ids.
+    const orgId = submission.assignment.lesson!.course.tenant.organizationId;
+    const membership = await db.member.findUnique({
+      where: {
+        organizationId_userId: { organizationId: orgId, userId: ctx.session.user.id },
+      },
+    });
+    const isAdmin = (ctx.session.user.role ?? "user") === "admin";
+    if (!membership && !isAdmin) throw new ActionError("Not authorized to grade this.");
+
     // Only pending work is gradeable; grading twice would double-complete.
     if (submission.status !== "SUBMITTED" && submission.status !== "RESUBMIT_REQUESTED") {
       throw new ActionError("This submission was already graded.");
@@ -377,14 +413,6 @@ export const gradeAssignmentSubmission = authActionClient
         `Score can't exceed ${submission.assignment.maxPoints} points for this assignment.`,
       );
     }
-    const orgId = submission.assignment.lesson!.course.tenant.organizationId;
-    const membership = await db.member.findUnique({
-      where: {
-        organizationId_userId: { organizationId: orgId, userId: ctx.session.user.id },
-      },
-    });
-    const isAdmin = (ctx.session.user.role ?? "user") === "admin";
-    if (!membership && !isAdmin) throw new ActionError("Not authorized to grade this.");
 
     await db.assignmentSubmission.update({
       where: { id: submission.id },
