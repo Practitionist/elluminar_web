@@ -8,7 +8,7 @@ import {
 } from "@/lib/learning/uploads";
 
 describe("SUBMISSION_MIME_ALLOWLIST", () => {
-  it("covers exactly pdf/png/jpg/webp/zip", () => {
+  it("covers pdf, images, archives, Office documents and plain text", () => {
     expect([...SUBMISSION_MIME_ALLOWLIST].sort()).toEqual(
       [
         "application/pdf",
@@ -17,7 +17,30 @@ describe("SUBMISSION_MIME_ALLOWLIST", () => {
         "image/jpeg",
         "image/png",
         "image/webp",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/plain",
+        "text/markdown",
+        "text/csv",
       ].sort(),
+    );
+  });
+
+  it("accepts the Office formats a design or business capstone ships as", () => {
+    const list = SUBMISSION_MIME_ALLOWLIST as readonly string[];
+    // .pptx and .xlsx were previously creator-only, so a learner had to zip them.
+    expect(list).toContain(
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    );
+    expect(list).toContain(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    expect(list).toContain(
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     );
   });
 
