@@ -388,8 +388,11 @@ async function seedDemoContent() {
       data: {
         lessonId: quizLesson.id,
         title: "Data modeling checkpoint",
-        passPct: 70,
-        maxAttempts: 3,
+        // Low-stakes by policy: retrieval practice is what makes quizzes work,
+        // so unlimited retries and a modest bar. The credential rests on
+        // mentor-reviewed project work, not on clearing a quiz.
+        passPct: 60,
+        maxAttempts: null,
         questions: {
           create: [
             {

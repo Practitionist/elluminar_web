@@ -248,6 +248,26 @@ export const finalizeProjectInstance = authActionClient
           );
         }
       }
+
+      // A credential is the product; `defenseRequired` must mean something.
+      // Until now the flag was decorative — a project seeded defenceRequired
+      // could be PASSed with no defense ever held, so the credential would
+      // assert a review step that never happened.
+      if (instance.project.defenseRequired) {
+        const defense = await db.projectReview.findFirst({
+          where: {
+            projectInstanceId: instance.id,
+            kind: "DEFENSE",
+            decision: { in: ["PASS", "APPROVED"] },
+          },
+          select: { id: true },
+        });
+        if (!defense) {
+          throw new ActionError(
+            "This project requires a live defense. Record a passing defense review before issuing a PASS.",
+          );
+        }
+      }
     }
 
     await db.$transaction(async (tx) => {

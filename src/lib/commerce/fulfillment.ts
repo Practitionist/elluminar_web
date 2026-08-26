@@ -242,6 +242,19 @@ async function fulfillPaidOrderTx(input: {
           where: { userId: order.userId, courseId: cohort.courseId, cohortId: cohort.id },
         });
         if (!dup) {
+          // Capacity is enforced pre-payment in createCheckout. Money has already
+          // moved by the time we get here, so an oversell that slipped through the
+          // race window is honoured, not refused — but it must not pass silently.
+          if (cohort.capacity != null) {
+            const taken = await tx.enrollment.count({ where: { cohortId: cohort.id } });
+            if (taken >= cohort.capacity) {
+              Sentry.captureMessage("cohort oversold — seat honoured past capacity", {
+                level: "warning",
+                tags: { area: "fulfillment" },
+                extra: { cohortId: cohort.id, capacity: cohort.capacity, taken, orderId: order.id },
+              });
+            }
+          }
           await tx.enrollment.create({
             data: {
               userId: order.userId,

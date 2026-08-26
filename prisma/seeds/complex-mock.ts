@@ -229,8 +229,11 @@ export async function seedComplexMockData(db: PrismaClient) {
       data: {
         lessonId: quizLesson.id,
         title: "Knowledge check",
-        passPct: 70,
-        maxAttempts: 3,
+        // Low-stakes by policy: retrieval practice is what makes quizzes work,
+        // so unlimited retries and a modest bar. The credential rests on
+        // mentor-reviewed project work, not on clearing a quiz.
+        passPct: 60,
+        maxAttempts: null,
         questions: {
           create: [
             { type: "SINGLE_CHOICE", prompt: { text: "Which practice does this module recommend first?" }, options: { choices: ["Optimize early", "Measure, then optimize", "Skip tests", "Avoid abstractions"] }, correct: { index: 1 }, points: 2, explanation: "Measure before optimizing.", position: 0 },
