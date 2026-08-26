@@ -96,6 +96,47 @@ export async function objectExists(bucket: string, path: string): Promise<boolea
   return data.some((o) => o.name === filename);
 }
 
+/**
+ * Deletes a MediaAsset and its stored object, but only when nothing else
+ * references it — a file detached from one lesson may still back another lesson,
+ * a learner submission, a digital product or an issued credential.
+ *
+ * Returns whether the asset was actually removed.
+ */
+export async function deleteMediaAssetIfUnreferenced(assetId: string): Promise<boolean> {
+  const asset = await db.mediaAsset.findUnique({
+    where: { id: assetId },
+    select: {
+      bucket: true,
+      path: true,
+      _count: {
+        select: {
+          lessonResources: true,
+          submissionFiles: true,
+          digitalProducts: true,
+          credentials: true,
+        },
+      },
+    },
+  });
+  if (!asset) return false;
+  const references =
+    asset._count.lessonResources +
+    asset._count.submissionFiles +
+    asset._count.digitalProducts +
+    asset._count.credentials;
+  if (references > 0) return false;
+
+  if (asset.bucket && asset.path && isStorageConfigured()) {
+    const { error } = await storageClient().storage.from(asset.bucket).remove([asset.path]);
+    // A stubborn object must not strand the row: log it and drop the record
+    // anyway, otherwise the asset is invisible in the UI but undeletable.
+    if (error) Sentry.captureException(error, { tags: { vendor: "supabase-storage" } });
+  }
+  await db.mediaAsset.delete({ where: { id: assetId } });
+  return true;
+}
+
 /** Signed read URL for private buckets (submissions, certificates). */
 export async function getSignedReadUrl(assetId: string, expiresInSeconds = 60 * 10) {
   const asset = await db.mediaAsset.findUniqueOrThrow({ where: { id: assetId } });

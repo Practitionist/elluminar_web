@@ -6,6 +6,7 @@ import { cache } from "react";
 
 import { auth } from "@/lib/auth";
 import type { PlatformRole } from "@/lib/auth/permissions";
+import { hasOrgRole, type OrgRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 
 /**
@@ -74,7 +75,7 @@ export const requirePlatformAdmin = () => requirePlatformRole("admin");
  */
 export async function requireTenantMember(
   tenantSlug: string,
-  allowedRoles?: Array<"owner" | "admin" | "instructor" | "member">,
+  allowedRoles?: readonly OrgRole[],
 ) {
   const session = await requireUser();
   const tenant = await db.tenant.findUnique({
@@ -95,7 +96,7 @@ export async function requireTenantMember(
   if (
     membership &&
     allowedRoles &&
-    !allowedRoles.some((r) => membership.role.split(",").includes(r)) &&
+    !hasOrgRole(membership.role, allowedRoles) &&
     !isPlatformAdmin
   ) {
     redirect(`/studio/${tenantSlug}`);

@@ -11,20 +11,12 @@ import {
   objectExists,
   STORAGE_BUCKETS,
 } from "@/lib/storage";
+import { requireActiveEnrollment } from "@/lib/learning/enrollment";
 import { mediaKindForMime } from "@/lib/learning/uploads";
 import {
   finalizeSubmissionUploadSchema,
   requestSubmissionUploadSchema,
 } from "@/lib/validation/learning";
-
-async function requireActiveEnrollment(userId: string, courseId: string) {
-  const enrollment = await db.enrollment.findFirst({
-    where: { userId, courseId, status: "ACTIVE" },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!enrollment) throw new ActionError("You're not enrolled in this course.");
-  return enrollment;
-}
 
 /** Presigns a direct-to-Supabase upload for an assignment file submission. */
 export const requestSubmissionUpload = authActionClient
@@ -34,10 +26,17 @@ export const requestSubmissionUpload = authActionClient
     const assignment = await db.assignment.findUnique({
       where: { lessonId: parsedInput.lessonId },
       include: {
-        lesson: { select: { course: { select: { tenantId: true } } } },
+        lesson: { select: { courseId: true, course: { select: { tenantId: true } } } },
       },
     });
-    if (!assignment) throw new ActionError("Assignment not found.");
+    // The lesson must belong to the course the learner is enrolled in. Without
+    // this, being enrolled anywhere presigns against any other tenant's
+    // assignment — stamping the MediaAsset with that tenant's id, and turning
+    // the distinct errors here into a cross-tenant probe for which lessons are
+    // FILE-accepting assignments. Mirrors the check in submitAssignment.
+    if (!assignment || assignment.lesson.courseId !== parsedInput.courseId) {
+      throw new ActionError("Assignment not found.");
+    }
     if (!assignment.submissionKinds.includes("FILE")) {
       throw new ActionError("This assignment doesn't accept file uploads.");
     }

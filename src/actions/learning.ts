@@ -4,22 +4,15 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
-import { Prisma } from "@/generated/prisma/client";
+import { canGrade } from "@/lib/auth/roles";
 import { issueCourseCredentialIfEarned } from "@/lib/credentials/issue";
 import { drawQuizQuestions } from "@/lib/learning/quiz";
 import { evaluateDeadline } from "@/lib/learning/deadline";
+import { requireActiveEnrollment } from "@/lib/learning/enrollment";
+import { isUniqueViolationOn } from "@/lib/prisma-error";
 import { STORAGE_BUCKETS } from "@/lib/storage";
 import { ActionError, authActionClient } from "@/lib/safe-action";
 import { submitAssignmentSchema } from "@/lib/validation/learning";
-
-async function requireActiveEnrollment(userId: string, courseId: string) {
-  const enrollment = await db.enrollment.findFirst({
-    where: { userId, courseId, status: "ACTIVE" },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!enrollment) throw new ActionError("You're not enrolled in this course.");
-  return enrollment;
-}
 
 /** Recomputes cached progress; completes the course + issues the certificate at 100%. */
 async function refreshCourseProgress(enrollmentId: string) {
@@ -352,12 +345,10 @@ export const submitAssignment = authActionClient
         });
         created = true;
       } catch (err) {
-        if (
-          err instanceof Prisma.PrismaClientKnownRequestError &&
-          err.code === "P2002" &&
-          // Only retry on the attempt-number unique, not an unrelated index.
-          String((err.meta as { target?: string[] } | null)?.target?.[0] ?? "").includes("assignmentId")
-        ) {
+        // Only recover from the attempt-number unique, never an unrelated index.
+        // Prisma 7 + adapter-pg reports the columns under
+        // meta.driverAdapterError, not meta.target — see @/lib/prisma-error.
+        if (isUniqueViolationOn(err, "attemptNo")) {
           if (!assignment.allowResubmission) {
             throw new ActionError("You've already submitted this assignment.");
           }
@@ -401,8 +392,19 @@ export const gradeAssignmentSubmission = authActionClient
         organizationId_userId: { organizationId: orgId, userId: ctx.session.user.id },
       },
     });
-    const isAdmin = (ctx.session.user.role ?? "user") === "admin";
-    if (!membership && !isAdmin) throw new ActionError("Not authorized to grade this.");
+    // Membership alone is not authority to grade: enterprise and university
+    // learners hold a plain `member` row in the buying org (seat claim on
+    // sign-in, SSO JIT provisioning), so the role check is what stops a learner
+    // grading a peer. The studio route is already role-gated; this closes the
+    // direct server-action call.
+    if (
+      !canGrade({
+        membershipRole: membership?.role,
+        isPlatformAdmin: (ctx.session.user.role ?? "user") === "admin",
+      })
+    ) {
+      throw new ActionError("Not authorized to grade this.");
+    }
 
     // Only pending work is gradeable; grading twice would double-complete.
     if (submission.status !== "SUBMITTED" && submission.status !== "RESUBMIT_REQUESTED") {
@@ -414,8 +416,16 @@ export const gradeAssignmentSubmission = authActionClient
       );
     }
 
-    await db.assignmentSubmission.update({
-      where: { id: submission.id },
+    // Conditional transition. Two graders can both read SUBMITTED; if one grades
+    // while the other requests changes, an unconditional write can leave the row
+    // RESUBMIT_REQUESTED with the lesson already COMPLETED — a credential issued
+    // for work still marked as needing changes. Only the writer that actually
+    // moved the row off a pending status runs the side effects below.
+    const { count: transitioned } = await db.assignmentSubmission.updateMany({
+      where: {
+        id: submission.id,
+        status: { in: ["SUBMITTED", "RESUBMIT_REQUESTED"] },
+      },
       data: {
         status: parsedInput.requestResubmission ? "RESUBMIT_REQUESTED" : "GRADED",
         scorePoints: parsedInput.scorePoints,
@@ -424,6 +434,7 @@ export const gradeAssignmentSubmission = authActionClient
         gradedAt: new Date(),
       },
     });
+    if (transitioned === 0) throw new ActionError("This submission was already graded.");
 
     if (!parsedInput.requestResubmission) {
       await db.lessonProgress.upsert({

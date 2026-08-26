@@ -13,6 +13,7 @@ import { finalizeUploadSchema } from "@/lib/validation/learning";
 import { mediaKindForMime } from "@/lib/learning/uploads";
 import {
   createMediaUpload,
+  deleteMediaAssetIfUnreferenced,
   finalizeMediaUpload,
   isStorageConfigured,
   objectExists,
@@ -30,6 +31,15 @@ async function assertCourseInTenant(courseId: string, tenantId: string) {
 async function assertLessonInCourse(lessonId: string, courseId: string) {
   const lesson = await db.lesson.findUnique({ where: { id: lessonId } });
   if (!lesson || lesson.courseId !== courseId) throw new ActionError("Lesson not found.");
+  return lesson;
+}
+
+/** RESOURCE is the only lesson type that renders attachments to learners. */
+async function assertResourceLesson(lessonId: string, courseId: string) {
+  const lesson = await assertLessonInCourse(lessonId, courseId);
+  if (lesson.type !== "RESOURCE") {
+    throw new ActionError("Only resource lessons can have file attachments.");
+  }
   return lesson;
 }
 
@@ -82,7 +92,7 @@ export const attachLessonResources = editorClient
   .inputSchema(attachLessonResourcesSchema)
   .action(async ({ parsedInput, ctx }) => {
     await assertCourseInTenant(parsedInput.courseId, ctx.tenant.id);
-    await assertLessonInCourse(parsedInput.lessonId, parsedInput.courseId);
+    await assertResourceLesson(parsedInput.lessonId, parsedInput.courseId);
 
     const ids = [...new Set(parsedInput.resources.map((r) => r.assetId))];
     const assets = await db.mediaAsset.findMany({
@@ -124,12 +134,15 @@ export const removeLessonResource = editorClient
     await assertCourseInTenant(parsedInput.courseId, ctx.tenant.id);
     const resource = await db.lessonResource.findUnique({
       where: { id: parsedInput.resourceId },
-      select: { lesson: { select: { courseId: true } } },
+      select: { mediaAssetId: true, lesson: { select: { courseId: true } } },
     });
     if (!resource || resource.lesson.courseId !== parsedInput.courseId) {
       throw new ActionError("Attachment not found.");
     }
     await db.lessonResource.delete({ where: { id: parsedInput.resourceId } });
+    // Detaching was the last thing holding this file — don't leave the row and
+    // the stored object behind (the orphan class tracked in #68).
+    await deleteMediaAssetIfUnreferenced(resource.mediaAssetId);
     revalidatePath(`/studio/${ctx.tenant.slug}/courses/${parsedInput.courseId}`);
     return { ok: true };
   });

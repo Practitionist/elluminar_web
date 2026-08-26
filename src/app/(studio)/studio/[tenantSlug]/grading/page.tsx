@@ -4,6 +4,11 @@ import { Pill } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { requireTenantMember } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import {
+  parseQueueCursor,
+  queueCursorFilter,
+  serializeQueueCursor,
+} from "@/lib/learning/grading-queue";
 import { getSignedReadUrl, isStorageConfigured } from "@/lib/storage";
 
 import { GradeForm } from "./grade-form";
@@ -22,20 +27,22 @@ export default async function GradingQueuePage({
   searchParams,
 }: {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ after?: string }>;
 }) {
   const { tenantSlug } = await params;
   await requireTenantMember(tenantSlug, ["owner", "admin", "instructor"]);
 
   // Bounded window: one signed-URL call per visible file, never unbounded.
-  const page = Math.max(1, Number((await searchParams).page ?? 1) || 1);
+  // Keyset, not offset — this queue shrinks as rows are graded, so an offset
+  // computed on an earlier page steps over submissions that moved forward.
+  const cursor = parseQueueCursor((await searchParams).after);
   const queue = await db.assignmentSubmission.findMany({
     where: {
       status: { in: ["SUBMITTED", "RESUBMIT_REQUESTED"] },
       assignment: { lesson: { course: { tenant: { slug: tenantSlug } } } },
+      ...queueCursorFilter(cursor),
     },
-    orderBy: { submittedAt: "asc" },
-    skip: (page - 1) * PAGE_SIZE,
+    orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
     take: PAGE_SIZE + 1,
     include: {
       user: { select: { name: true, email: true } },
@@ -57,6 +64,11 @@ export default async function GradingQueuePage({
   });
   const hasNextPage = queue.length > PAGE_SIZE;
   const submissions = queue.slice(0, PAGE_SIZE);
+  const last = submissions.at(-1);
+  const nextCursor =
+    hasNextPage && last?.submittedAt
+      ? serializeQueueCursor({ submittedAt: last.submittedAt, id: last.id })
+      : null;
 
   const storageReady = isStorageConfigured();
   // Keyed by submission id so array-order coupling can't silently break.
@@ -184,7 +196,7 @@ export default async function GradingQueuePage({
             );
             })}
           </div>
-          {hasNextPage && (
+          {nextCursor && (
             <div className="flex justify-end">
               <Button
                 variant="outline"
@@ -192,7 +204,7 @@ export default async function GradingQueuePage({
                 className="rounded-full"
                 render={
                   <Link
-                    href={`/studio/${tenantSlug}/grading?page=${page + 1}`}
+                    href={`/studio/${tenantSlug}/grading?after=${encodeURIComponent(nextCursor)}`}
                     prefetch={false}
                   />
                 }

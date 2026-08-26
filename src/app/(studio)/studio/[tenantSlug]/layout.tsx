@@ -1,6 +1,7 @@
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import type { NavSection } from "@/components/dashboard/types";
 import { Pill } from "@/components/shared";
+import { canGrade } from "@/lib/auth/roles";
 import { requireTenantMember } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getAccessibleSurfaces, toShellUser } from "@/lib/nav/surfaces";
@@ -18,11 +19,12 @@ export default async function StudioTenantLayout({
   const base = `/studio/${tenantSlug}`;
 
   // Grading queue is visible to content-team roles; badge = pending submissions.
-  const roles = (membership?.role ?? "").split(",");
-  const canGrade =
-    roles.some((r) => ["owner", "admin", "instructor"].includes(r)) ||
-    session.user.role === "admin";
-  const pendingSubmissions = canGrade
+  // Same predicate the grading action enforces, so nav and authority can't drift.
+  const canGradeHere = canGrade({
+    membershipRole: membership?.role,
+    isPlatformAdmin: session.user.role === "admin",
+  });
+  const pendingSubmissions = canGradeHere
     ? await db.assignmentSubmission.count({
         where: {
           status: { in: ["SUBMITTED", "RESUBMIT_REQUESTED"] },
@@ -37,7 +39,7 @@ export default async function StudioTenantLayout({
         { href: base, label: "Overview", icon: "overview", exact: true },
         { href: `${base}/courses`, label: "Courses", icon: "courses" },
         { href: `${base}/projects`, label: "Projects", icon: "projects" },
-        ...(canGrade
+        ...(canGradeHere
           ? [
               {
                 href: `${base}/grading`,
