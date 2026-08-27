@@ -7,6 +7,7 @@ import { cache } from "react";
 import { auth } from "@/lib/auth";
 import type { PlatformRole } from "@/lib/auth/permissions";
 import { hasOrgRole, type OrgRole } from "@/lib/auth/roles";
+import { showAllSurfaces } from "@/lib/deploy-context";
 import { db } from "@/lib/db";
 
 /**
@@ -63,7 +64,9 @@ export async function requireUser(redirectTo?: string) {
 export async function requirePlatformRole(...roles: PlatformRole[]) {
   const session = await requireUser();
   const role = (session.user.role ?? "user") as PlatformRole;
-  if (!roles.includes(role)) redirect("/");
+  // Preview deploys let any signed-in user open the platform-admin surface so
+  // it can be reviewed; production requires the real role.
+  if (!roles.includes(role) && !showAllSurfaces()) redirect("/");
   return session;
 }
 
@@ -91,7 +94,8 @@ export async function requireTenantMember(
       },
     },
   });
-  const isPlatformAdmin = (session.user.role ?? "user") === "admin";
+  // Preview deploys open every dashboard; production stays strict.
+  const isPlatformAdmin = (session.user.role ?? "user") === "admin" || showAllSurfaces();
   if (!membership && !isPlatformAdmin) redirect("/studio");
   if (
     membership &&
