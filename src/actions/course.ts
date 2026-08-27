@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/lib/db";
 import { videoAssetIdForLessonType } from "@/lib/learning/lesson-fields";
-import { ActionError, adminActionClient, tenantActionClient } from "@/lib/safe-action";
+import { ActionError, adminActionClient, studioActionClient } from "@/lib/safe-action";
 import {
   courseIdInput,
   createCourseSchema,
@@ -23,7 +23,7 @@ import {
   upsertSectionSchema,
 } from "@/lib/validation/course";
 
-const editorClient = tenantActionClient(["owner", "admin", "instructor"]);
+const editorClient = studioActionClient(["owner", "admin", "instructor"]);
 
 async function assertCourseInTenant(courseId: string, tenantId: string) {
   const course = await db.course.findUnique({ where: { id: courseId } });

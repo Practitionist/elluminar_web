@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { writeLedgerEntry } from "@/lib/commerce/fulfillment";
-import { ActionError, adminActionClient, tenantActionClient } from "@/lib/safe-action";
+import { ActionError, adminActionClient, studioActionClient } from "@/lib/safe-action";
 import { slugSchema } from "@/lib/validation/tenant";
 
 /** Manual payout recording (bank/UPI executed outside; RazorpayX automation is issue #14). */
@@ -92,7 +92,7 @@ export const createPlatformCoupon = adminActionClient
     return { ok: true };
   });
 
-export const createTenantCoupon = tenantActionClient(["owner", "admin"])
+export const createTenantCoupon = studioActionClient(["owner", "admin"])
   .inputSchema(z.object({ tenantSlug: slugSchema, ...couponBase }))
   .action(async ({ parsedInput, ctx }) => {
     await createCouponRow({

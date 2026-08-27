@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { Pill } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import {
   parseQueueCursor,
@@ -30,7 +30,7 @@ export default async function GradingQueuePage({
   searchParams: Promise<{ after?: string }>;
 }) {
   const { tenantSlug } = await params;
-  await requireTenantMember(tenantSlug, ["owner", "admin", "instructor"]);
+  await requireStudioTenant(tenantSlug, ["owner", "admin", "instructor"]);
 
   // Bounded window: one signed-URL call per visible file, never unbounded.
   // Keyset, not offset — this queue shrinks as rows are graded, so an offset

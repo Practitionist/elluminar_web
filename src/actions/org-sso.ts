@@ -6,11 +6,11 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { ActionError, adminActionClient, tenantActionClient } from "@/lib/safe-action";
+import { ActionError, adminActionClient, orgActionClient } from "@/lib/safe-action";
 import { registerSsoProviderSchema } from "@/lib/validation/enterprise";
 import { slugSchema } from "@/lib/validation/tenant";
 
-const orgOwnerClient = tenantActionClient(["owner", "admin"]);
+const orgOwnerClient = orgActionClient(["owner", "admin"]);
 
 /**
  * Registers an OIDC provider for the organization (BetterAuth SSO plugin).

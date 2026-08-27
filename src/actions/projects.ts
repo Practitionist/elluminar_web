@@ -5,10 +5,10 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { plainTextToTiptap } from "@/lib/richtext";
-import { ActionError, adminActionClient, tenantActionClient } from "@/lib/safe-action";
+import { ActionError, adminActionClient, studioActionClient } from "@/lib/safe-action";
 import { slugSchema } from "@/lib/validation/tenant";
 
-const editorClient = tenantActionClient(["owner", "admin", "instructor"]);
+const editorClient = studioActionClient(["owner", "admin", "instructor"]);
 const paise = (rupees: number) => BigInt(Math.round(rupees * 100));
 
 async function assertProjectInTenant(projectId: string, tenantId: string) {

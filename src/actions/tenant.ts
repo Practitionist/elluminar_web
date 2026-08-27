@@ -9,7 +9,7 @@ import {
   ActionError,
   adminActionClient,
   authActionClient,
-  tenantActionClient,
+  studioActionClient,
 } from "@/lib/safe-action";
 import {
   createCreatorApplicationSchema,
@@ -62,7 +62,7 @@ export const applyAsCreator = authActionClient
     return { tenantSlug: tenant.slug };
   });
 
-export const updateTenantSettings = tenantActionClient(["owner", "admin"])
+export const updateTenantSettings = studioActionClient(["owner", "admin"])
   .inputSchema(updateTenantSettingsSchema)
   .action(async ({ parsedInput, ctx }) => {
     await db.tenant.update({

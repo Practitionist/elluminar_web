@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireOrgTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { poolBalanceMinor } from "@/lib/enterprise/credit-math";
 import { formatMoney } from "@/lib/money";
@@ -31,7 +31,7 @@ export default async function OrgLicensesPage({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug, ["owner", "admin"]);
+  const { tenant } = await requireOrgTenant(tenantSlug, ["owner", "admin"]);
 
   const [licenses, programs, courses] = await Promise.all([
     db.orgLicense.findMany({

@@ -2,7 +2,7 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import type { NavSection } from "@/components/dashboard/types";
 import { Pill } from "@/components/shared";
 import { canGrade } from "@/lib/auth/roles";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getAccessibleSurfaces, toShellUser } from "@/lib/nav/surfaces";
 
@@ -14,7 +14,7 @@ export default async function StudioTenantLayout({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { session, tenant, membership } = await requireTenantMember(tenantSlug);
+  const { session, tenant, membership } = await requireStudioTenant(tenantSlug);
   const surfaces = await getAccessibleSurfaces(session);
   const base = `/studio/${tenantSlug}`;
 

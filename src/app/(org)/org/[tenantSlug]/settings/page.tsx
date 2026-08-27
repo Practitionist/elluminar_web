@@ -1,5 +1,5 @@
 import { Pill } from "@/components/shared";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireOrgTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 import { SsoProviderForm, SsoRemoveButton } from "./sso-provider-form";
@@ -12,7 +12,7 @@ export default async function OrgSettingsPage({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug, ["owner", "admin"]);
+  const { tenant } = await requireOrgTenant(tenantSlug, ["owner", "admin"]);
 
   const providers = await db.ssoProvider.findMany({
     where: { organizationId: tenant.organizationId },

@@ -1,4 +1,4 @@
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 
 import { NewProjectForm } from "./new-project-form";
 
@@ -10,7 +10,7 @@ export default async function NewProjectPage({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  await requireTenantMember(tenantSlug, ["owner", "admin", "instructor"]);
+  await requireStudioTenant(tenantSlug, ["owner", "admin", "instructor"]);
 
   return (
     <div className="max-w-2xl space-y-6">

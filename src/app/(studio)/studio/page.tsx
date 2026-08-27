@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { Pill } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
+import { canAccessTenantType, STUDIO_TENANT_TYPES, tenantHomePath } from "@/lib/auth/tenant-access";
 import { db } from "@/lib/db";
+import { showAllSurfaces } from "@/lib/deploy-context";
 
 export const metadata = { title: "Studio" };
 
@@ -24,8 +26,30 @@ export default async function StudioIndexPage() {
     .map((m) => ({ role: m.role, tenant: m.organization.tenant }))
     .filter((t): t is { role: string; tenant: NonNullable<typeof t.tenant> } => !!t.tenant);
 
-  if (tenants.length === 0) redirect("/onboarding");
-  if (tenants.length === 1) redirect(`/studio/${tenants[0].tenant.slug}`);
+  // The studio switcher must only ever offer CREATOR tenants — this page is the
+  // path that reproduced #47: an org-only member landed here and was bounced
+  // straight into `/studio/<their-slug>` because the single-tenant shortcut
+  // never looked at Tenant.type.
+  const isPlatformAdmin = (session.user.role ?? "user") === "admin";
+  const previewMode = showAllSurfaces();
+  const creatorTenants = tenants.filter((t) =>
+    canAccessTenantType({
+      tenantType: t.tenant.type,
+      allowedTypes: STUDIO_TENANT_TYPES,
+      isPlatformAdmin,
+      previewMode,
+    }),
+  );
+
+  if (creatorTenants.length === 0) {
+    // No school of their own: send org members to their portal, everyone else
+    // to onboarding, rather than dead-ending on an empty studio.
+    const elsewhere = tenants[0];
+    redirect(
+      elsewhere ? tenantHomePath(elsewhere.tenant.slug, elsewhere.tenant.type) : "/onboarding",
+    );
+  }
+  if (creatorTenants.length === 1) redirect(`/studio/${creatorTenants[0].tenant.slug}`);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-16">
@@ -33,7 +57,7 @@ export default async function StudioIndexPage() {
         Your schools
       </h1>
       <div className="mt-6 grid gap-4">
-        {tenants.map(({ role, tenant }) => (
+        {creatorTenants.map(({ role, tenant }) => (
           <Link
             key={tenant.slug}
             href={`/studio/${tenant.slug}`}
