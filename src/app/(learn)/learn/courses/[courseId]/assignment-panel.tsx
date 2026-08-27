@@ -6,6 +6,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { finalizeSubmissionUpload, requestSubmissionUpload } from "@/actions/submissions";
+import {
+  MAX_SUBMISSION_FILES,
+  MAX_UPLOAD_BYTES,
+  SUBMISSION_ACCEPT_ATTR,
+  mimeForFilename,
+} from "@/lib/learning/uploads";
 import { submitAssignment } from "@/actions/learning";
 import { Pill, type PillTone } from "@/components/shared";
 import { Button } from "@/components/ui/button";
@@ -22,23 +28,12 @@ const SUBMISSION_STATUS_TONE: Record<string, PillTone> = {
   RESUBMIT_REQUESTED: "distinction",
 };
 
-const MAX_FILES = 5;
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
-const ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.zip";
-
-const MIME_BY_EXT: Record<string, string> = {
-  pdf: "application/pdf",
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  webp: "image/webp",
-  zip: "application/zip",
-};
+const MAX_FILES = MAX_SUBMISSION_FILES;
+const MAX_FILE_BYTES = MAX_UPLOAD_BYTES;
+const ACCEPT = SUBMISSION_ACCEPT_ATTR;
 
 function mimeForFile(file: File): string {
-  if (file.type) return file.type;
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-  return MIME_BY_EXT[ext] ?? "";
+  return mimeForFilename(file.name, file.type);
 }
 
 export function AssignmentPanel({
@@ -112,7 +107,7 @@ export function AssignmentPanel({
     for (const file of picked.slice(0, room)) {
       const mime = mimeForFile(file);
       if (!mime) {
-        toast.error(`${file.name}: use PDF, PNG, JPG, WEBP or ZIP.`);
+        toast.error(`${file.name}: unsupported file type.`);
         continue;
       }
       if (file.size > MAX_FILE_BYTES) {

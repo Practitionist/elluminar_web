@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { getSignedReadUrl, isStorageConfigured } from "@/lib/storage";
 import { tiptapToPlainText } from "@/lib/richtext";
 
 import { FinalizeForm, ReviewForm } from "./review-forms";
@@ -41,7 +42,11 @@ export default async function MentorInstancePage({
       milestoneSubmissions: { orderBy: { submittedAt: "desc" } },
       projectReviews: {
         orderBy: { createdAt: "desc" },
-        include: { milestoneSubmission: true },
+        include: {
+          milestoneSubmission: {
+            include: { files: { include: { mediaAsset: { select: { filename: true } } } } },
+          },
+        },
       },
     },
   });
@@ -50,6 +55,29 @@ export default async function MentorInstancePage({
   const pendingReviews = instance.projectReviews.filter((r) => r.status !== "COMPLETED");
   const milestoneById = new Map(instance.project.milestones.map((m) => [m.id, m]));
   const finalized = ["PASSED", "FAILED", "REFUNDED", "WITHDRAWN"].includes(instance.status);
+
+  const storageReady = isStorageConfigured();
+  // Signed URLs must be resolved before render — JSX callbacks can't await.
+  // Bounded by the number of pending reviews, so never an unbounded fan-out.
+  const fileLinks = new Map(
+    await Promise.all(
+      pendingReviews.map(async (r) => {
+        const sub = r.milestoneSubmission;
+        const links = sub
+          ? await Promise.all(
+              sub.files.map(async (f) => ({
+                id: f.id,
+                filename: f.mediaAsset.filename,
+                url: storageReady
+                  ? await getSignedReadUrl(f.mediaAssetId).catch(() => null)
+                  : null,
+              })),
+            )
+          : [];
+        return [r.id, links] as const;
+      }),
+    ),
+  );
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
@@ -105,6 +133,27 @@ export default async function MentorInstancePage({
                 <p className="whitespace-pre-line text-muted-foreground">
                   {tiptapToPlainText(submission.notes) || "No notes."}
                 </p>
+                {(fileLinks.get(review.id) ?? []).length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {(fileLinks.get(review.id) ?? []).map((f) =>
+                      f.url ? (
+                        <a
+                          key={f.id}
+                          href={f.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-full border border-border px-3 py-1 text-xs font-semibold hover:bg-muted"
+                        >
+                          ⬇ {f.filename}
+                        </a>
+                      ) : (
+                        <span key={f.id} className="text-xs text-muted-foreground">
+                          {f.filename} (storage not configured)
+                        </span>
+                      ),
+                    )}
+                  </div>
+                )}
               </div>
               <ReviewForm
                 projectReviewId={review.id}

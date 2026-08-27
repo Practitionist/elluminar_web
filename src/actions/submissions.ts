@@ -15,6 +15,7 @@ import { requireActiveEnrollment } from "@/lib/learning/enrollment";
 import { mediaKindForMime } from "@/lib/learning/uploads";
 import {
   finalizeSubmissionUploadSchema,
+  requestMilestoneUploadSchema,
   requestSubmissionUploadSchema,
 } from "@/lib/validation/learning";
 
@@ -81,4 +82,40 @@ export const finalizeSubmissionUpload = authActionClient
     }
     revalidatePath("/learn");
     return { ok: true };
+  });
+
+/**
+ * Presigns an upload for a project-milestone submission.
+ *
+ * Same bucket and finalize path as assignment files — `finalizeSubmissionUpload`
+ * is deliberately generic (owner + bucket + object-exists), so it serves both.
+ */
+export const requestMilestoneUpload = authActionClient
+  .inputSchema(requestMilestoneUploadSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const instance = await db.projectInstance.findUnique({
+      where: { id: parsedInput.projectInstanceId },
+      select: { userId: true, status: true, project: { select: { tenantId: true } } },
+    });
+    // Same "not found" for someone else's instance — never confirm it exists.
+    if (!instance || instance.userId !== ctx.session.user.id) {
+      throw new ActionError("Project not found.");
+    }
+    if (!["IN_PROGRESS", "CHANGES_REQUESTED"].includes(instance.status)) {
+      throw new ActionError("This project isn't accepting submissions right now.");
+    }
+    if (!isStorageConfigured()) {
+      throw new ActionError("File uploads aren't available right now.");
+    }
+
+    const presign = await createMediaUpload({
+      tenantId: instance.project.tenantId,
+      uploadedById: ctx.session.user.id,
+      bucket: STORAGE_BUCKETS.submissions,
+      filename: parsedInput.filename,
+      mime: parsedInput.mime,
+      sizeBytes: parsedInput.sizeBytes,
+      kind: mediaKindForMime(parsedInput.mime),
+    });
+    return { assetId: presign.assetId, uploadUrl: presign.uploadUrl };
   });
