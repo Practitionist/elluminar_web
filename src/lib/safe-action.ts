@@ -6,7 +6,6 @@ import { getSession, requireTenantMember } from "@/lib/auth/session";
 
 export class ActionError extends Error {}
 
-/** Base client: returns ActionError messages verbatim, masks everything else. */
 export const actionClient = createSafeActionClient({
   handleServerError(e) {
     if (e instanceof ActionError) return e.message;

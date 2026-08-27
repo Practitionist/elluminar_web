@@ -17,7 +17,6 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:audit": "tsx scripts/schema-audit.ts",
@@ -60,6 +59,7 @@
     "razorpay": "^2.9.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-qr-code": "^2.2.0",
     "resend": "^6.16.0",
     "server-only": "^0.0.1",
     "shadcn": "^4.12.0",
@@ -69,7 +69,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

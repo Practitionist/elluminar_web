@@ -1,79 +1,59 @@
-"use client";
+import { AlertTriangle } from "lucide-react";
+import Link from "next/link";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
-import { toast } from "sonner";
-
+import { AuthHeader, FormAlert } from "@/components/auth";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { authClient } from "@/lib/auth/client";
 
-function ResetPasswordForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token");
-  const [loading, setLoading] = useState(false);
+import { ResetPasswordForm } from "./reset-password-form";
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!token) {
-      toast.error("Invalid or expired reset link");
-      return;
-    }
-    const newPassword = String(new FormData(e.currentTarget).get("password"));
-    setLoading(true);
-    const { error } = await authClient.resetPassword({ newPassword, token });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message ?? "Reset failed — the link may have expired");
-      return;
-    }
-    toast.success("Password updated. Sign in with your new password.");
-    router.push("/sign-in");
+export const metadata = { title: "Choose a new password" };
+
+/**
+ * BetterAuth redirects here with either `?token=…` or `?error=INVALID_TOKEN`.
+ * Both are read server-side, so an expired link renders as a real page rather
+ * than a form that only reveals the problem after the user has typed a new
+ * password twice and pressed submit.
+ */
+export default async function ResetPasswordPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ token?: string; error?: string }>;
+}) {
+  const { token, error } = await searchParams;
+
+  if (error || !token) {
+    return (
+      <div className="space-y-6">
+        <div className="flex size-12 items-center justify-center rounded-full bg-destructive-subtle">
+          <AlertTriangle className="size-6 text-destructive-subtle-foreground" />
+        </div>
+        <AuthHeader
+          title="This link has expired"
+          description="Reset links are single-use and last one hour. Request a fresh one and we'll email it straight away."
+        />
+        <FormAlert tone="info">
+          Your password has not changed. The old one still works.
+        </FormAlert>
+        <div className="flex flex-col gap-2">
+          <Button
+            render={<Link href="/forgot-password" />}
+            size="lg"
+            className="w-full rounded-full"
+          >
+            Send a new link
+          </Button>
+          <Button
+            render={<Link href="/sign-in" />}
+            variant="ghost"
+            size="lg"
+            className="w-full rounded-full"
+          >
+            Back to sign in
+          </Button>
+        </div>
+      </div>
+    );
   }
 
-  return (
-    <Card className="rounded-3xl border border-border ring-0 [--card-spacing:--spacing(6)]">
-      <CardHeader>
-        <CardTitle className="font-display text-2xl font-medium tracking-tight">
-          Choose a new password
-        </CardTitle>
-        <CardDescription>Minimum 8 characters.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="password">New password</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              required
-              minLength={8}
-              autoComplete="new-password"
-            />
-          </div>
-          <Button type="submit" className="w-full rounded-full" disabled={loading}>
-            {loading ? "Updating…" : "Update password"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
-
-export default function ResetPasswordPage() {
-  return (
-    <Suspense>
-      <ResetPasswordForm />
-    </Suspense>
-  );
+  return <ResetPasswordForm token={token} />;
 }

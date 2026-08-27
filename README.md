@@ -44,6 +44,10 @@ pnpm dev
 
 Quality gates: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 
+Unit tests only (vitest, `environment: "node"`). There is no browser test runner
+here — UI is verified manually against a running dev server, following
+`docs/auth/verification-checklist.md`.
+
 ## Environment variables
 
 `.env.example` is the authoritative list. Groups (all optional except the first two —
@@ -68,3 +72,5 @@ missing providers degrade gracefully with clear messages):
 - **Vendor boundaries**: no Fermion/Razorpay types outside `src/lib/fermion` / `src/lib/payments`.
 - **Webhooks are idempotent**: every provider event lands in `WebhookEvent` (unique per provider+eventRef) before processing.
 - **Schema is finalized** across pre- and post-MVP domains; future work is additive-only. See `prisma/schema/`.
+- **Auth**: see `docs/auth/` — architecture, the two role systems, the guard
+  ladder, the dev/preview escape hatches, and the enterprise SSO runbook.

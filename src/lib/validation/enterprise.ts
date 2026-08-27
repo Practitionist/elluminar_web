@@ -165,22 +165,98 @@ const FREE_MAIL_DOMAINS = new Set([
   "zoho.com",
 ]);
 
+const ssoDomainSchema = z
+  .string()
+  .min(4)
+  .max(255)
+  .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i, "Enter a bare domain like acme.com")
+  // Normalize: the duplicate check and IdP domain matching compare exactly.
+  .transform((v) => v.toLowerCase());
+
+const ssoProviderIdentity = {
+  tenantSlug: slugSchema,
+  providerId: slugSchema,
+  domain: ssoDomainSchema,
+};
+
+/**
+ * OIDC arm. `issuer` must be a URL because we resolve
+ * `{issuer}/.well-known/openid-configuration` against it before saving.
+ */
+export const registerOidcProviderSchema = z.object({
+  ...ssoProviderIdentity,
+  protocol: z.literal("oidc"),
+  // `z.url()` alone is not enough: zod accepts any parseable URI, so "urn:..."
+  // passes — and then fails much later, inside the discovery probe. Pin the
+  // scheme here so it renders as a field error on the issuer input.
+  issuer: z
+    .url("Enter the issuer URL, e.g. https://acme.okta.com")
+    .refine((v) => v.startsWith("https://") || v.startsWith("http://"), {
+      message: "The issuer must be an http(s) URL",
+    }),
+  clientId: z.string().min(1).max(500),
+  clientSecret: z.string().min(1).max(500),
+});
+
+/**
+ * PEM-armoured X.509 signing certificate, as every IdP exports it. We only
+ * check the envelope here — `samlify` does the real parse at registration time,
+ * and `registerOrgSsoProvider` surfaces its error.
+ */
+const x509CertSchema = z
+  .string()
+  .trim()
+  .min(1, "Paste the IdP signing certificate")
+  .max(16_000)
+  .refine(
+    (v) =>
+      v.includes("-----BEGIN CERTIFICATE-----") &&
+      v.includes("-----END CERTIFICATE-----"),
+    { message: "Paste the full PEM certificate, including the BEGIN/END lines" },
+  );
+
+/**
+ * SAML arm. `issuer` is the IdP entity ID — usually a URL but legitimately a
+ * URN for some university IdPs, so it is a plain string (which is also what
+ * BetterAuth's own register endpoint accepts: `issuer: z.string()`).
+ *
+ * SHA-1 and the other deprecated algorithms are absent from the enums on
+ * purpose; see docs/auth/adr-002-enterprise-sso.md.
+ */
+export const registerSamlProviderSchema = z.object({
+  ...ssoProviderIdentity,
+  protocol: z.literal("saml"),
+  issuer: z.string().min(1, "Enter the IdP entity ID").max(500),
+  entryPoint: z.url("Enter the IdP SSO URL"),
+  cert: x509CertSchema,
+  wantAssertionsSigned: z.boolean().default(true),
+  authnRequestsSigned: z.boolean().default(false),
+  signatureAlgorithm: z.enum(["sha256", "sha512"]).default("sha256"),
+  digestAlgorithm: z.enum(["sha256", "sha512"]).default("sha256"),
+  identifierFormat: z
+    .enum([
+      "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+      "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+      "urn:oasis:names:tc:SAML:2.0:nameid-format:transient",
+      "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
+    ])
+    .default("urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"),
+});
+
 export const registerSsoProviderSchema = z
-  .object({
-    tenantSlug: slugSchema,
-    providerId: slugSchema,
-    domain: z
-      .string()
-      .min(4)
-      .max(255)
-      .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i, "Enter a bare domain like acme.com")
-      // Normalize: the duplicate check and IdP domain matching compare exactly.
-      .transform((v) => v.toLowerCase()),
-    issuer: z.url(),
-    clientId: z.string().min(1).max(500),
-    clientSecret: z.string().min(1).max(500),
-  })
+  .discriminatedUnion("protocol", [
+    registerOidcProviderSchema,
+    registerSamlProviderSchema,
+  ])
   .refine((v) => !FREE_MAIL_DOMAINS.has(v.domain), {
     message: "Public email domains cannot be used for SSO.",
     path: ["domain"],
   });
+
+export type RegisterSsoProviderInput = z.infer<typeof registerSsoProviderSchema>;
+export type SsoProtocol = RegisterSsoProviderInput["protocol"];
+
+export const ssoProviderRefSchema = z.object({
+  tenantSlug: slugSchema,
+  providerId: z.string().min(1),
+});

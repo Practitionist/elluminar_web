@@ -55,7 +55,7 @@ export default async function StudioIndexPage() {
         ))}
       </div>
       <Button
-        render={<Link href="/onboarding" />}
+        render={<Link href="/onboarding?new=1" />}
         variant="outline"
         className="mt-6 rounded-full"
       >

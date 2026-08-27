@@ -6,15 +6,20 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { applyAsOrganization } from "@/actions/enterprise-tenant";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { FormAlert, SubmitButton } from "@/components/auth";
+import {
+  Field,
+  FieldControl,
+  FieldDescription,
+  FieldLabel,
+} from "@/components/ui/field";
+import { fieldErrors, formError } from "@/lib/form-errors";
+import { slugify } from "@/lib/slug";
 import { cn } from "@/lib/utils";
-
-const slugify = (v: string) =>
-  v.toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/[\s_]+/g, "-").replace(/-+/g, "-").slice(0, 48);
 
 const TYPES = [
   {
@@ -40,15 +45,23 @@ export function OrganizationApplicationForm() {
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
 
-  const { execute, isPending } = useAction(applyAsOrganization, {
+  const { execute, isPending, result } = useAction(applyAsOrganization, {
     onSuccess({ data }) {
       toast.success("Application submitted — it's now under review.");
       router.push(
         data?.type === "CREATOR" ? `/studio/${data?.tenantSlug}` : `/org/${data?.tenantSlug}`,
       );
     },
-    onError: ({ error }) => toast.error(error.serverError ?? "Could not submit"),
+    onError: ({ error }) => {
+      // Field problems render inline; only surface what has nowhere else to go.
+      if (!error.validationErrors) {
+        toast.error(error.serverError ?? "Could not submit");
+      }
+    },
   });
+
+  const errors = fieldErrors(result?.validationErrors);
+  const topLevelError = formError(result?.validationErrors) ?? result?.serverError;
 
   return (
     <Card className="rounded-3xl border border-border ring-0 [--card-spacing:--spacing(6)]">
@@ -66,7 +79,10 @@ export function OrganizationApplicationForm() {
             });
           }}
           className="space-y-5"
+          noValidate
         >
+          {topLevelError ? <FormAlert>{topLevelError}</FormAlert> : null}
+
           <div className="space-y-2">
             <Label>What are you?</Label>
             <div className="grid gap-2 sm:grid-cols-3">
@@ -97,37 +113,44 @@ export function OrganizationApplicationForm() {
               ))}
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="name">
+          <Field name="name" error={errors.name}>
+            <FieldLabel>
               {type === "CREATOR" ? "School / brand name" : "Organization name"}
-            </Label>
-            <Input
-              id="name"
-              name="name"
-              required
-              onChange={(e) => {
-                if (!slugTouched) setSlug(slugify(e.target.value));
-              }}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="slug">Handle</Label>
+            </FieldLabel>
+            <FieldControl>
+              <Input
+                size="lg"
+                required
+                onChange={(e) => {
+                  if (!slugTouched) setSlug(slugify(e.target.value));
+                }}
+              />
+            </FieldControl>
+          </Field>
+
+          <Field name="slug" error={errors.slug}>
+            <FieldLabel>Handle</FieldLabel>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">
+              <span className="shrink-0 text-sm font-medium text-muted-foreground">
                 elluminar.com/c/
               </span>
-              <Input
-                id="slug"
-                value={slug}
-                onChange={(e) => {
-                  setSlugTouched(true);
-                  setSlug(slugify(e.target.value));
-                }}
-                required
-                className="flex-1 font-mono"
-              />
+              <FieldControl>
+                <Input
+                  size="lg"
+                  value={slug}
+                  onChange={(e) => {
+                    setSlugTouched(true);
+                    setSlug(slugify(e.target.value));
+                  }}
+                  required
+                  className="flex-1 font-mono"
+                />
+              </FieldControl>
             </div>
-          </div>
+            <FieldDescription>
+              Lowercase letters, numbers and hyphens. This is your public URL.
+            </FieldDescription>
+          </Field>
           <div className="space-y-2">
             <Label htmlFor="about">
               {type === "CREATOR"
@@ -138,13 +161,16 @@ export function OrganizationApplicationForm() {
             </Label>
             <Textarea id="about" name="about" rows={4} />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="supportEmail">Contact email (optional)</Label>
-            <Input id="supportEmail" name="supportEmail" type="email" />
-          </div>
-          <Button type="submit" disabled={isPending} className="w-full rounded-full">
-            {isPending ? "Submitting…" : "Submit application"}
-          </Button>
+          <Field name="supportEmail" error={errors.supportEmail}>
+            <FieldLabel>Contact email (optional)</FieldLabel>
+            <FieldControl>
+              <Input size="lg" type="email" />
+            </FieldControl>
+          </Field>
+
+          <SubmitButton pending={isPending} pendingLabel="Submitting…">
+            Submit application
+          </SubmitButton>
           <p className="text-xs text-muted-foreground">
             {type === "CREATOR"
               ? "You can author content immediately; publishing unlocks on approval."
