@@ -1,7 +1,7 @@
 # Netlify auto-detects Next.js and provisions its OpenNext adapter —
 # no publish dir or plugin block needed.
 [build]
-  command = "pnpm build"
+  command = "NEXT_PUBLIC_DEPLOY_CONTEXT=\"$CONTEXT\" pnpm build"
 
 [build.environment]
   NODE_VERSION = "22"
@@ -17,11 +17,11 @@
 # netlify.toml env values are NOT interpolated, so inject the resolved deploy URL
 # through the build command instead (shell-expanded, inlined by Next at build time).
 [context.branch-deploy]
-  command = "NEXT_PUBLIC_APP_URL=\"$DEPLOY_PRIME_URL\" pnpm build"
+  command = "NEXT_PUBLIC_APP_URL=\"$DEPLOY_PRIME_URL\" NEXT_PUBLIC_DEPLOY_CONTEXT=\"$CONTEXT\" pnpm build"
 
 # Per-PR preview URLs (deploy-preview-<n>--<site>.netlify.app)
 [context.deploy-preview]
-  command = "NEXT_PUBLIC_APP_URL=\"$DEPLOY_PRIME_URL\" pnpm build"
+  command = "NEXT_PUBLIC_APP_URL=\"$DEPLOY_PRIME_URL\" NEXT_PUBLIC_DEPLOY_CONTEXT=\"$CONTEXT\" pnpm build"
 
 [functions."scheduled-maintenance"]
   schedule = "@daily"

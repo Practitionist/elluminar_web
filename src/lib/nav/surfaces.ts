@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import type { ShellUser, Surface } from "@/components/dashboard/types";
 import { db } from "@/lib/db";
+import { showAllSurfaces } from "@/lib/deploy-context";
 
 type SessionLike = { user: { id: string; role?: string | null } };
 
@@ -15,7 +16,9 @@ type SessionLike = { user: { id: string; role?: string | null } };
 export const getAccessibleSurfaces = cache(
   async (session: SessionLike): Promise<Surface[]> => {
     const userId = session.user.id;
-    const isAdmin = (session.user.role ?? "user") === "admin";
+    // On preview deploys every surface is listed, so the whole product can be
+    // reviewed from one login. Production lists only what the user really has.
+    const isAdmin = (session.user.role ?? "user") === "admin" || showAllSurfaces();
 
     const surfaces: Surface[] = [
       { href: "/learn", label: "Learning", icon: "home" },
