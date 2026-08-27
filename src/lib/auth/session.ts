@@ -7,7 +7,7 @@ import { cache } from "react";
 import type { TenantType } from "@/generated/prisma/enums";
 import { auth } from "@/lib/auth";
 import type { PlatformRole } from "@/lib/auth/permissions";
-import { hasOrgRole, type OrgRole } from "@/lib/auth/roles";
+import { hasOrgRole, type OrgRole , isPlatformAdmin as isAdminRole } from "@/lib/auth/roles";
 import {
   canAccessTenantType,
   ORG_TENANT_TYPES,
@@ -109,7 +109,7 @@ export async function requireTenantMember(
       },
     },
   });
-  const isPlatformAdmin = (session.user.role ?? "user") === "admin";
+  const isPlatformAdmin = isAdminRole(session.user.role);
   // Preview deploys open every dashboard; production stays strict.
   const previewMode = showAllSurfaces();
   const bypass = isPlatformAdmin || previewMode;

@@ -1,7 +1,7 @@
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import type { NavSection } from "@/components/dashboard/types";
 import { Pill } from "@/components/shared";
-import { canGrade } from "@/lib/auth/roles";
+import { canGrade , isPlatformAdmin as isAdminRole } from "@/lib/auth/roles";
 import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getAccessibleSurfaces, toShellUser } from "@/lib/nav/surfaces";
@@ -22,7 +22,7 @@ export default async function StudioTenantLayout({
   // Same predicate the grading action enforces, so nav and authority can't drift.
   const canGradeHere = canGrade({
     membershipRole: membership?.role,
-    isPlatformAdmin: session.user.role === "admin",
+    isPlatformAdmin: isAdminRole(session.user.role),
   });
   const pendingSubmissions = canGradeHere
     ? await db.assignmentSubmission.count({

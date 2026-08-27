@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
-import { canGrade } from "@/lib/auth/roles";
+import { canGrade , isPlatformAdmin as isAdminRole } from "@/lib/auth/roles";
 import { issueCourseCredentialIfEarned } from "@/lib/credentials/issue";
 import { isAttemptExpired } from "@/lib/learning/attempt";
 import { drawQuizQuestions } from "@/lib/learning/quiz";
@@ -407,7 +407,7 @@ export const gradeAssignmentSubmission = authActionClient
     if (
       !canGrade({
         membershipRole: membership?.role,
-        isPlatformAdmin: (ctx.session.user.role ?? "user") === "admin",
+        isPlatformAdmin: isAdminRole(ctx.session.user.role),
       })
     ) {
       throw new ActionError("Not authorized to grade this.");

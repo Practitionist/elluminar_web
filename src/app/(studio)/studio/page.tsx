@@ -1,3 +1,4 @@
+import { isPlatformAdmin as isAdminRole } from "@/lib/auth/roles";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -30,7 +31,7 @@ export default async function StudioIndexPage() {
   // path that reproduced #47: an org-only member landed here and was bounced
   // straight into `/studio/<their-slug>` because the single-tenant shortcut
   // never looked at Tenant.type.
-  const isPlatformAdmin = (session.user.role ?? "user") === "admin";
+  const isPlatformAdmin = isAdminRole(session.user.role);
   const previewMode = showAllSurfaces();
   const creatorTenants = tenants.filter((t) =>
     canAccessTenantType({
