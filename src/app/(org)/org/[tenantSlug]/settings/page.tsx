@@ -2,9 +2,22 @@ import { Pill } from "@/components/shared";
 import { requireTenantMember } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
+import { SsoConnectionDetails } from "./sso-connection-details";
 import { SsoProviderForm, SsoRemoveButton } from "./sso-provider-form";
 
 export const metadata = { title: "Organization settings" };
+
+/**
+ * `samlConfig` / `oidcConfig` are stored as JSON strings and hold the client
+ * secret and private keys — never send them to the browser. We only need to
+ * know *which* protocol a provider speaks, so derive a boolean here.
+ */
+function protocolOf(provider: {
+  samlConfig: string | null;
+  oidcConfig: string | null;
+}): "oidc" | "saml" {
+  return provider.samlConfig ? "saml" : "oidc";
+}
 
 export default async function OrgSettingsPage({
   params,
@@ -16,6 +29,14 @@ export default async function OrgSettingsPage({
 
   const providers = await db.ssoProvider.findMany({
     where: { organizationId: tenant.organizationId },
+    select: {
+      providerId: true,
+      domain: true,
+      domainVerified: true,
+      samlConfig: true,
+      oidcConfig: true,
+    },
+    orderBy: { providerId: "asc" },
   });
 
   return (
@@ -31,33 +52,46 @@ export default async function OrgSettingsPage({
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-5">
-        <div className="text-base font-extrabold">SSO providers (OIDC)</div>
+        <div className="text-base font-extrabold">Single sign-on</div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Register your identity provider. Domain-based sign-in activates once
-          the platform team verifies domain ownership.
+          Connect your identity provider over OpenID Connect or SAML 2.0.
+          Sign-ins stay disabled until you verify you own the email domain.
         </p>
+
         <div className="mt-4 space-y-4">
-          {providers.length > 0 && (
-            <div className="space-y-2">
-              {providers.map((p) => (
-                <div
-                  key={p.providerId}
-                  className="flex items-center justify-between rounded-xl border border-border px-3 py-2 text-sm"
-                >
-                  <div>
-                    <span className="font-mono font-bold">{p.providerId}</span>
-                    <span className="text-muted-foreground"> · {p.domain}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Pill tone={p.domainVerified ? "success" : "distinction"}>
-                      {p.domainVerified ? "domain verified" : "pending verification"}
-                    </Pill>
-                    <SsoRemoveButton tenantSlug={tenantSlug} providerId={p.providerId} />
-                  </div>
+          {providers.map((p) => (
+            <details
+              key={p.providerId}
+              className="rounded-xl border border-border"
+              // Anything still unverified is the thing the admin came here to
+              // finish, so it opens on its own.
+              open={!p.domainVerified}
+            >
+              <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                <div className="min-w-0">
+                  <span className="font-mono font-bold">{p.providerId}</span>
+                  <span className="text-muted-foreground"> · {p.domain}</span>
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="flex shrink-0 items-center gap-2">
+                  <Pill tone="neutral">{protocolOf(p) === "saml" ? "SAML" : "OIDC"}</Pill>
+                  <Pill tone={p.domainVerified ? "success" : "distinction"}>
+                    {p.domainVerified ? "domain verified" : "pending verification"}
+                  </Pill>
+                  <SsoRemoveButton tenantSlug={tenantSlug} providerId={p.providerId} />
+                </div>
+              </summary>
+              <div className="border-t border-border p-3">
+                <SsoConnectionDetails
+                  tenantSlug={tenantSlug}
+                  providerId={p.providerId}
+                  domain={p.domain}
+                  protocol={protocolOf(p)}
+                  domainVerified={p.domainVerified}
+                />
+              </div>
+            </details>
+          ))}
+
           <SsoProviderForm tenantSlug={tenantSlug} />
         </div>
       </div>
