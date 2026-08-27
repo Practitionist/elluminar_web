@@ -8,11 +8,8 @@ import {
   SectionHeading,
 } from "@/components/shared";
 import { Input } from "@/components/ui/input";
-import { searchPublishedProjectIds } from "@/lib/catalog";
-import { db } from "@/lib/db";
-import { toProjectCardData } from "@/lib/ui/catalog-card";
+import { getCatalogCategories, getProjectCatalog } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
-import type { Prisma } from "@/generated/prisma/client";
 
 export const metadata = { title: "Mentor-guided projects" };
 
@@ -31,31 +28,9 @@ export default async function ProjectsCatalogPage({
   const { q, tier, category } = await searchParams;
   const filtered = Boolean(q || tier || category);
 
-  const where: Prisma.ProjectWhereInput = {
-    status: "PUBLISHED",
-    visibility: "MARKETPLACE",
-  };
-  if (tier) where.tier = tier as never;
-  if (category) where.category = { slug: category };
-  if (q) {
-    const ids = await searchPublishedProjectIds(q);
-    where.id = { in: ids };
-  }
-
   const [projects, categories] = await Promise.all([
-    db.project.findMany({
-      where,
-      orderBy: [{ purchaseCount: "desc" }, { publishedAt: "desc" }],
-      take: 48,
-      include: {
-        tenant: { select: { slug: true, displayName: true } },
-        category: { select: { slug: true, name: true } },
-        prices: {
-          where: { active: true, currency: "INR", region: null, mentorLevel: null },
-        },
-      },
-    }),
-    db.category.findMany({ orderBy: { sort: "asc" } }),
+    getProjectCatalog({ q, tier, category }),
+    getCatalogCategories(),
   ]);
 
   // Netflix-style browse: category rows when exploring everything; a plain
@@ -114,15 +89,15 @@ export default async function ProjectsCatalogPage({
       ) : filtered ? (
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
-            <ProjectCard key={project.id} project={toProjectCardData(project)} />
+            <ProjectCard key={project.card.href} project={project.card} />
           ))}
         </div>
       ) : (
         <div className="mt-10 space-y-10">
           <CarouselRow title="Most purchased">
             {projects.slice(0, 12).map((project) => (
-              <CarouselItem key={project.id}>
-                <ProjectCard project={toProjectCardData(project)} />
+              <CarouselItem key={project.card.href}>
+                <ProjectCard project={project.card} />
               </CarouselItem>
             ))}
           </CarouselRow>
@@ -133,8 +108,8 @@ export default async function ProjectsCatalogPage({
               href={`/projects?category=${g.category.slug}`}
             >
               {g.projects.map((project) => (
-                <CarouselItem key={project.id}>
-                  <ProjectCard project={toProjectCardData(project)} />
+                <CarouselItem key={project.card.href}>
+                  <ProjectCard project={project.card} />
                 </CarouselItem>
               ))}
             </CarouselRow>
