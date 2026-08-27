@@ -5,6 +5,8 @@
 
 import * as Sentry from "@sentry/nextjs";
 
+import { sentryEnabled, sentryEnvironment } from "./src/lib/sentry-env";
+
 const tracesSampleRate = process.env.SENTRY_TRACES_SAMPLE_RATE
   ? Number(process.env.SENTRY_TRACES_SAMPLE_RATE)
   : process.env.NODE_ENV === "production"
@@ -12,9 +14,18 @@ const tracesSampleRate = process.env.SENTRY_TRACES_SAMPLE_RATE
     : 1;
 
 Sentry.init({
-  dsn:
-    process.env.NEXT_PUBLIC_SENTRY_DSN ??
-    "https://70be6d71cfc83110b1cc4864dff0eb6b@o4509348815372289.ingest.us.sentry.io/4511669953757184",
+  // No hard-coded fallback: an unset DSN must mean "do not report", not
+  // "report into production". NEXT_PUBLIC_SENTRY_DSN is set on Netlify for all
+  // deploy contexts.
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+
+  // Only real Netlify deploys report. Without this a local `pnpm dev` ships
+  // every console.error into the production project — see lib/sentry-env.ts.
+  enabled: sentryEnabled(),
+
+  // production / preview / branch-deploy / development, from the Netlify deploy
+  // context. NODE_ENV cannot tell a preview deploy from a production one.
+  environment: sentryEnvironment(),
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate,
