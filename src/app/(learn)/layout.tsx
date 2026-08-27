@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import type { NavSection } from "@/components/dashboard/types";
 import { requireUser } from "@/lib/auth/session";
@@ -36,6 +38,14 @@ export default async function LearnGroupLayout({
   children: React.ReactNode;
 }) {
   const session = await requireUser("/learn");
+
+  // One-time first-run gate. `onboardedAt` is stamped whether the user
+  // completes or skips, so this fires at most once per account — and only for
+  // verified users, since an unverified one is still mid-sign-up.
+  if (session.user.emailVerified && !session.user.onboardedAt) {
+    redirect("/welcome");
+  }
+
   const surfaces = await getAccessibleSurfaces(session);
   return (
     <DashboardShell

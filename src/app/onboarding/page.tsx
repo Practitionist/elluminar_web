@@ -9,19 +9,37 @@ import { OrganizationApplicationForm } from "./organization-application-form";
 
 export const metadata = { title: "Create your organization" };
 
-export default async function OnboardingPage() {
-  const session = await requireUser("/onboarding");
+/**
+ * Organization onboarding — creators, companies and universities. Learner
+ * first-run onboarding is a different flow entirely, at /welcome.
+ */
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string }>;
+}) {
+  const [{ new: creatingAnother }, session] = await Promise.all([
+    searchParams,
+    requireUser("/onboarding"),
+  ]);
 
-  // Already in an org? Route to its home surface instead.
-  const membership = await db.member.findFirst({
-    where: { userId: session.user.id },
-    select: {
-      organization: { select: { tenant: { select: { slug: true, type: true } } } },
-    },
-  });
-  const tenant = membership?.organization.tenant;
-  if (tenant) {
-    redirect(tenant.type === "CREATOR" ? `/studio/${tenant.slug}` : `/org/${tenant.slug}`);
+  // Someone with an org lands on their dashboard instead — unless they came
+  // here deliberately to create another one. Without the `?new=1` escape the
+  // "Create another school" button on /studio bounced straight back.
+  if (!creatingAnother) {
+    const membership = await db.member.findFirst({
+      where: { userId: session.user.id },
+      // The previous findFirst had no ordering, so a user in more than one org
+      // was sent somewhere non-deterministic on every visit.
+      orderBy: { createdAt: "asc" },
+      select: {
+        organization: { select: { tenant: { select: { slug: true, type: true } } } },
+      },
+    });
+    const tenant = membership?.organization.tenant;
+    if (tenant) {
+      redirect(tenant.type === "CREATOR" ? `/studio/${tenant.slug}` : `/org/${tenant.slug}`);
+    }
   }
 
   return (
