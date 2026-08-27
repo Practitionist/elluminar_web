@@ -186,7 +186,14 @@ const ssoProviderIdentity = {
 export const registerOidcProviderSchema = z.object({
   ...ssoProviderIdentity,
   protocol: z.literal("oidc"),
-  issuer: z.url("Enter the issuer URL, e.g. https://acme.okta.com"),
+  // `z.url()` alone is not enough: zod accepts any parseable URI, so "urn:..."
+  // passes — and then fails much later, inside the discovery probe. Pin the
+  // scheme here so it renders as a field error on the issuer input.
+  issuer: z
+    .url("Enter the issuer URL, e.g. https://acme.okta.com")
+    .refine((v) => v.startsWith("https://") || v.startsWith("http://"), {
+      message: "The issuer must be an http(s) URL",
+    }),
   clientId: z.string().min(1).max(500),
   clientSecret: z.string().min(1).max(500),
 });

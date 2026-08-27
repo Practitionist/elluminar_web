@@ -10,6 +10,12 @@ import { ac, orgRoles } from "@/lib/auth/permissions";
 import { hasOrgRole } from "@/lib/auth/roles";
 import { createAuthSecondaryStorage } from "@/lib/auth/secondary-storage";
 import { sendAuthEmail } from "@/lib/email";
+import {
+  ChangeEmailConfirmation,
+  OrganizationInvitation,
+  ResetPasswordEmail,
+  VerifyEmail,
+} from "@/lib/email/templates/auth-emails";
 
 /**
  * Origins allowed to drive the auth API. BetterAuth always trusts `baseURL`;
@@ -55,7 +61,7 @@ export const auth = betterAuth({
         await sendAuthEmail({
           to: user.email,
           subject: "Approve your new email address",
-          text: `Hi ${user.name},\n\nSomeone asked to change this account's email to ${newEmail}.\n\nApprove it: ${url}\n\nIf this wasn't you, do not click the link — change your password instead.`,
+          react: ChangeEmailConfirmation({ name: user.name, newEmail, url }),
         });
       },
     },
@@ -68,7 +74,7 @@ export const auth = betterAuth({
       await sendAuthEmail({
         to: user.email,
         subject: "Reset your password",
-        text: `Hi ${user.name},\n\nReset your password: ${url}\n\nIf you didn't request this, ignore this email.`,
+        react: ResetPasswordEmail({ name: user.name, url }),
       });
     },
   },
@@ -80,7 +86,7 @@ export const auth = betterAuth({
       await sendAuthEmail({
         to: user.email,
         subject: "Verify your email",
-        text: `Hi ${user.name},\n\nConfirm your email to activate your account: ${url}`,
+        react: VerifyEmail({ name: user.name, url }),
       });
     },
   },
@@ -184,7 +190,11 @@ export const auth = betterAuth({
         await sendAuthEmail({
           to: data.email,
           subject: `You're invited to join ${data.organization.name}`,
-          text: `${data.inviter.user.name} invited you to join ${data.organization.name}.\n\nAccept: ${inviteUrl}\n\nThis invitation expires in 72 hours.`,
+          react: OrganizationInvitation({
+            organizationName: data.organization.name,
+            inviterName: data.inviter.user.name,
+            url: inviteUrl,
+          }),
         });
       },
       organizationHooks: {

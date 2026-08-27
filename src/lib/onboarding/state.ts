@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { requireUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { stepPosition } from "@/lib/onboarding/steps";
 import {
   ONBOARDING_STEPS,
   type OnboardingStep,
@@ -81,14 +82,15 @@ export const getOnboardingProgress = cache(
     const about = (portfolio?.about ?? {}) as StoredAbout;
     const prefs = (preference?.prefs ?? {}) as Partial<typeof NOTIFICATION_DEFAULTS>;
 
-    const completedSteps = ONBOARDING_STEPS.filter((step) =>
-      (about.onboardingSteps ?? []).includes(step),
+    const position = stepPosition(
+      ONBOARDING_STEPS.filter((step) => (about.onboardingSteps ?? []).includes(step)),
+      user.onboardedAt !== null,
     );
 
     return {
-      completed: user.onboardedAt !== null,
-      currentStep: ONBOARDING_STEPS.find((s) => !completedSteps.includes(s)) ?? null,
-      completedSteps,
+      completed: position.completed,
+      currentStep: position.currentStep,
+      completedSteps: position.completedSteps,
       values: {
         name: user.name,
         phone: user.phone ?? "",
@@ -107,29 +109,6 @@ export const getOnboardingProgress = cache(
     };
   },
 );
-
-/**
- * Resolves the step to render. A `?step=` the user hasn't earned yet is
- * ignored in favour of the first unfinished one — you can go back and revise,
- * but not skip ahead past a step whose answers later steps might depend on.
- */
-export function resolveStep(
-  requested: string | undefined,
-  progress: OnboardingProgress,
-): OnboardingStep {
-  const furthest = progress.currentStep ?? ONBOARDING_STEPS[ONBOARDING_STEPS.length - 1];
-  if (!requested) return furthest;
-
-  const asStep = ONBOARDING_STEPS.find((s) => s === requested);
-  if (!asStep) return furthest;
-
-  const allowed =
-    progress.completedSteps.includes(asStep) ||
-    asStep === progress.currentStep ||
-    progress.completed;
-
-  return allowed ? asStep : furthest;
-}
 
 /** Interest chips, from the live catalog rather than a hardcoded list. */
 export const getInterestOptions = cache(async () => {

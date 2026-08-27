@@ -17,7 +17,6 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:audit": "tsx scripts/schema-audit.ts",
@@ -70,7 +69,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

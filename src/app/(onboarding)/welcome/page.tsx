@@ -1,10 +1,7 @@
 import { redirect } from "next/navigation";
 
-import {
-  getInterestOptions,
-  getOnboardingProgress,
-  resolveStep,
-} from "@/lib/onboarding/state";
+import { resolveStep } from "@/lib/onboarding/steps";
+import { getInterestOptions, getOnboardingProgress } from "@/lib/onboarding/state";
 
 import { CommsStep } from "./comms-step";
 import { GoalsStep } from "./goals-step";

@@ -12,7 +12,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "tests/unit/**/*.test.ts"],
+    // .tsx too: the email templates are React, so their tests must be as well.
+    include: ["src/**/*.test.ts?(x)", "tests/unit/**/*.test.ts?(x)"],
     env: {
       SKIP_ENV_VALIDATION: "1",
     },
