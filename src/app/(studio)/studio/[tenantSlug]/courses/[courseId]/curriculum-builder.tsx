@@ -12,6 +12,12 @@ import {
   upsertLesson,
   upsertSection,
 } from "@/actions/course";
+import {
+  attachLessonResources,
+  finalizeResourceUpload,
+  removeLessonResource,
+  requestResourceUpload,
+} from "@/actions/resources";
 import { Pill, type PillTone } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,9 +48,37 @@ type LessonRow = {
   durationSec: number | null;
   videoStatus: string | null;
   labRef: string | null;
+  resources: Array<{ id: string; title: string }>;
 };
 
 type SectionRow = { id: string; title: string; lessons: LessonRow[] };
+
+const RESOURCE_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md,.csv,.png,.jpg,.jpeg,.webp,.gif,.zip";
+
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  zip: "application/zip",
+  txt: "text/plain",
+  md: "text/markdown",
+  csv: "text/csv",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+
+function mimeForResource(file: File): string {
+  if (file.type) return file.type;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return MIME_BY_EXT[ext] ?? "";
+}
 
 const LESSON_TYPES = [
   { value: "VIDEO", label: "Video" },
@@ -267,9 +301,62 @@ function LessonDialog({
   const [open, setOpen] = useState(false);
   const [type, setType] = useState(lesson?.type ?? "VIDEO");
   const [isFreePreview, setIsFreePreview] = useState(lesson?.isFreePreview ?? false);
+  const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; title: string }>>([]);
+
+  const detach = useAction(removeLessonResource, {
+    onSuccess: () => toast.success("Attachment removed"),
+    onError: ({ error }) => toast.error(error.serverError ?? "Failed"),
+  });
 
   const { execute, isPending } = useAction(upsertLesson, {
-    onSuccess: () => {
+    onSuccess: async ({ data }) => {
+      // RESOURCE lessons: push chosen files through presigned uploads, then attach.
+      if (type === "RESOURCE" && pendingFiles.length > 0 && data?.lessonId) {
+        const attached: Array<{ assetId: string; title: string }> = [];
+        for (const pf of pendingFiles) {
+          try {
+            const mime = mimeForResource(pf.file);
+            if (!mime || pf.file.size > 25 * 1024 * 1024) {
+              throw new Error(
+                `${pf.file.name}: unsupported type or larger than 25 MB.`,
+              );
+            }
+            const presign = await requestResourceUpload({
+              tenantSlug,
+              courseId,
+              filename: pf.file.name,
+              mime,
+              sizeBytes: pf.file.size,
+            });
+            if (presign?.serverError || !presign?.data) {
+              throw new Error(presign?.serverError ?? `Couldn't upload ${pf.file.name}.`);
+            }
+            const put = await fetch(presign.data.uploadUrl, {
+              method: "PUT",
+              body: pf.file,
+            });
+            if (!put.ok) throw new Error(`Upload failed for ${pf.file.name}.`);
+            const fin = await finalizeResourceUpload({ assetId: presign.data.assetId });
+            if (fin?.serverError) throw new Error(fin.serverError);
+            attached.push({
+              assetId: presign.data.assetId,
+              title: pf.title.trim() || pf.file.name,
+            });
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : `Couldn't upload ${pf.file.name}.`);
+          }
+        }
+        if (attached.length > 0) {
+          const res = await attachLessonResources({
+            tenantSlug,
+            courseId,
+            lessonId: data.lessonId,
+            resources: attached,
+          });
+          if (res?.serverError) toast.error(res.serverError);
+        }
+        setPendingFiles([]);
+      }
       toast.success("Lesson saved");
       setOpen(false);
     },
@@ -393,6 +480,84 @@ function LessonDialog({
             <div className="space-y-2">
               <Label htmlFor="labRef">Fermion lab ID</Label>
               <Input id="labRef" name="labRef" defaultValue={lesson?.labRef ?? ""} />
+            </div>
+          )}
+          {type === "RESOURCE" && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="resourceFiles">Files</Label>
+                <Input
+                  id="resourceFiles"
+                  type="file"
+                  accept={RESOURCE_ACCEPT}
+                  multiple
+                  onChange={(e) => {
+                    const picked = Array.from(e.target.files ?? []).map((file) => ({
+                      file,
+                      title: "",
+                    }));
+                    e.target.value = "";
+                    setPendingFiles((prev) => [...prev, ...picked].slice(0, 20));
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Documents, images or archives · max 25 MB each · up to 20 files
+                </p>
+              </div>
+              {pendingFiles.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label>New files</Label>
+                  {pendingFiles.map((pf, idx) => (
+                    <div key={`${pf.file.name}-${idx}`} className="flex items-center gap-2">
+                      <Input
+                        placeholder={`Title for ${pf.file.name}`}
+                        value={pf.title}
+                        onChange={(e) =>
+                          setPendingFiles((prev) =>
+                            prev.map((p, i) =>
+                              i === idx ? { ...p, title: e.target.value } : p,
+                            ),
+                          )
+                        }
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() =>
+                          setPendingFiles((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                      >
+                        <X />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(lesson?.resources.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <Label>Attached</Label>
+                  {lesson!.resources.map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center justify-between rounded-lg border border-border px-3 py-1.5 text-sm"
+                    >
+                      <span className="truncate">{r.title || "(untitled)"}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={detach.isPending}
+                        onClick={() =>
+                          detach.execute({ tenantSlug, courseId, resourceId: r.id })
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {type === "EMBED" && (

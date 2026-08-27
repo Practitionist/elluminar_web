@@ -4,18 +4,16 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
+import { canGrade } from "@/lib/auth/roles";
 import { issueCourseCredentialIfEarned } from "@/lib/credentials/issue";
+import { isAttemptExpired } from "@/lib/learning/attempt";
 import { drawQuizQuestions } from "@/lib/learning/quiz";
+import { evaluateDeadline } from "@/lib/learning/deadline";
+import { requireActiveEnrollment } from "@/lib/learning/enrollment";
+import { isUniqueViolationOn } from "@/lib/prisma-error";
+import { STORAGE_BUCKETS } from "@/lib/storage";
 import { ActionError, authActionClient } from "@/lib/safe-action";
-
-async function requireActiveEnrollment(userId: string, courseId: string) {
-  const enrollment = await db.enrollment.findFirst({
-    where: { userId, courseId, status: "ACTIVE" },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!enrollment) throw new ActionError("You're not enrolled in this course.");
-  return enrollment;
-}
+import { submitAssignmentSchema } from "@/lib/validation/learning";
 
 /** Recomputes cached progress; completes the course + issues the certificate at 100%. */
 async function refreshCourseProgress(enrollmentId: string) {
@@ -75,6 +73,22 @@ export const markLessonProgress = authActionClient
   )
   .action(async ({ parsedInput, ctx }) => {
     const enrollment = await requireActiveEnrollment(ctx.session.user.id, parsedInput.courseId);
+    const lesson = await db.lesson.findUnique({
+      where: { id: parsedInput.lessonId },
+      select: { type: true, courseId: true },
+    });
+    if (!lesson || lesson.courseId !== parsedInput.courseId) {
+      throw new ActionError("Lesson not found.");
+    }
+    // QUIZ/ASSIGNMENT lessons complete only via their own flows (quiz pass /
+    // instructor grading), never by self-marking — keeps progress honest.
+    if (parsedInput.status === "COMPLETED" && (lesson.type === "QUIZ" || lesson.type === "ASSIGNMENT")) {
+      throw new ActionError(
+        lesson.type === "ASSIGNMENT"
+          ? "This lesson completes when your instructor grades your submission."
+          : "This lesson completes when you pass the quiz.",
+      );
+    }
     await db.lessonProgress.upsert({
       where: {
         enrollmentId_lessonId: {
@@ -174,6 +188,12 @@ export const submitQuizAttempt = authActionClient
       throw new ActionError("Attempt not found.");
     }
     if (attempt.submittedAt) throw new ActionError("Already submitted.");
+    // The countdown in quiz-runner.tsx is a convenience, not a control: without
+    // this check the action can be called directly long after time expired.
+    // Small grace window absorbs clock skew and in-flight submits.
+    if (isAttemptExpired(attempt.dueAt)) {
+      throw new ActionError("Time is up for this attempt.");
+    }
 
     const drawn = drawQuizQuestions(attempt.quiz.questions, attempt.seed, attempt.quiz.drawCount);
     let score = 0;
@@ -236,23 +256,66 @@ export const submitQuizAttempt = authActionClient
   });
 
 export const submitAssignment = authActionClient
-  .inputSchema(
-    z.object({
-      courseId: z.string().min(1),
-      lessonId: z.string().min(1),
-      text: z.string().max(20000).optional(),
-      repoUrl: z.url().optional().or(z.literal("")),
-      url: z.url().optional().or(z.literal("")),
-    }),
-  )
+  .inputSchema(submitAssignmentSchema)
   .action(async ({ parsedInput, ctx }) => {
     const enrollment = await requireActiveEnrollment(ctx.session.user.id, parsedInput.courseId);
     const assignment = await db.assignment.findUnique({
       where: { lessonId: parsedInput.lessonId },
+      select: {
+        id: true,
+        maxPoints: true,
+        dueOffsetDays: true,
+        allowLate: true,
+        allowResubmission: true,
+        lesson: { select: { courseId: true } },
+      },
     });
-    if (!assignment) throw new ActionError("Assignment not found.");
-    if (!parsedInput.text && !parsedInput.repoUrl && !parsedInput.url) {
+    // The lesson must belong to the course the learner is enrolled in —
+    // otherwise a submission would link another course's assignment to this
+    // enrollment (and land in the wrong tenant's grading queue).
+    if (!assignment || assignment.lesson.courseId !== parsedInput.courseId) {
+      throw new ActionError("Assignment not found.");
+    }
+
+    const text = parsedInput.text?.trim() || undefined;
+
+    // Deadline enforcement: dueAt = enrollment.activatedAt + dueOffsetDays.
+    const verdict = evaluateDeadline({
+      activatedAt: enrollment.activatedAt,
+      dueOffsetDays: assignment.dueOffsetDays,
+      allowLate: assignment.allowLate,
+    });
+    if (verdict.action === "reject") {
+      throw new ActionError(
+        `The deadline passed ${verdict.dueAt.toLocaleDateString("en-IN", { dateStyle: "medium" })} and late submissions are disabled.`,
+      );
+    }
+
+    const mediaAssetIds = [...new Set(parsedInput.mediaAssetIds ?? [])];
+    const hasFiles = mediaAssetIds.length > 0;
+    if (!text && !parsedInput.repoUrl && !parsedInput.url && !hasFiles) {
       throw new ActionError("Add your work before submitting.");
+    }
+
+    // Validate attached files before writing anything.
+    if (hasFiles) {
+      const assets = await db.mediaAsset.findMany({
+        where: { id: { in: mediaAssetIds } },
+        select: { id: true, uploadedById: true, bucket: true, status: true },
+      });
+      for (const id of mediaAssetIds) {
+        const asset = assets.find((a) => a.id === id);
+        if (
+          !asset ||
+          asset.uploadedById !== ctx.session.user.id ||
+          asset.bucket !== STORAGE_BUCKETS.submissions
+        ) {
+          throw new ActionError("One of the attached files is invalid.");
+        }
+        if (asset.status !== "READY") {
+          throw new ActionError("Finish uploading all files first.");
+        }
+      }
     }
 
     const prior = await db.assignmentSubmission.count({
@@ -262,22 +325,52 @@ export const submitAssignment = authActionClient
       throw new ActionError("Resubmission isn't allowed for this assignment.");
     }
 
-    await db.assignmentSubmission.create({
-      data: {
-        assignmentId: assignment.id,
-        userId: ctx.session.user.id,
-        enrollmentId: enrollment.id,
-        attemptNo: prior + 1,
-        text: parsedInput.text,
-        repoUrl: parsedInput.repoUrl || null,
-        url: parsedInput.url || null,
-        status: "SUBMITTED",
-        submittedAt: new Date(),
-      },
-    });
+    // Concurrent submits can race on @@unique([assignmentId, userId, attemptNo]).
+    // With resubmission allowed, retry with the next slot; without it, the race
+    // loser is a duplicate submit and must NOT sneak in as attempt #2.
+    const maxTries = assignment.allowResubmission ? 3 : 1;
+    let created = false;
+    let attemptNo = prior + 1;
+    for (let i = 0; i < maxTries && !created; i += 1) {
+      try {
+        await db.assignmentSubmission.create({
+          data: {
+            assignmentId: assignment.id,
+            userId: ctx.session.user.id,
+            enrollmentId: enrollment.id,
+            attemptNo,
+            text,
+            repoUrl: parsedInput.repoUrl || null,
+            url: parsedInput.url || null,
+            status: "SUBMITTED",
+            submittedAt: new Date(),
+            late: verdict.action === "flag-late",
+            ...(hasFiles
+              ? { files: { create: mediaAssetIds.map((mediaAssetId) => ({ mediaAssetId })) } }
+              : {}),
+          },
+        });
+        created = true;
+      } catch (err) {
+        // Only recover from the attempt-number unique, never an unrelated index.
+        // Prisma 7 + adapter-pg reports the columns under
+        // meta.driverAdapterError, not meta.target — see @/lib/prisma-error.
+        if (isUniqueViolationOn(err, "attemptNo")) {
+          if (!assignment.allowResubmission) {
+            throw new ActionError("You've already submitted this assignment.");
+          }
+          attemptNo += 1;
+          continue;
+        }
+        throw err;
+      }
+    }
+    if (!created) {
+      throw new ActionError("Could not save your submission. Please try again.");
+    }
 
     revalidatePath(`/learn/courses/${parsedInput.courseId}`);
-    return { ok: true };
+    return { ok: true, late: verdict.action === "flag-late" };
   });
 
 /** Instructor grading (studio side). */
@@ -298,17 +391,49 @@ export const gradeAssignmentSubmission = authActionClient
       },
     });
     if (!submission) throw new ActionError("Submission not found.");
+    // Authorize BEFORE any state/score validation — error text must not leak
+    // submission status or assignment config to non-members guessing ids.
     const orgId = submission.assignment.lesson!.course.tenant.organizationId;
     const membership = await db.member.findUnique({
       where: {
         organizationId_userId: { organizationId: orgId, userId: ctx.session.user.id },
       },
     });
-    const isAdmin = (ctx.session.user.role ?? "user") === "admin";
-    if (!membership && !isAdmin) throw new ActionError("Not authorized to grade this.");
+    // Membership alone is not authority to grade: enterprise and university
+    // learners hold a plain `member` row in the buying org (seat claim on
+    // sign-in, SSO JIT provisioning), so the role check is what stops a learner
+    // grading a peer. The studio route is already role-gated; this closes the
+    // direct server-action call.
+    if (
+      !canGrade({
+        membershipRole: membership?.role,
+        isPlatformAdmin: (ctx.session.user.role ?? "user") === "admin",
+      })
+    ) {
+      throw new ActionError("Not authorized to grade this.");
+    }
 
-    await db.assignmentSubmission.update({
-      where: { id: submission.id },
+    // Only pending work is gradeable; grading twice would double-complete.
+    if (submission.status !== "SUBMITTED" && submission.status !== "RESUBMIT_REQUESTED") {
+      throw new ActionError("This submission was already graded.");
+    }
+    if (parsedInput.scorePoints > submission.assignment.maxPoints) {
+      throw new ActionError(
+        `Score can't exceed ${submission.assignment.maxPoints} points for this assignment.`,
+      );
+    }
+
+    // Conditional transition. Two graders can both read SUBMITTED; if one grades
+    // while the other requests changes, an unconditional write can leave the row
+    // RESUBMIT_REQUESTED with the lesson already COMPLETED — a credential issued
+    // for work still marked as needing changes. Only the writer that actually
+    // moved the row off a pending status runs the side effects below.
+    const { count: transitioned } = await db.assignmentSubmission.updateMany({
+      // Compare-and-swap on the status we actually read. Matching any pending
+      // status is not enough: two graders can both read SUBMITTED, and if one
+      // requests changes first, the other's decision — made against the stale
+      // SUBMITTED — would still land and complete the lesson.
+      where: { id: submission.id, status: submission.status },
       data: {
         status: parsedInput.requestResubmission ? "RESUBMIT_REQUESTED" : "GRADED",
         scorePoints: parsedInput.scorePoints,
@@ -317,6 +442,7 @@ export const gradeAssignmentSubmission = authActionClient
         gradedAt: new Date(),
       },
     });
+    if (transitioned === 0) throw new ActionError("This submission was already graded.");
 
     if (!parsedInput.requestResubmission) {
       await db.lessonProgress.upsert({
@@ -348,5 +474,5 @@ export const gradeAssignmentSubmission = authActionClient
         actionUrl: `/learn/courses/${submission.assignment.lesson!.courseId}`,
       },
     });
-    return { ok: true };
+    return { ok: true, resubmission: parsedInput.requestResubmission };
   });

@@ -85,8 +85,10 @@
   --card-foreground: oklch(0.22 0.006 286);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.22 0.006 286);
-  /* Vibrant pink/magenta primary (kept exactly) + tints */
-  --primary: oklch(0.62 0.27 340);
+  /* Vibrant pink/magenta primary + tints. L/C nudged 0.62/0.27 -> 0.60/0.26 so
+     white text on a primary fill clears WCAG AA (4.56:1, was 4.21:1). The old
+     value was also outside the sRGB gamut and silently clipped. */
+  --primary: oklch(0.6 0.26 340);
   --primary-foreground: oklch(1 0 0);
   --primary-subtle: oklch(0.955 0.032 340);
   --primary-subtle-foreground: oklch(0.52 0.2 340);
@@ -96,7 +98,8 @@
   --secondary: oklch(0.965 0.003 286);
   --secondary-foreground: oklch(0.28 0.006 286);
   --muted: oklch(0.965 0.003 286);
-  --muted-foreground: oklch(0.615 0.012 286);
+  /* 4.51:1 on --background (was 3.46:1) — this is body/secondary text everywhere. */
+  --muted-foreground: oklch(0.551 0.012 286);
   --accent: oklch(0.96 0.004 286);
   --accent-foreground: oklch(0.28 0.006 286);
   --destructive: oklch(0.577 0.245 27.325);
@@ -386,17 +389,32 @@
       0 0 100px -30px oklch(0.52 0.23 300 / 0.3);
   }
 
-  /* Text gradient */
+  /* Text gradient.
+     The text keeps a real colour and only becomes transparent where
+     background-clip:text actually works. Setting -webkit-text-fill-color
+     unconditionally (the previous behaviour) makes the text invisible rather
+     than merely un-gradiented anywhere the clip fails — forced-colors mode,
+     some print paths, older engines. */
   .text-gradient {
+    color: oklch(0.55 0.24 320);
     background: linear-gradient(
       135deg,
-      oklch(0.62 0.27 340) 0%,
+      oklch(0.6 0.26 340) 0%,
       oklch(0.55 0.24 310) 50%,
       oklch(0.52 0.23 300) 100%
     );
     -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Opt-in transparency for any element painting a gradient through its glyphs
+     (pairs with Tailwind's bg-gradient-* + bg-clip-text). Same guard: the
+     element must set its own fallback colour. */
+  @supports (background-clip: text) or (-webkit-background-clip: text) {
+    .text-gradient,
+    .gradient-clip {
+      -webkit-text-fill-color: transparent;
+    }
   }
 
   /* Smooth animations */

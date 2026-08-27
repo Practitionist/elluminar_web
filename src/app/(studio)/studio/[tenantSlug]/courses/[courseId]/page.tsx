@@ -40,7 +40,10 @@ export default async function CourseEditorPage({
         include: {
           lessons: {
             orderBy: { position: "asc" },
-            include: { videoAsset: { select: { status: true, provider: true } } },
+            include: {
+              videoAsset: { select: { status: true, provider: true } },
+              resources: { select: { id: true, title: true } },
+            },
           },
         },
       },
@@ -106,6 +109,10 @@ export default async function CourseEditorPage({
                 videoStatus: l.videoAsset?.status ?? null,
                 labRef:
                   (l.labConfig as { labRef?: string } | null)?.labRef ?? null,
+                resources: l.resources.map((r) => ({
+                  id: r.id,
+                  title: r.title ?? "",
+                })),
               })),
             }))}
           />

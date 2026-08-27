@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Pill, type PillTone } from "@/components/shared";
 import { requireUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { isStorageConfigured } from "@/lib/storage";
 import { tiptapToPlainText } from "@/lib/richtext";
 
 import { MilestoneSubmitForm } from "./milestone-submit-form";
@@ -88,6 +89,8 @@ export default async function ProjectWorkspacePage({
     submissionsByMilestone.set(s.milestoneId, list);
   }
   const canSubmit = ["IN_PROGRESS", "CHANGES_REQUESTED"].includes(instance.status);
+
+  const storageReady = isStorageConfigured();
 
   return (
     <div className="space-y-6">
@@ -178,7 +181,11 @@ export default async function ProjectWorkspacePage({
                 )}
                 {canSubmit && latest?.status !== "APPROVED" && (
                   <div className="mt-3">
-                    <MilestoneSubmitForm projectInstanceId={instance.id} milestoneId={m.id} />
+                    <MilestoneSubmitForm
+                      projectInstanceId={instance.id}
+                      milestoneId={m.id}
+                      storageReady={storageReady}
+                    />
                   </div>
                 )}
               </div>

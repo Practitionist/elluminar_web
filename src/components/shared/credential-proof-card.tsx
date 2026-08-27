@@ -23,7 +23,10 @@ const SAMPLE: Required<Omit<CredentialProofData, "holderInitials" | "reviewerIni
   holderInitials: string;
   reviewerInitials: string;
 } = {
-  code: "EL-7Q2M-KX",
+  // Deliberately not a plausible-looking code: this card is a marketing
+  // illustration, and a realistic code invites visitors to type it into
+  // /verify, where it correctly resolves to "Not found" and reads as broken.
+  code: "EL-SAMPLE",
   holderName: "Ananya Iyer",
   holderInitials: "AI",
   title: "Payments API — Build, Scale, Defend",

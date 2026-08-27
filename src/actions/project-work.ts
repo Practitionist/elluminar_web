@@ -7,6 +7,8 @@ import { db } from "@/lib/db";
 import { writeLedgerEntry } from "@/lib/commerce/fulfillment";
 import { issueProjectCredential } from "@/lib/credentials/issue";
 import { applyBps } from "@/lib/money";
+import { MAX_SUBMISSION_FILES } from "@/lib/learning/uploads";
+import { STORAGE_BUCKETS } from "@/lib/storage";
 import { ActionError, authActionClient } from "@/lib/safe-action";
 
 /** Learner submits work for a milestone. */
@@ -18,6 +20,7 @@ export const submitMilestone = authActionClient
       notes: z.string().max(10000).optional(),
       repoUrl: z.url().optional().or(z.literal("")),
       artifactUrl: z.url().optional().or(z.literal("")),
+      mediaAssetIds: z.array(z.string().min(1)).max(MAX_SUBMISSION_FILES).optional(),
     }),
   )
   .action(async ({ parsedInput, ctx }) => {
@@ -31,8 +34,32 @@ export const submitMilestone = authActionClient
     if (!["IN_PROGRESS", "CHANGES_REQUESTED"].includes(instance.status)) {
       throw new ActionError("This project isn't accepting submissions right now.");
     }
-    if (!parsedInput.notes && !parsedInput.repoUrl && !parsedInput.artifactUrl) {
+    const mediaAssetIds = [...new Set(parsedInput.mediaAssetIds ?? [])];
+    const hasFiles = mediaAssetIds.length > 0;
+    if (!parsedInput.notes && !parsedInput.repoUrl && !parsedInput.artifactUrl && !hasFiles) {
       throw new ActionError("Attach your work before submitting.");
+    }
+
+    // Validate attachments before writing anything — same ownership, bucket and
+    // READY checks as assignment submissions.
+    if (hasFiles) {
+      const assets = await db.mediaAsset.findMany({
+        where: { id: { in: mediaAssetIds } },
+        select: { id: true, uploadedById: true, bucket: true, status: true },
+      });
+      for (const id of mediaAssetIds) {
+        const asset = assets.find((a) => a.id === id);
+        if (
+          !asset ||
+          asset.uploadedById !== ctx.session.user.id ||
+          asset.bucket !== STORAGE_BUCKETS.submissions
+        ) {
+          throw new ActionError("One of the attached files is invalid.");
+        }
+        if (asset.status !== "READY") {
+          throw new ActionError("Finish uploading all files first.");
+        }
+      }
     }
 
     const prior = await db.milestoneSubmission.count({
@@ -51,6 +78,9 @@ export const submitMilestone = authActionClient
           repoUrl: parsedInput.repoUrl || null,
           artifactUrl: parsedInput.artifactUrl || null,
           status: "IN_REVIEW",
+          ...(hasFiles
+            ? { files: { create: mediaAssetIds.map((mediaAssetId) => ({ mediaAssetId })) } }
+            : {}),
         },
       });
       await tx.projectInstance.update({
@@ -245,6 +275,26 @@ export const finalizeProjectInstance = authActionClient
         if (!approved) {
           throw new ActionError(
             "All mentor-checkpoint milestones must be approved before a PASS.",
+          );
+        }
+      }
+
+      // A credential is the product; `defenseRequired` must mean something.
+      // Until now the flag was decorative — a project seeded defenceRequired
+      // could be PASSed with no defense ever held, so the credential would
+      // assert a review step that never happened.
+      if (instance.project.defenseRequired) {
+        const defense = await db.projectReview.findFirst({
+          where: {
+            projectInstanceId: instance.id,
+            kind: "DEFENSE",
+            decision: { in: ["PASS", "APPROVED"] },
+          },
+          select: { id: true },
+        });
+        if (!defense) {
+          throw new ActionError(
+            "This project requires a live defense. Record a passing defense review before issuing a PASS.",
           );
         }
       }

@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import {
+  MAX_UPLOAD_BYTES,
+  RESOURCE_MIME_ALLOWLIST,
+} from "@/lib/learning/uploads";
 import { slugSchema } from "@/lib/validation/tenant";
 
 export const lessonTypeSchema = z.enum([
@@ -170,4 +174,41 @@ export const upsertAssignmentSchema = z.object({
     .min(1)
     .default(["TEXT"]),
   allowResubmission: z.boolean().default(true),
+});
+
+export const requestResourceUploadSchema = z.object({
+  tenantSlug: slugSchema,
+  courseId: z.string().min(1),
+  filename: z.string().min(1).max(255),
+  mime: z
+    .string()
+    .refine((m) => (RESOURCE_MIME_ALLOWLIST as readonly string[]).includes(m), {
+      message: "Allowed types: documents (PDF/Office/text), images or ZIP archives.",
+    }),
+  sizeBytes: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_UPLOAD_BYTES, { message: "Files must be 25 MB or smaller." }),
+});
+
+export const attachLessonResourcesSchema = z.object({
+  tenantSlug: slugSchema,
+  courseId: z.string().min(1),
+  lessonId: z.string().min(1),
+  resources: z
+    .array(
+      z.object({
+        assetId: z.string().min(1),
+        title: z.string().min(1).max(200),
+      }),
+    )
+    .min(1)
+    .max(20),
+});
+
+export const removeLessonResourceSchema = z.object({
+  tenantSlug: slugSchema,
+  courseId: z.string().min(1),
+  resourceId: z.string().min(1),
 });

@@ -1,7 +1,9 @@
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import type { NavSection } from "@/components/dashboard/types";
 import { Pill } from "@/components/shared";
+import { canGrade } from "@/lib/auth/roles";
 import { requireTenantMember } from "@/lib/auth/session";
+import { db } from "@/lib/db";
 import { getAccessibleSurfaces, toShellUser } from "@/lib/nav/surfaces";
 
 export default async function StudioTenantLayout({
@@ -12,9 +14,24 @@ export default async function StudioTenantLayout({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { session, tenant } = await requireTenantMember(tenantSlug);
+  const { session, tenant, membership } = await requireTenantMember(tenantSlug);
   const surfaces = await getAccessibleSurfaces(session);
   const base = `/studio/${tenantSlug}`;
+
+  // Grading queue is visible to content-team roles; badge = pending submissions.
+  // Same predicate the grading action enforces, so nav and authority can't drift.
+  const canGradeHere = canGrade({
+    membershipRole: membership?.role,
+    isPlatformAdmin: session.user.role === "admin",
+  });
+  const pendingSubmissions = canGradeHere
+    ? await db.assignmentSubmission.count({
+        where: {
+          status: { in: ["SUBMITTED", "RESUBMIT_REQUESTED"] },
+          assignment: { lesson: { course: { tenant: { slug: tenantSlug } } } },
+        },
+      })
+    : 0;
 
   const nav: NavSection[] = [
     {
@@ -22,6 +39,16 @@ export default async function StudioTenantLayout({
         { href: base, label: "Overview", icon: "overview", exact: true },
         { href: `${base}/courses`, label: "Courses", icon: "courses" },
         { href: `${base}/projects`, label: "Projects", icon: "projects" },
+        ...(canGradeHere
+          ? [
+              {
+                href: `${base}/grading`,
+                label: "Grading",
+                icon: "reviews",
+                badge: pendingSubmissions > 0 ? pendingSubmissions : undefined,
+              },
+            ]
+          : []),
         { href: `${base}/cohorts`, label: "Cohorts", icon: "cohorts" },
         { href: `${base}/coupons`, label: "Coupons", icon: "coupons" },
         { href: `${base}/earnings`, label: "Earnings", icon: "earnings" },

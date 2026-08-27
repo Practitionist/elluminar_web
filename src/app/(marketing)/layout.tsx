@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { SiteFooter } from "@/components/marketing";
+import { MobileNav } from "@/components/marketing/mobile-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { getSession } from "@/lib/auth/session";
@@ -25,7 +26,8 @@ export default async function MarketingLayout({
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2 md:gap-6">
+            <MobileNav items={NAV} signedIn={Boolean(session)} />
             <Link
               href="/"
               className="text-gradient text-lg font-extrabold tracking-tight"
@@ -39,7 +41,7 @@ export default async function MarketingLayout({
                   href={item.href}
                   className={
                     item.accent
-                      ? "text-primary transition-colors hover:text-primary/80"
+                      ? "text-primary-subtle-foreground transition-colors hover:text-primary"
                       : "transition-colors hover:text-primary"
                   }
                 >

@@ -40,6 +40,10 @@ yarn-error.log*
 # opencode local config (contains MCP secrets)
 opencode.json
 
+# project MCP server config (contains live API tokens)
+.mcp.json
+.mcp.json.*
+
 # netlify
 .netlify
 
@@ -63,3 +67,6 @@ next-env.d.ts
 
 # local scratch/handoffs
 temp/
+
+# agent worktrees (transient)
+.claude/worktrees/

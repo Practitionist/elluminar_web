@@ -2,8 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
+import { useState } from "react";
 import { toast } from "sonner";
 
+import { finalizeSubmissionUpload, requestSubmissionUpload } from "@/actions/submissions";
+import {
+  MAX_SUBMISSION_FILES,
+  MAX_UPLOAD_BYTES,
+  SUBMISSION_ACCEPT_ATTR,
+  mimeForFilename,
+} from "@/lib/learning/uploads";
 import { submitAssignment } from "@/actions/learning";
 import { Pill, type PillTone } from "@/components/shared";
 import { Button } from "@/components/ui/button";
@@ -20,11 +28,22 @@ const SUBMISSION_STATUS_TONE: Record<string, PillTone> = {
   RESUBMIT_REQUESTED: "distinction",
 };
 
+const MAX_FILES = MAX_SUBMISSION_FILES;
+const MAX_FILE_BYTES = MAX_UPLOAD_BYTES;
+const ACCEPT = SUBMISSION_ACCEPT_ATTR;
+
+function mimeForFile(file: File): string {
+  return mimeForFilename(file.name, file.type);
+}
+
 export function AssignmentPanel({
   courseId,
   lessonId,
   assignment,
   submissions,
+  dueAt,
+  nowIso,
+  storageReady,
 }: {
   courseId: string;
   lessonId: string;
@@ -34,6 +53,7 @@ export function AssignmentPanel({
     maxPoints: number;
     submissionKinds: string[];
     allowResubmission: boolean;
+    allowLate: boolean;
   };
   submissions: Array<{
     id: string;
@@ -43,11 +63,20 @@ export function AssignmentPanel({
     maxPoints: number;
     feedback: string | null;
     submittedAt: string | null;
+    late: boolean;
   }>;
+  /** ISO due date derived from enrollment activation, or null when open-ended. */
+  dueAt: string | null;
+  /** Server clock snapshot at page render (ISO) — pure deadline comparison. */
+  nowIso: string;
+  storageReady: boolean;
 }) {
   const router = useRouter();
+  const [files, setFiles] = useState<Array<{ assetId: string; filename: string }>>([]);
+  const [uploading, setUploading] = useState(false);
   const { execute, isPending } = useAction(submitAssignment, {
     onSuccess: () => {
+      setFiles([]);
       toast.success("Submitted — your instructor will review it.");
       router.refresh();
     },
@@ -60,8 +89,68 @@ export function AssignmentPanel({
     (assignment.allowResubmission &&
       (latest.status === "GRADED" || latest.status === "RESUBMIT_REQUESTED"));
 
+  const dueDate = dueAt ? new Date(dueAt) : null;
+  // Compare against a server-rendered clock snapshot: keeps render pure
+  // (no Date.now()) while still reflecting real elapsed time per page load.
+  const pastDue = dueDate ? new Date(nowIso).getTime() > dueDate.getTime() : false;
+  const closed = pastDue && !assignment.allowLate;
+
+  async function onFilesPicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (picked.length === 0) return;
+    const room = MAX_FILES - files.length;
+    if (picked.length > room) {
+      toast.error(`You can attach up to ${MAX_FILES} files.`);
+    }
+    setUploading(true);
+    for (const file of picked.slice(0, room)) {
+      const mime = mimeForFile(file);
+      if (!mime) {
+        toast.error(`${file.name}: unsupported file type.`);
+        continue;
+      }
+      if (file.size > MAX_FILE_BYTES) {
+        toast.error(`${file.name} is over 25 MB.`);
+        continue;
+      }
+      try {
+        const presign = await requestSubmissionUpload({
+          courseId,
+          lessonId,
+          filename: file.name,
+          mime,
+          sizeBytes: file.size,
+        });
+        if (presign?.serverError || !presign?.data) {
+          toast.error(presign?.serverError ?? `Couldn't start upload for ${file.name}.`);
+          continue;
+        }
+        const put = await fetch(presign.data.uploadUrl, { method: "PUT", body: file });
+        if (!put.ok) {
+          toast.error(`Upload failed for ${file.name}.`);
+          continue;
+        }
+        const fin = await finalizeSubmissionUpload({ assetId: presign.data.assetId });
+        if (fin?.serverError) {
+          toast.error(fin.serverError);
+          continue;
+        }
+        setFiles((prev) => [...prev, { assetId: presign.data!.assetId, filename: file.name }]);
+      } catch {
+        toast.error(`Upload failed for ${file.name}.`);
+      }
+    }
+    setUploading(false);
+  }
+
+  function removeFile(assetId: string) {
+    setFiles((prev) => prev.filter((f) => f.assetId !== assetId));
+  }
+
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (closed) return;
     const form = new FormData(e.currentTarget);
     execute({
       courseId,
@@ -69,6 +158,7 @@ export function AssignmentPanel({
       text: String(form.get("text") || "") || undefined,
       repoUrl: String(form.get("repoUrl") || ""),
       url: String(form.get("url") || ""),
+      mediaAssetIds: files.length > 0 ? files.map((f) => f.assetId) : undefined,
     });
   }
 
@@ -79,7 +169,24 @@ export function AssignmentPanel({
         <p className="mt-3 text-sm whitespace-pre-line">{assignment.instructions}</p>
         <p className="mt-3 text-xs font-semibold text-muted-foreground">
           Worth {assignment.maxPoints} points · instructor-reviewed
+          {dueDate
+            ? ` · due ${dueDate.toLocaleDateString("en-IN", {
+                dateStyle: "medium",
+                timeZone: "Asia/Kolkata",
+              })}`
+            : ""}
         </p>
+        {pastDue && (
+          <p className="mt-2 text-xs font-semibold">
+            {closed ? (
+              <span className="text-destructive">Deadline passed — submissions are closed.</span>
+            ) : (
+              <span className="text-distinction-subtle-foreground">
+                Deadline passed — you can still submit, but it will be marked late.
+              </span>
+            )}
+          </p>
+        )}
       </div>
 
       {submissions.length > 0 && (
@@ -91,6 +198,7 @@ export function AssignmentPanel({
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">Attempt {s.attemptNo}</span>
                   <div className="flex items-center gap-2">
+                    {s.late && <Pill tone="distinction">late</Pill>}
                     {s.scorePoints != null && (
                       <span className="font-bold tabular-nums">
                         {s.scorePoints}/{s.maxPoints}
@@ -110,7 +218,7 @@ export function AssignmentPanel({
         </div>
       )}
 
-      {canSubmit && (
+      {canSubmit && !closed && (
         <div className="rounded-2xl border border-border bg-card p-5">
           <h2 className="text-base font-extrabold">
             {latest ? "Resubmit your work" : "Submit your work"}
@@ -120,6 +228,47 @@ export function AssignmentPanel({
               <div className="space-y-2">
                 <Label htmlFor="text">Answer</Label>
                 <Textarea id="text" name="text" rows={6} />
+              </div>
+            )}
+            {assignment.submissionKinds.includes("FILE") && (
+              <div className="space-y-2">
+                <Label htmlFor="submission-files">Files</Label>
+                <Input
+                  id="submission-files"
+                  type="file"
+                  accept={ACCEPT}
+                  multiple
+                  disabled={!storageReady || uploading || files.length >= MAX_FILES}
+                  onChange={onFilesPicked}
+                />
+                {!storageReady && (
+                  <p className="text-xs text-muted-foreground">
+                    File uploads aren&apos;t configured for this environment yet.
+                  </p>
+                )}
+                {files.length > 0 && (
+                  <ul className="space-y-1">
+                    {files.map((f) => (
+                      <li
+                        key={f.assetId}
+                        className="flex items-center justify-between rounded-lg border border-border px-3 py-1.5 text-sm"
+                      >
+                        <span className="truncate">{f.filename}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(f.assetId)}
+                        >
+                          Remove
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Up to {MAX_FILES} files · PDF, PNG, JPG, WEBP or ZIP · max 25 MB each
+                </p>
               </div>
             )}
             {assignment.submissionKinds.includes("REPO_URL") && (
@@ -134,8 +283,8 @@ export function AssignmentPanel({
                 <Input id="url" name="url" type="url" />
               </div>
             )}
-            <Button type="submit" disabled={isPending} className="rounded-full">
-              {isPending ? "Submitting…" : "Submit"}
+            <Button type="submit" disabled={isPending || uploading} className="rounded-full">
+              {isPending ? "Submitting…" : uploading ? "Uploading…" : "Submit"}
             </Button>
           </form>
         </div>
