@@ -64,7 +64,13 @@ export function studioActionClient(allowedRoles: readonly OrgRole[] = CONTENT_TE
   return tenantActionClient(allowedRoles, STUDIO_TENANT_TYPES);
 }
 
-/** Org-portal actions — ENTERPRISE/UNIVERSITY tenants only. */
-export function orgActionClient(allowedRoles: readonly OrgRole[] = CONTENT_TEAM_ROLES) {
+/**
+ * Org-portal actions — ENTERPRISE/UNIVERSITY tenants only.
+ *
+ * `allowedRoles` is required rather than defaulted: org-portal work is licenses,
+ * rosters and SSO, so the content-team default that suits the studio would
+ * quietly hand `instructor` the keys. Every caller states its own roles.
+ */
+export function orgActionClient(allowedRoles: readonly OrgRole[]) {
   return tenantActionClient(allowedRoles, ORG_TENANT_TYPES);
 }
