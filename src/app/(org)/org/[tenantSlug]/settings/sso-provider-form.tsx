@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldControl, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { fieldErrors, formError } from "@/lib/safe-action";
+import { fieldErrors, formError } from "@/lib/form-errors";
 import { slugify } from "@/lib/slug";
 import type { SsoProtocol } from "@/lib/validation/enterprise";
 

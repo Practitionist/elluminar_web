@@ -37,3 +37,27 @@ export async function sendEmail(input: SendEmailInput) {
   }
   return data!;
 }
+
+/**
+ * Non-fatal variant for BetterAuth's lifecycle hooks.
+ *
+ * `sendEmail` throws, and BetterAuth awaits these hooks inside the request —
+ * so a Resend outage took down sign-up entirely, and the account was rolled
+ * back over an email we could have retried. Here the account is created, the
+ * failure goes to Sentry, and the user can hit "resend" on /verify-email.
+ *
+ * Use `sendEmail` directly where delivery IS the outcome the caller is waiting
+ * on and a failure should surface (e.g. an explicit "resend" the user asked for).
+ */
+export async function sendAuthEmail(input: SendEmailInput) {
+  try {
+    return await sendEmail(input);
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { vendor: "resend", channel: "auth" },
+      extra: { subject: input.subject },
+    });
+    console.error("[email:auth] delivery failed", input.subject, err);
+    return null;
+  }
+}

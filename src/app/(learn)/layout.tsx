@@ -23,6 +23,7 @@ const NAV: NavSection[] = [
   {
     label: "Account",
     items: [
+      { href: "/account", label: "Profile & security", icon: "profile" },
       { href: "/billing", label: "Billing", icon: "billing" },
       { href: "/courses", label: "Browse catalog", icon: "library" },
     ],

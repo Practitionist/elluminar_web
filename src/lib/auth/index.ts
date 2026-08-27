@@ -7,14 +7,35 @@ import { admin, organization, twoFactor } from "better-auth/plugins";
 import { env } from "@/env";
 import { db } from "@/lib/db";
 import { ac, orgRoles } from "@/lib/auth/permissions";
+import { hasOrgRole } from "@/lib/auth/roles";
 import { createAuthSecondaryStorage } from "@/lib/auth/secondary-storage";
-import { sendEmail } from "@/lib/email";
+import { sendAuthEmail } from "@/lib/email";
+
+/**
+ * Origins allowed to drive the auth API. BetterAuth always trusts `baseURL`;
+ * these are the extras. Netlify injects DEPLOY_PRIME_URL/URL per deploy, so
+ * previews are covered without a wildcard that would trust the whole
+ * *.netlify.app namespace.
+ */
+const trustedOrigins = [
+  process.env.DEPLOY_PRIME_URL,
+  process.env.URL,
+  process.env.NODE_ENV !== "production" ? "http://localhost:3000" : null,
+].filter((v): v is string => Boolean(v));
 
 export const auth = betterAuth({
   appName: "elluminar",
   baseURL: env.NEXT_PUBLIC_APP_URL,
   secret: env.BETTER_AUTH_SECRET,
   database: prismaAdapter(db, { provider: "postgresql" }),
+
+  trustedOrigins,
+
+  advanced: {
+    // Explicit rather than inferred from the baseURL protocol: behind
+    // Netlify's proxy the origin BetterAuth sees is not always https.
+    useSecureCookies: process.env.NODE_ENV === "production",
+  },
 
   user: {
     additionalFields: {
@@ -25,13 +46,26 @@ export const auth = betterAuth({
       onboardedAt: { type: "date", required: false, input: false },
       anonymizedAt: { type: "date", required: false, input: false },
     },
+    changeEmail: {
+      enabled: true,
+      // Sent to the CURRENT address, not the new one: if an attacker with a
+      // live session changes the email, the real owner is the one who finds
+      // out, and the change does not take effect until they approve it.
+      sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
+        await sendAuthEmail({
+          to: user.email,
+          subject: "Approve your new email address",
+          text: `Hi ${user.name},\n\nSomeone asked to change this account's email to ${newEmail}.\n\nApprove it: ${url}\n\nIf this wasn't you, do not click the link — change your password instead.`,
+        });
+      },
+    },
   },
 
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
     sendResetPassword: async ({ user, url }) => {
-      await sendEmail({
+      await sendAuthEmail({
         to: user.email,
         subject: "Reset your password",
         text: `Hi ${user.name},\n\nReset your password: ${url}\n\nIf you didn't request this, ignore this email.`,
@@ -43,7 +77,7 @@ export const auth = betterAuth({
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
-      await sendEmail({
+      await sendAuthEmail({
         to: user.email,
         subject: "Verify your email",
         text: `Hi ${user.name},\n\nConfirm your email to activate your account: ${url}`,
@@ -133,19 +167,24 @@ export const auth = betterAuth({
       // (uncapped); everyone else keeps the 3-org cap.
       organizationLimit: async (user) => {
         if ((user as { role?: string | null }).role === "admin") return true;
-        const owned = await db.member.count({
-          where: { userId: user.id, role: "owner" },
+        // BetterAuth stores roles as a comma-separated string, so the previous
+        // `where: { role: "owner" }` exact match silently ignored anyone whose
+        // membership reads "owner,instructor" — letting them past the cap.
+        const memberships = await db.member.findMany({
+          where: { userId: user.id },
+          select: { role: true },
         });
+        const owned = memberships.filter((m) => hasOrgRole(m.role, ["owner"])).length;
         return owned < 3;
       },
       membershipLimit: 10000,
       invitationExpiresIn: 60 * 60 * 72,
       sendInvitationEmail: async (data) => {
         const inviteUrl = `${env.NEXT_PUBLIC_APP_URL}/accept-invitation/${data.id}`;
-        await sendEmail({
+        await sendAuthEmail({
           to: data.email,
           subject: `You're invited to join ${data.organization.name}`,
-          text: `${data.inviter.user.name} invited you to join ${data.organization.name}.\n\nAccept: ${inviteUrl}`,
+          text: `${data.inviter.user.name} invited you to join ${data.organization.name}.\n\nAccept: ${inviteUrl}\n\nThis invitation expires in 72 hours.`,
         });
       },
       organizationHooks: {
@@ -173,12 +212,59 @@ export const auth = betterAuth({
     sso({
       organizationProvisioning: {
         disabled: false,
+        // Deliberately the floor, not a mapping of IdP groups to org roles.
+        // An IdP group claim is controlled by the customer's IT team, and
+        // `member` is the only role that cannot grade, publish, or spend —
+        // see canGrade() in lib/auth/roles.ts. Elevation stays a deliberate
+        // act inside our own members UI.
         defaultRole: "member",
       },
-      // Sign-ins only match providers with domainVerified = true — the flag
-      // the platform-admin trust toggle flips. Without this, unreviewed
-      // providers would be usable immediately after registration.
+
+      // Sign-ins only match providers with domainVerified = true. Without
+      // this, a provider would be usable the instant it was registered —
+      // and the domain is what decides whose employees join which org.
       domainVerification: { enabled: true },
+
+      /**
+       * Runs on first SSO sign-in (and only then). Fills in the profile fields
+       * the IdP already knows so the learner does not re-enter them in
+       * onboarding; deliberately never touches role, email or emailVerified.
+       */
+      provisionUser: async ({ user, userInfo }) => {
+        const claims = userInfo as Record<string, unknown>;
+        const locale = typeof claims.locale === "string" ? claims.locale.slice(0, 2) : null;
+        const zoneinfo = typeof claims.zoneinfo === "string" ? claims.zoneinfo : null;
+
+        const data: { locale?: string; timezone?: string } = {};
+        if (locale === "en" || locale === "hi") data.locale = locale;
+        if (zoneinfo) data.timezone = zoneinfo;
+        if (Object.keys(data).length === 0) return;
+
+        // Never fatal: a failure here must not cost the user their sign-in.
+        await db.user.update({ where: { id: user.id }, data }).catch((err) => {
+          console.error("[sso provisionUser]", err);
+        });
+      },
+
+      saml: {
+        // Correlate every response to an AuthnRequest we issued. Stored in
+        // secondaryStorage when Upstash is configured, else the verification
+        // table — both work on serverless.
+        enableInResponseToValidation: true,
+        requestTTL: 5 * 60 * 1000,
+        clockSkew: 2 * 60 * 1000,
+        // IdP-initiated flows cannot be correlated to a request we issued, so
+        // they lose replay protection. Our SP-initiated flow covers Okta,
+        // Entra ID and Shibboleth; turn this on only for a customer that
+        // genuinely needs a portal tile, and note it in their runbook entry.
+        allowIdpInitiated: false,
+        // Okta, Entra ID and OneLogin all follow SAML2Int, which requires
+        // NotBefore/NotOnOrAfter. Without them an intercepted assertion is
+        // valid forever.
+        requireTimestamps: true,
+        // SHA-1, RSA1_5 and 3DES are broken, not merely old.
+        algorithms: { onDeprecated: "reject" },
+      },
     }),
     twoFactor({
       issuer: "elluminar",
