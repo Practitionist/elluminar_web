@@ -67,3 +67,6 @@ next-env.d.ts
 
 # local scratch/handoffs
 temp/
+
+# agent worktrees (transient)
+.claude/worktrees/
