@@ -118,6 +118,32 @@ async function fetchCourseEntries(
   }));
 }
 
+/**
+ * Public query parameters are attacker-controlled. `?level=` and `?tier=` came
+ * straight off the URL into a Prisma enum filter via `as never`, and an invalid
+ * value makes Prisma throw `PrismaClientValidationError` — a hard 500 on a
+ * public catalog page. Verified live: `/courses?level=NOT_A_REAL_LEVEL`
+ * returned 500 on production.
+ *
+ * An unrecognised value is treated as absent rather than as an error: a filter
+ * nobody can express is not worth a failed page, and silently ignoring it
+ * matches how `category` already behaves.
+ */
+const COURSE_LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED"] as const;
+const PROJECT_TIERS = ["SPRINT", "CAPSTONE", "FLAGSHIP"] as const;
+
+export function asCourseLevel(value?: string): (typeof COURSE_LEVELS)[number] | undefined {
+  return (COURSE_LEVELS as readonly string[]).includes(value ?? "")
+    ? (value as (typeof COURSE_LEVELS)[number])
+    : undefined;
+}
+
+export function asProjectTier(value?: string): (typeof PROJECT_TIERS)[number] | undefined {
+  return (PROJECT_TIERS as readonly string[]).includes(value ?? "")
+    ? (value as (typeof PROJECT_TIERS)[number])
+    : undefined;
+}
+
 const getBrowseCourses = unstable_cache(
   async (category?: string, level?: string) => {
     const where: Prisma.CourseWhereInput = {
@@ -126,7 +152,8 @@ const getBrowseCourses = unstable_cache(
       kind: "COURSE",
     };
     if (category) where.category = { slug: category };
-    if (level) where.level = level as never;
+    const validLevel = asCourseLevel(level);
+    if (validLevel) where.level = validLevel;
     return fetchCourseEntries(where);
   },
   ["catalog", "courses", "browse"],
@@ -148,7 +175,8 @@ export async function getCourseCatalog(filters: {
     id: { in: await searchPublishedCourseIds(q) },
   };
   if (category) where.category = { slug: category };
-  if (level) where.level = level as never;
+  const validLevel = asCourseLevel(level);
+    if (validLevel) where.level = validLevel;
   return fetchCourseEntries(where);
 }
 
@@ -184,7 +212,8 @@ const getBrowseProjects = unstable_cache(
       status: "PUBLISHED",
       visibility: "MARKETPLACE",
     };
-    if (tier) where.tier = tier as never;
+    const validTier = asProjectTier(tier);
+    if (validTier) where.tier = validTier;
     if (category) where.category = { slug: category };
     return fetchProjectEntries(where);
   },
@@ -205,7 +234,8 @@ export async function getProjectCatalog(filters: {
     visibility: "MARKETPLACE",
     id: { in: await searchPublishedProjectIds(q) },
   };
-  if (tier) where.tier = tier as never;
+  const validTier = asProjectTier(tier);
+    if (validTier) where.tier = validTier;
   if (category) where.category = { slug: category };
   return fetchProjectEntries(where);
 }
