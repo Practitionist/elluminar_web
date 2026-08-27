@@ -35,6 +35,117 @@ type CatalogEntry = {
   unitMinor: bigint;
 };
 
+/**
+ * Hand-written question banks for courses where a real, demo-quality quiz
+ * matters more than filler. Keyed by course slug; anything not listed falls
+ * back to the generic three-question check below.
+ *
+ * Deliberately no CODE_OUTPUT questions: the type exists in the enum but
+ * `submitQuizAttempt` has no execution path for it, so one would silently
+ * score zero.
+ */
+const RICH_QUIZZES: Record<
+  string,
+  {
+    title: string;
+    instructions: string;
+    passPct: number;
+    timeLimitSec: number;
+    questions: Array<Record<string, unknown>>;
+  }
+> = {
+  "system-design-interview": {
+    title: "Scaling, consistency and failure",
+    instructions:
+      "Nine questions on the trade-offs that actually come up in interviews. 70% to pass, unlimited attempts — retry until it sticks.",
+    passPct: 70,
+    timeLimitSec: 1200,
+    questions: [
+      {
+        type: "SINGLE_CHOICE",
+        prompt: { text: "During a network partition, CAP says a distributed store must give up one of consistency or availability. What does a CP system do when a replica can't reach its quorum?" },
+        options: { choices: ["Serve possibly stale data", "Refuse the request", "Silently queue the write", "Promote itself to leader"] },
+        correct: { index: 1 },
+        points: 2,
+        explanation: "A CP system sacrifices availability: it returns an error rather than answer from a replica it can't confirm is current.",
+        position: 0,
+      },
+      {
+        type: "MULTI_CHOICE",
+        prompt: { text: "Reads on a product page are slow. Which of these genuinely reduce read latency?" },
+        options: { choices: ["A read-through cache in front of the DB", "A covering index for the query", "Raising the connection pool size", "A read replica in the same region as the user"] },
+        correct: { indexes: [0, 1, 3] },
+        points: 3,
+        explanation: "Pool size governs concurrency, not per-query latency — a bigger pool under the same slow query just queues more work.",
+        position: 1,
+      },
+      {
+        type: "TRUE_FALSE",
+        prompt: { text: "With at-least-once delivery, a consumer must be idempotent to be correct." },
+        options: { choices: ["True", "False"] },
+        correct: { index: 0 },
+        points: 1,
+        explanation: "At-least-once means duplicates are expected, so applying the same message twice must be harmless.",
+        position: 2,
+      },
+      {
+        type: "SHORT_TEXT",
+        prompt: { text: "One word: the property that lets a payment webhook be safely retried without double-charging." },
+        options: {},
+        correct: { text: "idempotency" },
+        points: 2,
+        explanation: "Idempotency — usually enforced with a client-supplied key the server deduplicates on.",
+        position: 3,
+      },
+      {
+        type: "SINGLE_CHOICE",
+        prompt: { text: "You shard users by `hash(user_id)`. Which query becomes expensive?" },
+        options: { choices: ["Fetch one user by id", "Update one user's email", "List all users created last week", "Delete one user"] },
+        correct: { index: 2 },
+        points: 2,
+        explanation: "Anything not keyed by the shard key becomes a scatter-gather across every shard.",
+        position: 4,
+      },
+      {
+        type: "TRUE_FALSE",
+        prompt: { text: "Adding a read replica gives you stronger consistency." },
+        options: { choices: ["True", "False"] },
+        correct: { index: 1 },
+        points: 1,
+        explanation: "The opposite: async replication introduces lag, so a replica can serve data the primary has already moved past.",
+        position: 5,
+      },
+      {
+        type: "MULTI_CHOICE",
+        prompt: { text: "A cache key expires and thousands of requests hit the database at once. Which mitigations address this?" },
+        options: { choices: ["Request coalescing / single-flight", "Jittered TTLs", "Increasing the cache size", "Serving stale while revalidating"] },
+        correct: { indexes: [0, 1, 3] },
+        points: 3,
+        explanation: "Cache size doesn't help a thundering herd — the entry is missing, not evicted for space.",
+        position: 6,
+      },
+      {
+        type: "SINGLE_CHOICE",
+        prompt: { text: "Which rate-limiting algorithm smooths bursts while still allowing a saved-up allowance?" },
+        options: { choices: ["Fixed window", "Token bucket", "Hard quota per day", "Random drop"] },
+        correct: { index: 1 },
+        points: 2,
+        explanation: "Token bucket accrues tokens up to a cap, so an idle client can burst, then settles to the refill rate.",
+        position: 7,
+      },
+      {
+        type: "SINGLE_CHOICE",
+        prompt: { text: "Your service calls a third-party API that starts timing out. What stops the failure cascading into your own request threads?" },
+        options: { choices: ["Retrying more aggressively", "A circuit breaker with a timeout", "A larger thread pool", "Logging the error"] },
+        correct: { index: 1 },
+        points: 2,
+        explanation: "A breaker fails fast once the dependency is unhealthy, freeing threads instead of parking them on a dead call. Aggressive retries make it worse.",
+        position: 8,
+      },
+    ],
+  },
+};
+
 export async function seedComplexMockData(db: PrismaClient) {
   if (process.env.NODE_ENV === "production") return;
   console.log("→ Complex mock data enrichment…");
@@ -316,8 +427,19 @@ export async function seedComplexMockData(db: PrismaClient) {
     await db.lesson.createMany({ data: lessons });
 
     const quizLesson = await db.lesson.findFirstOrThrow({ where: { courseId, type: "QUIZ" } });
+    const rich = RICH_QUIZZES[slug];
     await db.quiz.create({
-      data: {
+      data: rich
+        ? {
+            lessonId: quizLesson.id,
+            title: rich.title,
+            instructions: rich.instructions,
+            passPct: rich.passPct,
+            maxAttempts: null,
+            timeLimitSec: rich.timeLimitSec,
+            questions: { create: rich.questions as never },
+          }
+        : {
         lessonId: quizLesson.id,
         title: "Knowledge check",
         // Low-stakes by policy: retrieval practice is what makes quizzes work,
