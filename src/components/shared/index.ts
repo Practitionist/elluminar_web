@@ -12,3 +12,4 @@ export {
   CredentialProofCard,
   type CredentialProofData,
 } from "./credential-proof-card";
+export { AssessmentHeader, type AssessmentKind, type AssessmentFact } from "./assessment-header";

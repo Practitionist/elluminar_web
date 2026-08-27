@@ -43,6 +43,7 @@ export function QuizRunner({
     score: number;
     maxPoints: number;
     passed: boolean;
+    results?: Record<string, boolean>;
   } | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
@@ -83,6 +84,44 @@ export function QuizRunner({
             ? "This lesson is now marked complete."
             : "Review the material and try again."}
         </p>
+
+        {result.results && (
+          <div className="mt-6 space-y-2 text-left">
+            <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              Question review
+            </h2>
+            <ul className="space-y-1.5">
+              {questions.map((q, i) => {
+                const ok = result.results?.[q.id];
+                return (
+                  <li
+                    key={q.id}
+                    className="flex items-start gap-3 rounded-xl border border-border bg-background/60 px-3 py-2 text-sm"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={
+                        ok
+                          ? "font-bold text-success-subtle-foreground"
+                          : "font-bold text-destructive-subtle-foreground"
+                      }
+                    >
+                      {ok ? "\u2713" : "\u2717"}
+                    </span>
+                    <span className="flex-1">
+                      <span className="font-semibold">{i + 1}.</span> {q.prompt}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">
+                      {ok ? q.points : 0}/{q.points}
+                    </span>
+                    <span className="sr-only">{ok ? "Correct" : "Incorrect"}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
         <Button
           render={<Link href={`/learn/courses/${courseId}?lesson=${lessonId}`} />}
           className="mt-5 rounded-full"
