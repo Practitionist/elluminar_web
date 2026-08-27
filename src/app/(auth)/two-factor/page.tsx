@@ -1,79 +1,138 @@
 "use client";
 
+import { KeyRound, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AuthHeader,
+  FormAlert,
+  SubmitButton,
+} from "@/components/auth";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FadeIn } from "@/components/ui/fade-in";
+import { Field, FieldControl, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth/client";
+import { twoFactorCodeSchema } from "@/lib/validation/auth";
 
 export default function TwoFactorPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const [pending, setPending] = useState(false);
   const [useBackup, setUseBackup] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formMessage, setFormMessage] = useState<string>();
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const code = String(new FormData(e.currentTarget).get("code"));
-    setLoading(true);
-    const { error } = useBackup
-      ? await authClient.twoFactor.verifyBackupCode({ code })
-      : await authClient.twoFactor.verifyTotp({ code });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message ?? "Invalid code");
+    const form = new FormData(e.currentTarget);
+    const parsed = twoFactorCodeSchema.safeParse({
+      code: form.get("code"),
+      trustDevice: form.get("trustDevice") === "on",
+    });
+
+    if (!parsed.success) {
+      setErrors({ code: parsed.error.issues[0]?.message ?? "Enter your code" });
       return;
     }
+
+    setErrors({});
+    setFormMessage(undefined);
+    setPending(true);
+    const { error } = useBackup
+      ? await authClient.twoFactor.verifyBackupCode({ code: parsed.data.code })
+      : await authClient.twoFactor.verifyTotp({
+          code: parsed.data.code,
+          trustDevice: parsed.data.trustDevice,
+        });
+    setPending(false);
+
+    if (error) {
+      setFormMessage(
+        error.status === 429
+          ? "Too many attempts. Wait a minute before trying again."
+          : useBackup
+            ? "That backup code isn't valid, or it has already been used."
+            : "That code isn't valid. Codes rotate every 30 seconds — try the current one.",
+      );
+      return;
+    }
+
     router.push("/learn");
     router.refresh();
   }
 
   return (
-    <Card className="rounded-3xl border border-border ring-0 [--card-spacing:--spacing(6)]">
-      <CardHeader>
-        <CardTitle className="font-display text-2xl font-medium tracking-tight">
-          Two-factor authentication
-        </CardTitle>
-        <CardDescription>
-          {useBackup
-            ? "Enter one of your backup codes."
-            : "Enter the 6-digit code from your authenticator app."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="code">{useBackup ? "Backup code" : "Code"}</Label>
-            <Input
-              id="code"
-              name="code"
-              inputMode={useBackup ? "text" : "numeric"}
-              autoComplete="one-time-code"
-              required
-              className="text-center font-mono tracking-[0.3em]"
-            />
-          </div>
-          <Button type="submit" className="w-full rounded-full" disabled={loading}>
-            {loading ? "Verifying…" : "Verify"}
-          </Button>
+    <FadeIn direction="up" duration={0.4}>
+      <div className="space-y-6">
+        <div className="flex size-12 items-center justify-center rounded-full bg-primary-subtle">
+          {useBackup ? (
+            <KeyRound className="size-6 text-primary-subtle-foreground" />
+          ) : (
+            <ShieldCheck className="size-6 text-primary-subtle-foreground" />
+          )}
+        </div>
+
+        <AuthHeader
+          title="Two-factor authentication"
+          description={
+            useBackup
+              ? "Enter one of the backup codes you saved when you turned 2FA on. Each one works once."
+              : "Enter the 6-digit code from your authenticator app."
+          }
+        />
+
+        {formMessage ? <FormAlert>{formMessage}</FormAlert> : null}
+
+        {/* Remounts on toggle so autofill and the inputMode switch cleanly. */}
+        <form
+          key={useBackup ? "backup" : "totp"}
+          onSubmit={onSubmit}
+          className="space-y-4"
+          noValidate
+        >
+          <Field name="code" error={errors.code}>
+            <FieldLabel>{useBackup ? "Backup code" : "Authentication code"}</FieldLabel>
+            <FieldControl>
+              <Input
+                size="lg"
+                inputMode={useBackup ? "text" : "numeric"}
+                autoComplete="one-time-code"
+                autoFocus
+                required
+                maxLength={useBackup ? 24 : 6}
+                className="text-center font-mono tracking-[0.3em]"
+              />
+            </FieldControl>
+          </Field>
+
+          {!useBackup ? (
+            <div className="flex items-start gap-2.5">
+              <Checkbox id="trustDevice" name="trustDevice" className="mt-0.5" />
+              <Label htmlFor="trustDevice" className="text-sm leading-snug font-normal">
+                Trust this device for 60 days
+              </Label>
+            </div>
+          ) : null}
+
+          <SubmitButton pending={pending} pendingLabel="Verifying…">
+            Verify
+          </SubmitButton>
         </form>
+
         <button
           type="button"
-          className="w-full text-center text-sm text-muted-foreground hover:text-primary"
-          onClick={() => setUseBackup((v) => !v)}
+          className="w-full text-center text-sm text-muted-foreground hover:text-primary hover:underline"
+          onClick={() => {
+            setErrors({});
+            setFormMessage(undefined);
+            setUseBackup((v) => !v);
+          }}
         >
-          {useBackup ? "Use authenticator code instead" : "Use a backup code instead"}
+          {useBackup ? "Use an authenticator code instead" : "Use a backup code instead"}
         </button>
-      </CardContent>
-    </Card>
+      </div>
+    </FadeIn>
   );
 }
