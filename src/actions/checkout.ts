@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getOrCreateActiveCart } from "@/actions/cart";
+import { cohortSeatBlocker } from "@/lib/commerce/cohort-seats";
 import { db } from "@/lib/db";
 import { fulfillPaidOrder } from "@/lib/commerce/fulfillment";
 import { resolveCartPricing } from "@/lib/commerce/pricing";
@@ -39,6 +40,33 @@ export const createCheckout = authActionClient
     });
     if (pricing.lines.length === 0) throw new ActionError("Your cart is empty.");
     if (pricing.totalMinor <= 0n) throw new ActionError("Total must be greater than zero.");
+
+    // Cohort seats are finite. Check BEFORE creating the payment order — the
+    // fulfillment path runs after money has moved, so refusing there would
+    // strand a paid learner. (Program seats already gate this way.)
+    for (const line of pricing.lines) {
+      if (line.itemType !== "COHORT_SEAT" || !line.cohortId) continue;
+      const cohort = await db.cohort.findUnique({
+        where: { id: line.cohortId },
+        include: { _count: { select: { enrollments: true } } },
+      });
+      if (!cohort) throw new ActionError("That cohort is no longer available.");
+      const blocked = cohortSeatBlocker({
+        status: cohort.status,
+        capacity: cohort.capacity,
+        taken: cohort._count.enrollments,
+        enrollmentClosesAt: cohort.enrollmentClosesAt,
+      });
+      if (blocked === "not-open") {
+        throw new ActionError(`Enrolment for ${cohort.name} isn't open.`);
+      }
+      if (blocked === "closed") {
+        throw new ActionError(`Enrolment for ${cohort.name} has closed.`);
+      }
+      if (blocked === "full") {
+        throw new ActionError(`${cohort.name} is full (${cohort.capacity} seats).`);
+      }
+    }
 
     const user = await db.user.findUniqueOrThrow({ where: { id: ctx.session.user.id } });
 

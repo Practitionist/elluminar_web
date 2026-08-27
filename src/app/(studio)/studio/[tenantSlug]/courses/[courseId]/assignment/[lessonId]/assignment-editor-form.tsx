@@ -99,8 +99,16 @@ export function AssignmentEditorForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="MANUAL">Instructor-graded</SelectItem>
-                <SelectItem value="PEER">Peer-reviewed</SelectItem>
-                <SelectItem value="AUTO">Auto-graded</SelectItem>
+                {/* Neither has grading logic yet: PeerReviewTask has no writer and
+                    there is no auto-grader, so choosing either stranded every
+                    submission at SUBMITTED forever. Kept visible (so existing
+                    rows still render) but unselectable until the logic lands. */}
+                <SelectItem value="PEER" disabled>
+                  Peer-reviewed (not available yet)
+                </SelectItem>
+                <SelectItem value="AUTO" disabled>
+                  Auto-graded (not available yet)
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>

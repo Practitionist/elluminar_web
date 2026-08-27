@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { canGrade } from "@/lib/auth/roles";
 import { issueCourseCredentialIfEarned } from "@/lib/credentials/issue";
+import { isAttemptExpired } from "@/lib/learning/attempt";
 import { drawQuizQuestions } from "@/lib/learning/quiz";
 import { evaluateDeadline } from "@/lib/learning/deadline";
 import { requireActiveEnrollment } from "@/lib/learning/enrollment";
@@ -187,6 +188,12 @@ export const submitQuizAttempt = authActionClient
       throw new ActionError("Attempt not found.");
     }
     if (attempt.submittedAt) throw new ActionError("Already submitted.");
+    // The countdown in quiz-runner.tsx is a convenience, not a control: without
+    // this check the action can be called directly long after time expired.
+    // Small grace window absorbs clock skew and in-flight submits.
+    if (isAttemptExpired(attempt.dueAt)) {
+      throw new ActionError("Time is up for this attempt.");
+    }
 
     const drawn = drawQuizQuestions(attempt.quiz.questions, attempt.seed, attempt.quiz.drawCount);
     let score = 0;

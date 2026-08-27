@@ -460,6 +460,14 @@ export const upsertAssignment = editorClient
   .inputSchema(upsertAssignmentSchema)
   .action(async ({ parsedInput, ctx }) => {
     await assertCourseInTenant(parsedInput.courseId, ctx.tenant.id);
+    // PEER and AUTO have no grading implementation — a submission under either
+    // sits SUBMITTED forever with nothing to move it. The select is disabled in
+    // the UI too; this is the check that actually holds.
+    if (parsedInput.gradingType !== "MANUAL") {
+      throw new ActionError(
+        "Only instructor grading is available today. Peer and automatic grading aren't implemented yet.",
+      );
+    }
     const instructions = {
       type: "doc",
       content: parsedInput.instructions
