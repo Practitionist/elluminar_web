@@ -15,6 +15,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "src/generated/**",
     ".netlify/**",
+    // Nested agent worktrees — full checkouts of this repo, already linted on
+    // their own branches. Without this, a bare `pnpm lint` at the root walks
+    // into them and reports thousands of phantom errors.
+    ".claude/**",
     // Designer reference drop — not app code.
     "LMS and project completion design/**",
   ]),
