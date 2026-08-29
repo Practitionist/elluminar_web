@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { Pill } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { issuerLine } from "@/lib/credentials/issuer-line";
+import { coBrandPartnerFrom, issuerLine } from "@/lib/credentials/issuer-line";
 import { BRAND } from "@/lib/brand";
 import { db } from "@/lib/db";
 
@@ -85,8 +85,7 @@ export default async function VerifyCodePage({
   }
 
   const revoked = Boolean(credential.revokedAt);
-  const coBrandPartner = (credential.metadata as { coBrandPartner?: string } | null)
-    ?.coBrandPartner;
+  const coBrandPartner = coBrandPartnerFrom(credential.metadata);
   const issuer =
     credential.course?.tenant.displayName ??
     credential.projectInstance?.project.tenant.displayName ??
