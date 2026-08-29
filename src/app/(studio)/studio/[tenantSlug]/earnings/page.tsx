@@ -1,6 +1,6 @@
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Pill } from "@/components/shared";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 
@@ -20,7 +20,7 @@ export default async function EarningsPage({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug, ["owner", "admin"]);
+  const { tenant } = await requireStudioTenant(tenantSlug, ["owner", "admin"]);
 
   const account = await db.ledgerAccount.findFirst({
     where: { ownerType: "TENANT", tenantId: tenant.id, currency: "INR" },

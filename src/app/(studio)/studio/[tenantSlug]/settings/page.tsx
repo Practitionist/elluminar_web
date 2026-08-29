@@ -1,4 +1,4 @@
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { tiptapToPlainText } from "@/lib/richtext";
 
 import { TenantSettingsForm } from "./tenant-settings-form";
@@ -11,7 +11,7 @@ export default async function TenantSettingsPage({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug, ["owner", "admin"]);
+  const { tenant } = await requireStudioTenant(tenantSlug, ["owner", "admin"]);
 
   const socials = (tenant.socials ?? {}) as Record<string, string>;
 

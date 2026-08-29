@@ -8,11 +8,8 @@ import {
   SectionHeading,
 } from "@/components/shared";
 import { Input } from "@/components/ui/input";
-import { searchPublishedCourseIds } from "@/lib/catalog";
-import { db } from "@/lib/db";
-import { toCourseCardData } from "@/lib/ui/catalog-card";
+import { getCatalogCategories, getCourseCatalog } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
-import type { Prisma } from "@/generated/prisma/client";
 
 export const metadata = { title: "Browse courses" };
 
@@ -24,32 +21,9 @@ export default async function CoursesCatalogPage({
   const { q, category, level } = await searchParams;
   const filtered = Boolean(q || category || level);
 
-  const where: Prisma.CourseWhereInput = {
-    status: "PUBLISHED",
-    visibility: "MARKETPLACE",
-    kind: "COURSE",
-  };
-  if (category) where.category = { slug: category };
-  if (level) where.level = level as never;
-  if (q) {
-    const ids = await searchPublishedCourseIds(q);
-    where.id = { in: ids };
-  }
-
   const [courses, categories] = await Promise.all([
-    db.course.findMany({
-      where,
-      orderBy: [{ enrollmentCount: "desc" }, { publishedAt: "desc" }],
-      take: 48,
-      include: {
-        tenant: { select: { slug: true, displayName: true } },
-        category: { select: { slug: true, name: true } },
-        prices: {
-          where: { active: true, currency: "INR", region: null, cohortId: null },
-        },
-      },
-    }),
-    db.category.findMany({ orderBy: { sort: "asc" } }),
+    getCourseCatalog({ q, category, level }),
+    getCatalogCategories(),
   ]);
 
   // Netflix-style browse: category rows when exploring everything; a plain
@@ -105,15 +79,15 @@ export default async function CoursesCatalogPage({
       ) : filtered ? (
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {courses.map((course) => (
-            <CourseCard key={course.id} course={toCourseCardData(course)} />
+            <CourseCard key={course.card.href} course={course.card} />
           ))}
         </div>
       ) : (
         <div className="mt-10 space-y-10">
           <CarouselRow title="Popular right now">
             {courses.slice(0, 12).map((course) => (
-              <CarouselItem key={course.id}>
-                <CourseCard course={toCourseCardData(course)} />
+              <CarouselItem key={course.card.href}>
+                <CourseCard course={course.card} />
               </CarouselItem>
             ))}
           </CarouselRow>
@@ -124,8 +98,8 @@ export default async function CoursesCatalogPage({
               href={`/courses?category=${g.category.slug}`}
             >
               {g.courses.map((course) => (
-                <CarouselItem key={course.id}>
-                  <CourseCard course={toCourseCardData(course)} />
+                <CarouselItem key={course.card.href}>
+                  <CourseCard course={course.card} />
                 </CarouselItem>
               ))}
             </CarouselRow>

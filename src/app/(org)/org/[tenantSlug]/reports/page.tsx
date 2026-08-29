@@ -1,6 +1,6 @@
 import { Pill, type PillTone } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireOrgTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getSignedReadUrl, isStorageConfigured } from "@/lib/storage";
 
@@ -28,7 +28,7 @@ export default async function OrgReportsPage({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug, ["owner", "admin"]);
+  const { tenant } = await requireOrgTenant(tenantSlug, ["owner", "admin"]);
 
   const [cohorts, exports] = await Promise.all([
     db.programCohort.findMany({

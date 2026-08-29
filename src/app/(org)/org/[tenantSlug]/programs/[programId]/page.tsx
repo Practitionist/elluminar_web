@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Pill, type PillTone } from "@/components/shared";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireOrgTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { tiptapToPlainText } from "@/lib/richtext";
 
@@ -25,7 +25,7 @@ export default async function ProgramBuilderPage({
   params: Promise<{ tenantSlug: string; programId: string }>;
 }) {
   const { tenantSlug, programId } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug, ["owner", "admin"]);
+  const { tenant } = await requireOrgTenant(tenantSlug, ["owner", "admin"]);
 
   const program = await db.program.findUnique({
     where: { id: programId },

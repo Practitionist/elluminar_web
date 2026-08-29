@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { tiptapToPlainText } from "@/lib/richtext";
 
@@ -15,7 +15,7 @@ export default async function AssignmentEditorPage({
   params: Promise<{ tenantSlug: string; courseId: string; lessonId: string }>;
 }) {
   const { tenantSlug, courseId, lessonId } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug, ["owner", "admin", "instructor"]);
+  const { tenant } = await requireStudioTenant(tenantSlug, ["owner", "admin", "instructor"]);
 
   const lesson = await db.lesson.findUnique({
     where: { id: lessonId },

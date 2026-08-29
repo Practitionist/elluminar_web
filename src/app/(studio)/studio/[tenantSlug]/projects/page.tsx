@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 
@@ -30,7 +30,7 @@ export default async function StudioProjectsPage({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug);
+  const { tenant } = await requireStudioTenant(tenantSlug);
 
   const projects = await db.project.findMany({
     where: { tenantId: tenant.id },

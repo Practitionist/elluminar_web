@@ -1,10 +1,10 @@
 import Link from "next/link";
 
 import { SiteFooter } from "@/components/marketing";
+import { HeaderAuth } from "@/components/marketing/header-auth";
 import { MobileNav } from "@/components/marketing/mobile-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { getSession } from "@/lib/auth/session";
 import { BRAND } from "@/lib/brand";
 
 const NAV = [
@@ -15,19 +15,24 @@ const NAV = [
   { href: "/onboarding", label: "Teach" },
 ];
 
-export default async function MarketingLayout({
+/**
+ * This layout deliberately performs NO request-scoped reads (`headers()`,
+ * `cookies()`, `searchParams`). It used to `await getSession()` purely to swap
+ * one header button, which pinned every page under `(marketing)` to dynamic
+ * rendering — see `HeaderAuth` for the measurements. Keep it that way: adding a
+ * session or cookie read here silently un-caches the entire public site.
+ */
+export default function MarketingLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getSession();
-
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
           <div className="flex items-center gap-2 md:gap-6">
-            <MobileNav items={NAV} signedIn={Boolean(session)} />
+            <MobileNav items={NAV} />
             <Link
               href="/"
               className="text-gradient text-lg font-extrabold tracking-tight"
@@ -60,33 +65,7 @@ export default async function MarketingLayout({
             >
               Cart
             </Button>
-            {session ? (
-              <Button
-                render={<Link href="/learn" />}
-                size="sm"
-                className="rounded-full px-4 shadow-md transition-all hover:shadow-lg"
-              >
-                Dashboard
-              </Button>
-            ) : (
-              <>
-                <Button
-                  render={<Link href="/sign-in" />}
-                  variant="ghost"
-                  size="sm"
-                  className="rounded-full"
-                >
-                  Sign in
-                </Button>
-                <Button
-                  render={<Link href="/sign-up" />}
-                  size="sm"
-                  className="rounded-full px-4 shadow-md transition-all hover:shadow-lg"
-                >
-                  Get started
-                </Button>
-              </>
-            )}
+            <HeaderAuth />
           </div>
         </div>
       </header>

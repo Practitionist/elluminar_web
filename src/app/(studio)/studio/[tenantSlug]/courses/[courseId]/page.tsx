@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { Pill, type PillTone } from "@/components/shared";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 import { CohortsPanel } from "./cohorts-panel";
@@ -26,7 +26,7 @@ export default async function CourseEditorPage({
   params: Promise<{ tenantSlug: string; courseId: string }>;
 }) {
   const { tenantSlug, courseId } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug, [
+  const { tenant } = await requireStudioTenant(tenantSlug, [
     "owner",
     "admin",
     "instructor",

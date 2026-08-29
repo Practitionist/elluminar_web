@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { Pill, type PillTone } from "@/components/shared";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 import { ScheduleSessionDialog } from "./schedule-session-dialog";
@@ -22,7 +22,7 @@ export default async function StudioCohortsPage({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug);
+  const { tenant } = await requireStudioTenant(tenantSlug);
 
   const cohorts = await db.cohort.findMany({
     where: { course: { tenantId: tenant.id } },

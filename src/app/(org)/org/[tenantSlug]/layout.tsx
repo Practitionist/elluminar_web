@@ -1,9 +1,7 @@
-import { redirect } from "next/navigation";
-
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import type { NavItem, NavSection } from "@/components/dashboard/types";
 import { Pill } from "@/components/shared";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireOrgTenant } from "@/lib/auth/session";
 import { tenantLabels } from "@/lib/enterprise/labels";
 import { getAccessibleSurfaces, toShellUser } from "@/lib/nav/surfaces";
 
@@ -15,11 +13,11 @@ export default async function OrgPortalLayout({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { session, tenant, membership } = await requireTenantMember(tenantSlug);
+  // requireOrgTenant enforces ENTERPRISE/UNIVERSITY (and honours the platform
+  // admin / preview-deploy overrides), so the layout no longer re-checks the
+  // type itself — one guard, one place, same rule as every /org page.
+  const { session, tenant, membership } = await requireOrgTenant(tenantSlug);
 
-  if (tenant.type !== "ENTERPRISE" && tenant.type !== "UNIVERSITY") {
-    redirect(`/studio/${tenantSlug}`);
-  }
   const labels = tenantLabels(tenant.type);
   const isOrgAdmin =
     !membership ||

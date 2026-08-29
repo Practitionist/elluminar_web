@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { validateUnlockEdge } from "@/lib/enterprise/unlock";
 import { plainTextToTiptap } from "@/lib/richtext";
-import { ActionError, tenantActionClient } from "@/lib/safe-action";
+import { ActionError, orgActionClient } from "@/lib/safe-action";
 import {
   bulkEnrollSchema,
   programItemSchema,
@@ -16,7 +16,7 @@ import {
 } from "@/lib/validation/enterprise";
 import { slugSchema } from "@/lib/validation/tenant";
 
-const orgAdminClient = tenantActionClient(["owner", "admin"]);
+const orgAdminClient = orgActionClient(["owner", "admin"]);
 
 async function assertProgramInTenant(programId: string, tenantId: string) {
   const program = await db.program.findUnique({ where: { id: programId } });

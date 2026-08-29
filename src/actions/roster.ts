@@ -11,14 +11,14 @@ import {
   parseRosterCsv,
   revokeSeatCore,
 } from "@/lib/enterprise/roster";
-import { ActionError, tenantActionClient } from "@/lib/safe-action";
+import { ActionError, orgActionClient } from "@/lib/safe-action";
 import {
   importRosterSchema,
   seatActionSchema,
   transferSeatSchema,
 } from "@/lib/validation/enterprise";
 
-const orgAdminClient = tenantActionClient(["owner", "admin"]);
+const orgAdminClient = orgActionClient(["owner", "admin"]);
 
 async function assertLicenseInTenant(licenseId: string, tenantId: string) {
   const license = await db.orgLicense.findUnique({ where: { id: licenseId } });
