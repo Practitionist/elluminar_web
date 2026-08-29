@@ -1,5 +1,5 @@
 import { Pill } from "@/components/shared";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 import { TenantCouponCreate } from "./tenant-coupon-create";
@@ -12,7 +12,7 @@ export default async function StudioCouponsPage({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug, ["owner", "admin"]);
+  const { tenant } = await requireStudioTenant(tenantSlug, ["owner", "admin"]);
 
   const coupons = await db.coupon.findMany({
     where: { tenantId: tenant.id },

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/lib/db";
-import { ActionError, tenantActionClient } from "@/lib/safe-action";
+import { ActionError, studioActionClient } from "@/lib/safe-action";
 import {
   attachLessonResourcesSchema,
   removeLessonResourceSchema,
@@ -20,7 +20,7 @@ import {
   STORAGE_BUCKETS,
 } from "@/lib/storage";
 
-const editorClient = tenantActionClient(["owner", "admin", "instructor"]);
+const editorClient = studioActionClient(["owner", "admin", "instructor"]);
 
 async function assertCourseInTenant(courseId: string, tenantId: string) {
   const course = await db.course.findUnique({ where: { id: courseId } });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canGrade, hasOrgRole, parseOrgRoles } from "@/lib/auth/roles";
+import { canGrade, hasOrgRole, isPlatformAdmin, parseOrgRoles } from "@/lib/auth/roles";
 
 /**
  * Regression cover for the grading authorization hole: `gradeAssignmentSubmission`
@@ -58,5 +58,26 @@ describe("canGrade", () => {
 
   it("does not let a plain member borrow authority from another org role name", () => {
     expect(canGrade({ membershipRole: "member", isPlatformAdmin: false })).toBe(false);
+  });
+});
+
+describe("isPlatformAdmin", () => {
+  it("is true only for the exact admin role", () => {
+    expect(isPlatformAdmin("admin")).toBe(true);
+  });
+
+  it("treats a missing role as the default 'user'", () => {
+    // Two call sites previously omitted the `?? "user"` default. Equivalent in
+    // practice, but the point of one predicate is that they cannot diverge.
+    expect(isPlatformAdmin(undefined)).toBe(false);
+    expect(isPlatformAdmin(null)).toBe(false);
+    expect(isPlatformAdmin("")).toBe(false);
+  });
+
+  it("does not match near-misses", () => {
+    expect(isPlatformAdmin("Admin")).toBe(false);
+    expect(isPlatformAdmin("administrator")).toBe(false);
+    expect(isPlatformAdmin("user")).toBe(false);
+    expect(isPlatformAdmin("owner")).toBe(false);
   });
 });

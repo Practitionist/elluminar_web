@@ -1,4 +1,4 @@
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 import { NewCourseForm } from "./new-course-form";
@@ -11,7 +11,7 @@ export default async function NewCoursePage({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  await requireTenantMember(tenantSlug, ["owner", "admin", "instructor"]);
+  await requireStudioTenant(tenantSlug, ["owner", "admin", "instructor"]);
   const categories = await db.category.findMany({ orderBy: { sort: "asc" } });
 
   return (

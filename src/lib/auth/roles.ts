@@ -36,6 +36,19 @@ export function hasOrgRole(role: string | null | undefined, allowed: readonly Or
  * university learners are provisioned as org members (seat claim on sign-in,
  * SSO JIT membership) and would otherwise be able to grade their peers.
  */
+/**
+ * Platform-staff check (`User.role` from BetterAuth's admin plugin).
+ *
+ * This literal was repeated at six call sites, two of which omitted the
+ * `?? "user"` default. Equivalent today — `undefined === "admin"` is false —
+ * but the whole point of the tenant-type work is that route enforcement and
+ * nav filtering must never be able to disagree, and two spellings of the same
+ * predicate is how that drift starts.
+ */
+export function isPlatformAdmin(role: string | null | undefined): boolean {
+  return (role ?? "user") === "admin";
+}
+
 export function canGrade(input: {
   membershipRole: string | null | undefined;
   isPlatformAdmin: boolean;

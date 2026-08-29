@@ -5,10 +5,10 @@ import { after } from "next/server";
 
 import { db } from "@/lib/db";
 import { generateReport } from "@/lib/enterprise/reports";
-import { tenantActionClient } from "@/lib/safe-action";
+import { orgActionClient } from "@/lib/safe-action";
 import { requestReportSchema } from "@/lib/validation/enterprise";
 
-export const requestReport = tenantActionClient(["owner", "admin"])
+export const requestReport = orgActionClient(["owner", "admin"])
   .inputSchema(requestReportSchema)
   .action(async ({ parsedInput, ctx }) => {
     const report = await db.reportExport.create({

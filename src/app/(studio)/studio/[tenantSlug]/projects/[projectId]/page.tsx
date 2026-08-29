@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { Pill, type PillTone } from "@/components/shared";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { tiptapToPlainText } from "@/lib/richtext";
 
@@ -23,7 +23,7 @@ export default async function ProjectEditorPage({
   params: Promise<{ tenantSlug: string; projectId: string }>;
 }) {
   const { tenantSlug, projectId } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug, ["owner", "admin", "instructor"]);
+  const { tenant } = await requireStudioTenant(tenantSlug, ["owner", "admin", "instructor"]);
 
   const project = await db.project.findUnique({
     where: { id: projectId },

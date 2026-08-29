@@ -1,3 +1,4 @@
+import { isPlatformAdmin as isAdminRole } from "@/lib/auth/roles";
 import "server-only";
 
 import { cache } from "react";
@@ -18,7 +19,7 @@ export const getAccessibleSurfaces = cache(
     const userId = session.user.id;
     // On preview deploys every surface is listed, so the whole product can be
     // reviewed from one login. Production lists only what the user really has.
-    const isAdmin = (session.user.role ?? "user") === "admin" || showAllSurfaces();
+    const isAdmin = isAdminRole(session.user.role) || showAllSurfaces();
 
     const surfaces: Surface[] = [
       { href: "/learn", label: "Learning", icon: "home" },

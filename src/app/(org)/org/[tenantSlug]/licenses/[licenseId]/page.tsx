@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Pill, type PillTone } from "@/components/shared";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireOrgTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { poolBalanceMinor } from "@/lib/enterprise/credit-math";
 import { formatMoney } from "@/lib/money";
@@ -23,7 +23,7 @@ export default async function LicenseDetailPage({
   params: Promise<{ tenantSlug: string; licenseId: string }>;
 }) {
   const { tenantSlug, licenseId } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug, ["owner", "admin"]);
+  const { tenant } = await requireOrgTenant(tenantSlug, ["owner", "admin"]);
 
   const license = await db.orgLicense.findUnique({
     where: { id: licenseId },

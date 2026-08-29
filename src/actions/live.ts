@@ -6,10 +6,10 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { isFermionConfigured } from "@/lib/fermion/client";
 import { provisionFermionLiveSession } from "@/lib/fermion/live";
-import { ActionError, tenantActionClient } from "@/lib/safe-action";
+import { ActionError, studioActionClient } from "@/lib/safe-action";
 import { slugSchema } from "@/lib/validation/tenant";
 
-export const scheduleLiveSession = tenantActionClient(["owner", "admin", "instructor"])
+export const scheduleLiveSession = studioActionClient(["owner", "admin", "instructor"])
   .inputSchema(
     z.object({
       tenantSlug: slugSchema,

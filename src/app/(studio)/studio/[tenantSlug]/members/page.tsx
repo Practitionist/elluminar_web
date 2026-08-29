@@ -1,5 +1,5 @@
 import { Pill, type PillTone } from "@/components/shared";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 import { InviteMemberForm } from "./invite-member-form";
@@ -19,7 +19,7 @@ export default async function StudioMembersPage({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug);
+  const { tenant } = await requireStudioTenant(tenantSlug);
 
   const [members, invitations] = await Promise.all([
     db.member.findMany({

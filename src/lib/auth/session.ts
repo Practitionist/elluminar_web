@@ -4,9 +4,16 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
+import type { TenantType } from "@/generated/prisma/enums";
 import { auth } from "@/lib/auth";
 import type { PlatformRole } from "@/lib/auth/permissions";
-import { hasOrgRole, type OrgRole } from "@/lib/auth/roles";
+import { hasOrgRole, type OrgRole , isPlatformAdmin as isAdminRole } from "@/lib/auth/roles";
+import {
+  canAccessTenantType,
+  ORG_TENANT_TYPES,
+  STUDIO_TENANT_TYPES,
+  tenantHomePath,
+} from "@/lib/auth/tenant-access";
 import { showAllSurfaces } from "@/lib/deploy-context";
 import { db } from "@/lib/db";
 
@@ -73,12 +80,20 @@ export async function requirePlatformRole(...roles: PlatformRole[]) {
 export const requirePlatformAdmin = () => requirePlatformRole("admin");
 
 /**
- * Tenant membership gate: resolves the tenant by slug and asserts the current
- * user is a member of its organization (optionally with one of the given roles).
+ * Tenant gate: resolves the tenant by slug and asserts the current user is a
+ * member of its organization — optionally with one of `allowedRoles`, and
+ * optionally on a tenant of one of `allowedTypes`.
+ *
+ * `allowedTypes` is what keeps surfaces apart: membership and org role are
+ * identical across tenant types, so without it a UNIVERSITY owner can open the
+ * creator studio and author marketplace courses. Prefer the
+ * `requireStudioTenant` / `requireOrgTenant` wrappers below so a new page
+ * cannot forget the constraint.
  */
 export async function requireTenantMember(
   tenantSlug: string,
   allowedRoles?: readonly OrgRole[],
+  allowedTypes?: readonly TenantType[],
 ) {
   const session = await requireUser();
   const tenant = await db.tenant.findUnique({
@@ -94,18 +109,44 @@ export async function requireTenantMember(
       },
     },
   });
+  const isPlatformAdmin = isAdminRole(session.user.role);
   // Preview deploys open every dashboard; production stays strict.
-  const isPlatformAdmin = (session.user.role ?? "user") === "admin" || showAllSurfaces();
-  if (!membership && !isPlatformAdmin) redirect("/studio");
+  const previewMode = showAllSurfaces();
+  const bypass = isPlatformAdmin || previewMode;
+  if (!membership && !bypass) redirect("/studio");
+  // Membership is checked first on purpose: a non-member must bounce to their
+  // own surface, never into this tenant's portal.
+  if (
+    !canAccessTenantType({
+      tenantType: tenant.type,
+      allowedTypes,
+      isPlatformAdmin,
+      previewMode,
+    })
+  ) {
+    redirect(tenantHomePath(tenantSlug, tenant.type));
+  }
   if (
     membership &&
     allowedRoles &&
     !hasOrgRole(membership.role, allowedRoles) &&
-    !isPlatformAdmin
+    !bypass
   ) {
-    redirect(`/studio/${tenantSlug}`);
+    // Back to the tenant's own home rather than a hardcoded /studio, which
+    // would bounce an under-privileged org member through a denied surface.
+    redirect(tenantHomePath(tenantSlug, tenant.type));
   }
   return { session, tenant, membership };
+}
+
+/** Creator-studio gate (`/studio/**`) — CREATOR tenants only. */
+export function requireStudioTenant(tenantSlug: string, allowedRoles?: readonly OrgRole[]) {
+  return requireTenantMember(tenantSlug, allowedRoles, STUDIO_TENANT_TYPES);
+}
+
+/** Org-portal gate (`/org/**`) — ENTERPRISE/UNIVERSITY tenants only. */
+export function requireOrgTenant(tenantSlug: string, allowedRoles?: readonly OrgRole[]) {
+  return requireTenantMember(tenantSlug, allowedRoles, ORG_TENANT_TYPES);
 }
 
 /** Fine-grained org permission check via BetterAuth's access control. */

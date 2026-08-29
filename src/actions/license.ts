@@ -5,14 +5,14 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { writeLedgerEntry } from "@/lib/commerce/fulfillment";
-import { ActionError, adminActionClient, tenantActionClient } from "@/lib/safe-action";
+import { ActionError, adminActionClient, orgActionClient } from "@/lib/safe-action";
 import {
   createLicenseSchema,
   licenseIdInput,
   recordLicensePaymentSchema,
 } from "@/lib/validation/enterprise";
 
-const orgAdminClient = tenantActionClient(["owner", "admin"]);
+const orgAdminClient = orgActionClient(["owner", "admin"]);
 const paise = (rupees: number) => BigInt(Math.round(rupees * 100));
 
 /**

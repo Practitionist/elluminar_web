@@ -3,7 +3,7 @@ import Link from "next/link";
 import { StatCard } from "@/components/dashboard/stat-card";
 import type { PillTone } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { requireTenantMember } from "@/lib/auth/session";
+import { requireStudioTenant } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 export default async function StudioOverviewPage({
@@ -12,7 +12,7 @@ export default async function StudioOverviewPage({
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { tenant } = await requireTenantMember(tenantSlug);
+  const { tenant } = await requireStudioTenant(tenantSlug);
 
   const [courseCount, projectCount, publishedCourses, enrollments] =
     await Promise.all([
