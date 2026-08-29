@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { Pill } from "@/components/shared";
 import { Button } from "@/components/ui/button";
+import { coBrandPartnerFrom, issuerLine } from "@/lib/credentials/issuer-line";
 import { BRAND } from "@/lib/brand";
 import { db } from "@/lib/db";
 
@@ -84,14 +85,13 @@ export default async function VerifyCodePage({
   }
 
   const revoked = Boolean(credential.revokedAt);
-  const coBrandPartner = (credential.metadata as { coBrandPartner?: string } | null)
-    ?.coBrandPartner;
+  const coBrandPartner = coBrandPartnerFrom(credential.metadata);
   const issuer =
     credential.course?.tenant.displayName ??
     credential.projectInstance?.project.tenant.displayName ??
     credential.programEnrollment?.programCohort.program.ownerTenant.displayName ??
     BRAND.name;
-  const issuerLine = coBrandPartner ? `${issuer} × ${coBrandPartner}` : issuer;
+  const issuerText = issuerLine(issuer, coBrandPartner);
 
   const kindLabel =
     credential.kind === "PROJECT"
@@ -184,7 +184,7 @@ export default async function VerifyCodePage({
           {finalReview?.overallScore != null ? (
             <Pill tone="success">{finalReview.overallScore.toFixed(1)} / 10</Pill>
           ) : null}
-          <Pill tone="neutral">Issued by {issuerLine}</Pill>
+          <Pill tone="neutral">Issued by {issuerText}</Pill>
           <Pill tone="neutral">{issuedLong}</Pill>
         </div>
 
