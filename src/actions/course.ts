@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/lib/db";
+import { videoAssetIdForLessonType } from "@/lib/learning/lesson-fields";
 import { ActionError, adminActionClient, tenantActionClient } from "@/lib/safe-action";
 import {
   courseIdInput,
@@ -28,6 +29,21 @@ async function assertCourseInTenant(courseId: string, tenantId: string) {
   const course = await db.course.findUnique({ where: { id: courseId } });
   if (!course || course.tenantId !== tenantId) throw new ActionError("Course not found.");
   return course;
+}
+
+/**
+ * An editor in two tenants must not bridge tenant A's video into a tenant B
+ * lesson — the asset has to belong to this course's tenant (same check as
+ * `attachLessonResources` in `src/actions/resources.ts`). Missing and
+ * someone-else's share one message so the error can't be used to probe ids.
+ */
+async function assertVideoAssetInTenant(videoAssetId: string, tenantId: string) {
+  const asset = await db.videoAsset.findUnique({
+    where: { id: videoAssetId },
+    select: { id: true, tenantId: true },
+  });
+  if (!asset || asset.tenantId !== tenantId) throw new ActionError("Video not found.");
+  return asset;
 }
 
 const paise = (rupees: number) => BigInt(Math.round(rupees * 100));
@@ -115,8 +131,12 @@ export const upsertLesson = editorClient
   .action(async ({ parsedInput, ctx }) => {
     await assertCourseInTenant(parsedInput.courseId, ctx.tenant.id);
 
-    // Dev/testing escape hatch: an external video URL creates an EXTERNAL VideoAsset.
+    // The studio form has no videoAssetId field, so any id arriving here was
+    // hand-crafted: the caller named an asset, they have to prove they own it.
     let videoAssetId = parsedInput.videoAssetId ?? undefined;
+    if (videoAssetId) await assertVideoAssetInTenant(videoAssetId, ctx.tenant.id);
+
+    // Dev/testing escape hatch: an external video URL creates an EXTERNAL VideoAsset.
     if (!videoAssetId && parsedInput.type === "VIDEO" && parsedInput.externalVideoUrl) {
       const asset = await db.videoAsset.create({
         data: {
@@ -139,7 +159,7 @@ export const upsertLesson = editorClient
       releaseAfterDays: parsedInput.releaseAfterDays ?? null,
       durationSec: parsedInput.durationSec ?? null,
       content: parsedInput.content ?? undefined,
-      videoAssetId: videoAssetId ?? null,
+      videoAssetId: videoAssetIdForLessonType(parsedInput.type, videoAssetId),
       labConfig: parsedInput.labConfig ?? undefined,
     };
 
